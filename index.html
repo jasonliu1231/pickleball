@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>我的匹克球社團</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+    <div class="wrap">
+        <header id="siteHeader" data-open="false">
+            <div class="topbar">
+                <div class="brand">
+                    <div class="logo" aria-hidden="true"></div>
+                    <b>我的匹克球社團</b>
+                </div>
+
+                <nav class="navDesktop" aria-label="主選單">
+                    <a href="./index.html">首頁</a>
+                    <a href="./knowledge.html">小知識</a>
+                    <a href="./meetup.html">聚會資訊</a>
+                </nav>
+
+                <button class="hamburger" id="hamburger" aria-label="開啟選單" aria-controls="navMobile"
+                    aria-expanded="false">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+
+            <nav class="navMobile" id="navMobile" aria-label="行動裝置選單">
+                <a href="./index.html">首頁 <span>›</span></a>
+                <a href="./knowledge.html">小知識 <span>›</span></a>
+                <a href="./meetup.html">聚會資訊 <span>›</span></a>
+            </nav>
+        </header>
+
+        <main class="card">
+            <div class="heroTitle">
+                <span class="badge">🎾 匹克球聚會 / 新手友善</span>
+                <h1>一起打匹克球，固定聚會</h1>
+                <p>想找同好一起運動、學規則、練球與交流。最新公告以 LINE 群為準。</p>
+                <div class="cta">
+                    <a id="joinTop" class="btn primary" href="LINE_INVITE_URL" target="_blank" rel="noopener">加入 LINE
+                        群</a>
+                    <a class="btn" href="#about">關於我們</a>
+                </div>
+            </div>
+
+            <div class="carouselWrap">
+                <div class="carousel" aria-label="社團照片輪播">
+                    <div class="slides" id="slides"></div>
+                    <div class="ctrl">
+                        <div class="arrow" id="prev" aria-label="上一張">‹</div>
+                        <div class="arrow" id="next" aria-label="下一張">›</div>
+                    </div>
+                </div>
+                <div class="dots" id="dots" aria-label="輪播指示點"></div>
+            </div>
+
+            <!-- Announcements -->
+            <h2 class="sectionTitle">公告</h2>
+            <div class="annBox" aria-label="公告區塊">
+                <div class="annBoxHead">
+                    <b>最新公告</b>
+                    <span class="annHint">點標題展開內容</span>
+                </div>
+                <div id="annList" class="annList"></div>
+            </div>
+
+            <section class="sectionGrid" id="about">
+                <div class="subcard">
+                    <h2>關於我們</h2>
+                    <p>（範例文案）我們是以「固定聚會 + 新手入門」為主的匹克球社團。歡迎第一次接觸的人一起來玩，也歡迎有經驗的同好一起交流。</p>
+                    <p>加入 LINE 後可看到最新場次、臨時更動與集合資訊。</p>
+                </div>
+                <div class="subcard">
+                    <h2>快速資訊</h2>
+                    <div class="pill"><b>適合</b><span style="color:var(--muted)">新手 / 想運動交朋友 / 想固定打球</span></div>
+                    <div class="pill" style="margin-top:10px;"><b>活動形式</b><span
+                            style="color:var(--muted)">輪轉上場、簡單分組、可教學</span></div>
+                    <div class="pill" style="margin-top:10px;"><b>公告方式</b><span style="color:var(--muted)">以 LINE
+                            群為準</span></div>
+                </div>
+            </section>
+        </main>
+
+        <footer>© <span id="year"></span> 我的匹克球社團</footer>
+    </div>
+
+    <script>
+        // =========================
+        // Header hamburger logic
+        // =========================
+        const headerEl = document.getElementById("siteHeader");
+        const hamburgerEl = document.getElementById("hamburger");
+        const navMobileEl = document.getElementById("navMobile");
+
+        function setMenuOpen(open) {
+            headerEl.dataset.open = open ? "true" : "false";
+            hamburgerEl.setAttribute("aria-expanded", open ? "true" : "false");
+        }
+
+        hamburgerEl.addEventListener("click", () => {
+            const isOpen = headerEl.dataset.open === "true";
+            setMenuOpen(!isOpen);
+        });
+
+        navMobileEl.addEventListener("click", (e) => {
+            const a = e.target.closest("a");
+            if (a) setMenuOpen(false);
+        });
+
+        document.addEventListener("click", (e) => {
+            const withinHeader = e.target.closest("#siteHeader");
+            if (!withinHeader) setMenuOpen(false);
+        });
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") setMenuOpen(false);
+        });
+
+        // =========================
+        // LINE links
+        // =========================
+        const LINE_URL = "LINE_INVITE_URL";
+        for (const id of ["joinTop", "joinNavDesktop", "joinNavMobile"]) {
+            const el = document.getElementById(id);
+            el.href = LINE_URL;
+        }
+
+        // =========================
+        // Carousel
+        // =========================
+        const carouselItems = [
+            { src: "https://i.postimg.cc/HxgxSNjZ/s1.jpg", alt: "球場上活動（示意）", title: "週末揪團", subtitle: "輪轉上場，新手友善" },
+            { src: "https://i.postimg.cc/zBFf4kRM/s2.avif", alt: "擊球動作（示意）", title: "基本教學", subtitle: "規則、站位、發球" },
+            { src: "https://i.postimg.cc/XJkvtgyL/s3.jpg", alt: "球拍與球（示意）", title: "一起進步", subtitle: "友善交流、舒適節奏" },
+        ];
+
+        const slidesEl = document.getElementById("slides");
+        const dotsEl = document.getElementById("dots");
+
+        slidesEl.innerHTML = carouselItems.map(item => `
+      <div class="slide">
+        <img src="${escapeAttr(item.src)}" alt="${escapeAttr(item.alt)}">
+        <div class="overlay"></div>
+        <div class="caption"><b>${escapeHtml(item.title)}</b><span>${escapeHtml(item.subtitle)}</span></div>
+      </div>
+    `).join("");
+
+        const slideCount = carouselItems.length;
+        let idx = 0;
+        let timer = null;
+
+        function renderDots() {
+            dotsEl.innerHTML = "";
+            for (let i = 0; i < slideCount; i++) {
+                const d = document.createElement("button");
+                d.className = "dot" + (i === idx ? " active" : "");
+                d.setAttribute("aria-label", `切換到第 ${i + 1} 張`);
+                d.onclick = () => go(i, true);
+                dotsEl.appendChild(d);
+            }
+        }
+
+        function go(nextIdx, userAction = false) {
+            idx = (nextIdx + slideCount) % slideCount;
+            slidesEl.style.transform = `translateX(${-idx * 100}%)`;
+            renderDots();
+            if (userAction) restart();
+        }
+
+        function restart() {
+            if (timer) clearInterval(timer);
+            timer = setInterval(() => go(idx + 1), 4500);
+        }
+
+        document.getElementById("prev").onclick = () => go(idx - 1, true);
+        document.getElementById("next").onclick = () => go(idx + 1, true);
+
+        // =========================
+        // Announcements (all hidden by default)
+        // =========================
+        const announcements = [
+            {
+                title: "本週六場次正常，請提早 10 分鐘到",
+                content: "集合時間：14:50\n熱身：15:00\n新手會先做基本站位/輪轉練習。\n有問題進群 @ 管理員。"
+            },
+            {
+                title: "雨天取消/雨備規則",
+                content: "戶外場：當天若下雨或場地濕滑，會在開打前 2 小時於 LINE 公告取消。\n如有室內雨備，會同時公告替代場地。"
+            },
+            {
+                title: "新手第一次來要準備什麼？",
+                content: "建議：運動鞋、水、毛巾。\n球拍可借（數量有限），若有護具也可自行攜帶。"
+            },
+        ];
+
+        const annListEl = document.getElementById("annList");
+        annListEl.innerHTML = announcements.map((a, i) => renderAnn(a, i)).join("");
+
+        // 點標題展開/收合（預設全收起）
+        annListEl.addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-ann-btn]");
+            if (!btn) return;
+            const idx = Number(btn.getAttribute("data-idx"));
+            toggleAnn(idx);
+        });
+
+        function renderAnn(a, i) {
+            return `
+        <div class="annItem" data-idx="${i}" data-open="false">
+          <button class="annBtn" type="button" data-ann-btn data-idx="${i}" aria-expanded="false">
+            <span>${escapeHtml(a.title)}</span>
+            <span class="annChevron" aria-hidden="true">⌄</span>
+          </button>
+          <div class="annBody">${escapeHtml(a.content)}</div>
+        </div>
+      `;
+        }
+
+        function toggleAnn(i) {
+            const item = annListEl.querySelector(`.annItem[data-idx="${i}"]`);
+            if (!item) return;
+            const open = item.getAttribute("data-open") === "true";
+            item.setAttribute("data-open", open ? "false" : "true");
+            const btn = item.querySelector(".annBtn");
+            if (btn) btn.setAttribute("aria-expanded", open ? "false" : "true");
+        }
+
+        // init
+        renderDots();
+        restart();
+        document.getElementById("year").textContent = new Date().getFullYear();
+
+        function escapeHtml(s) {
+            return String(s ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+        function escapeAttr(s) { return escapeHtml(s); }
+    </script>
+</body>
+
+</html>

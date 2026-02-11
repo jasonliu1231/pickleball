@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>匹克球小知識｜我的匹克球社團</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+    <div class="wrap">
+        <header id="siteHeader" data-open="false">
+            <div class="topbar">
+                <div class="brand">
+                    <div class="logo" aria-hidden="true"></div>
+                    <b>我的匹克球社團</b>
+                </div>
+
+                <!-- Desktop nav -->
+                <nav class="navDesktop" aria-label="主選單">
+                    <a href="./index.html">首頁</a>
+                    <a href="./knowledge.html">小知識</a>
+                    <a href="./meetup.html">聚會資訊</a>
+                </nav>
+
+                <!-- Mobile hamburger -->
+                <button class="hamburger" id="hamburger" aria-label="開啟選單" aria-controls="navMobile"
+                    aria-expanded="false">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+
+            <!-- Mobile dropdown -->
+            <nav class="navMobile" id="navMobile" aria-label="行動裝置選單">
+                <a href="./index.html">首頁 <span>›</span></a>
+                <a href="./knowledge.html">小知識 <span>›</span></a>
+                <a href="./meetup.html">聚會資訊 <span>›</span></a>
+            </nav>
+        </header>
+
+        <main class="card">
+            <h1>匹克球小知識</h1>
+            <p>此頁由陣列物件生成：新增一則只要在 <code>knowledgeItems</code> 加一個物件。</p>
+
+            <div id="kList" class="k-list"></div>
+        </main>
+    </div>
+
+    <script>
+        // =========================
+        // Header hamburger logic
+        // =========================
+        const headerEl = document.getElementById("siteHeader");
+        const hamburgerEl = document.getElementById("hamburger");
+        const navMobileEl = document.getElementById("navMobile");
+
+        function setMenuOpen(open) {
+            headerEl.dataset.open = open ? "true" : "false";
+            hamburgerEl.setAttribute("aria-expanded", open ? "true" : "false");
+        }
+
+        hamburgerEl.addEventListener("click", () => {
+            const isOpen = headerEl.dataset.open === "true";
+            setMenuOpen(!isOpen);
+        });
+
+        // 點擊選單連結後關閉
+        navMobileEl.addEventListener("click", (e) => {
+            const a = e.target.closest("a");
+            if (a) setMenuOpen(false);
+        });
+
+        // 點擊外部關閉
+        document.addEventListener("click", (e) => {
+            const withinHeader = e.target.closest("#siteHeader");
+            if (!withinHeader) setMenuOpen(false);
+        });
+
+        // ESC 關閉
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") setMenuOpen(false);
+        });
+
+        // =========================
+        // Page data
+        // =========================
+        const knowledgeItems = [
+            {
+                title: "發球：下手發球與落點",
+                desc: "多數規則要求下手發球，球要落在對角發球區內。新手先追求穩定進場，再追求速度與旋轉。",
+                image: { src: "https://i.postimg.cc/0NdMqvTG/s4.jpg", alt: "球場上的球（示意）" },
+                tags: [
+                    { k: "重點", v: "下手、對角" },
+                    { k: "新手", v: "先穩再快" },
+                    { k: "練習", v: "固定落點" }
+                ],
+            },
+            {
+                title: "禁區（廚房）：不能截擊",
+                desc: "網前禁區內不能截擊（球未落地就打）。掌握禁區線附近的腳步與控球，能提升對戰穩定度。",
+                image: { src: "https://i.postimg.cc/43b7TGDW/s5.png", alt: "球拍與球（示意）" },
+                tags: [
+                    { k: "規則", v: "禁區不截擊" },
+                    { k: "技巧", v: "腳步控制" },
+                    { k: "策略", v: "打短球" }
+                ],
+            },
+            {
+                title: "基本：站位與輪轉",
+                desc: "先把站位與輪轉建立起來，比追求大力更容易快速進步；也更適合團體輪轉上場。",
+                image: { src: "https://i.postimg.cc/5tqYMJhq/s6.jpg", alt: "球場上活動（示意）" },
+                tags: [
+                    { k: "觀念", v: "先站位" },
+                    { k: "團體", v: "輪轉順暢" },
+                    { k: "新手", v: "更好上手" }
+                ],
+            },
+            {
+                title: "得分規則：多數採 11 分制、需領先 2 分",
+                desc: "常見賽制為 11 分（或 15/21 分），且需要領先 2 分才算勝。很多休閒玩法採「只有發球方能得分」。你也可以在這裡寫你們社團採用的版本。",
+                image: { src: "https://i.postimg.cc/q7XhdrPw/s7.png", alt: "計分/比賽示意（示意圖）" },
+                tags: [
+                    { k: "常見", v: "11 分制" },
+                    { k: "規則", v: "領先 2 分" },
+                    { k: "玩法", v: "發球方得分" }
+                ],
+            },
+            {
+                title: "雙落地制（Two-Bounce Rule）：發球後前兩拍必須落地",
+                desc: "發球後，接發球方必須讓球落地再回擊；接著發球方也必須讓回球落地再打。完成這兩次落地後，雙方才可以選擇截擊（不落地直接打）。這個規則讓新手更好進入對打節奏，也避免一開始就貼網猛攻。",
+                image: { src: "https://i.postimg.cc/yNXgzKMn/s8.png", alt: "對打示意（示意圖）" },
+                tags: [
+                    { k: "關鍵", v: "前兩拍要落地" },
+                    { k: "之後", v: "才可截擊" },
+                    { k: "目的", v: "讓回合更公平" }
+                ],
+            },
+        ];
+
+        const kListEl = document.getElementById("kList");
+        kListEl.innerHTML = knowledgeItems.map((item, i) => renderBlock(item, i)).join("");
+
+        function renderBlock(item, i) {
+            const alt = i % 2 === 1 ? " alt" : "";
+            const tags = (item.tags || []).map(t =>
+                `<span class="tag"><strong>${escapeHtml(t.k)}</strong>${escapeHtml(t.v)}</span>`
+            ).join("");
+
+            return `
+        <section class="k-block${alt}">
+          <div class="k-media">
+            <img src="${escapeAttr(item.image?.src)}" alt="${escapeAttr(item.image?.alt || "")}">
+          </div>
+          <div class="k-content">
+            <h2>${escapeHtml(item.title)}</h2>
+            <p class="desc">${escapeHtml(item.desc)}</p>
+            ${tags ? `<div class="k-tags">${tags}</div>` : ""}
+          </div>
+        </section>
+      `;
+        }
+
+        function escapeHtml(s) {
+            return String(s ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+        function escapeAttr(s) { return escapeHtml(s); }
+    </script>
+</body>
+
+</html>
