@@ -533,6 +533,212 @@
       .calendar-card, .list-card { padding: 12px; }
     }
 
+
+    /* =========================
+       UIUX 簡化版：減少外框、放大留白、讓預約區更直覺
+       ========================= */
+    .tab-shell {
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      padding: 0;
+      border-radius: 0;
+    }
+    .tabs {
+      background: rgba(255,255,255,.82);
+      border: 0;
+      box-shadow: 0 10px 28px rgba(6,78,59,.08);
+      padding: 8px;
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: 0 12px 26px rgba(22,163,74,.22);
+    }
+    .booking-card {
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      border-radius: 0;
+    }
+    .layout {
+      grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+      gap: 22px;
+    }
+    .calendar-card, .list-card {
+      border: 0;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 16px 42px rgba(6,78,59,.08);
+    }
+    .list-card {
+      padding: 24px;
+    }
+    .calendar-card {
+      padding: 22px;
+      position: sticky;
+      top: 150px;
+    }
+    .day {
+      border: 0;
+      background: #f3f8f5;
+    }
+    .day.available {
+      background: #e5f8eb;
+    }
+    .day:hover {
+      border-color: transparent;
+      transform: translateY(-1px);
+    }
+    .meetup-card {
+      border: 0;
+      background: linear-gradient(180deg, #ffffff, #fbfefc);
+      box-shadow: 0 14px 34px rgba(6,78,59,.08);
+      padding: 22px;
+    }
+    .meetup-card + .meetup-card {
+      margin-top: 4px;
+    }
+    .meetup-title {
+      font-size: 22px;
+      letter-spacing: -.02em;
+    }
+    .badge {
+      background: #e8f7ee;
+    }
+    .info-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 16px 0;
+    }
+    .info {
+      border-radius: 14px;
+      background: #f4faf6;
+      padding: 10px 12px;
+      min-height: 58px;
+    }
+    .info strong {
+      font-size: 11px;
+      letter-spacing: .04em;
+    }
+    .actions {
+      gap: 9px;
+      margin-top: 4px;
+    }
+    .btn-primary, .btn-secondary, .btn-danger, .btn-ghost {
+      border-radius: 14px;
+      min-height: 44px;
+    }
+    .btn-secondary, .btn-ghost {
+      background: #eef7f2;
+    }
+    .roster {
+      border-top: 0;
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 18px;
+      background: #f6fbf8;
+    }
+    .person {
+      background: #fff;
+      box-shadow: 0 6px 18px rgba(6,78,59,.05);
+    }
+    .notice-card, .knowledge-card, .tip-card, .quick-card {
+      border: 0;
+      box-shadow: 0 14px 34px rgba(6,78,59,.07);
+    }
+
+    @media (max-width: 900px) {
+      .calendar-card { position: static; }
+      .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .tab-shell { margin-top: 16px; }
+      .tabs {
+        position: static;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        border-radius: 18px;
+        box-shadow: 0 8px 20px rgba(6,78,59,.07);
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+      }
+      .calendar-card, .list-card {
+        width: 100%;
+        max-width: 100%;
+        padding: 16px;
+        border-radius: 22px;
+      }
+      .list-card .list-head {
+        margin-bottom: 10px;
+      }
+      .meetup-card {
+        padding: 18px;
+        border-radius: 22px;
+      }
+      .info-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .info {
+        min-height: 54px;
+        padding: 9px 10px;
+      }
+      .actions {
+        grid-template-columns: 1fr 1fr;
+      }
+      .actions .btn-primary {
+        grid-column: 1 / -1;
+      }
+      .roster {
+        padding: 12px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .calendar-card, .list-card { padding: 14px; }
+      .info-grid { gap: 7px; }
+      .info { font-size: 13px; }
+      .actions { grid-template-columns: 1fr; }
+      .actions .btn-primary { grid-column: auto; }
+    }
+
+
+    /* 手機版最終修正：避免後段桌機樣式覆蓋 RWD */
+    @media (max-width: 760px) {
+      html, body { width: 100%; overflow-x: hidden; }
+      .page, .hero, .tab-shell, .tab-panel, .booking-card, .layout, .calendar-card, .list-card {
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+      }
+      .layout {
+        grid-template-columns: minmax(0, 1fr) !important;
+      }
+      .calendar-card {
+        position: static !important;
+        top: auto !important;
+      }
+      .days-grid, .week-row {
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+      }
+      .day {
+        width: 100%;
+        min-width: 0;
+        padding: 0;
+      }
+      .list-head, .calendar-head {
+        align-items: flex-start;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .actions .btn-primary { grid-column: auto; }
+    }
+
   </style>
 </head>
 <body>
