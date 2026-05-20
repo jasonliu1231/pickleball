@@ -388,6 +388,151 @@
       .info-grid { grid-template-columns: 1fr; }
       .section-head { align-items: flex-start; flex-direction: column; }
     }
+
+
+    /* =========================
+       RWD 強化：手機版避免跑版，預約區正常顯示
+       ========================= */
+    img, svg, video { max-width: 100%; }
+    .page { overflow-x: hidden; }
+    .hero-main, .hero-side, .tab-shell, .booking-card, .calendar-card, .list-card, .meetup-card { min-width: 0; }
+
+    @media (max-width: 760px) {
+      body { background-attachment: scroll; }
+      .page {
+        width: 100%;
+        padding: max(10px, env(safe-area-inset-top)) 12px max(24px, env(safe-area-inset-bottom));
+      }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 30;
+        padding: 10px 0 12px;
+        background: rgba(245, 251, 247, .88);
+      }
+      .brand { width: 100%; font-size: 16px; }
+      .logo { width: 38px; height: 38px; border-radius: 14px; }
+      .nav {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        overflow: visible;
+        border-radius: 20px;
+        padding: 6px;
+      }
+      .nav a {
+        width: 100%;
+        text-align: center;
+        padding: 10px 8px;
+        font-size: 13px;
+      }
+      .hero { gap: 14px; margin-top: 4px; }
+      .hero-main {
+        min-height: 0;
+        padding: 24px 18px;
+        border-radius: 26px;
+      }
+      .eyebrow { font-size: 11px; }
+      h1 { font-size: clamp(30px, 10vw, 42px); line-height: 1.12; }
+      .hero-main p { font-size: 15px; }
+      .hero-actions { display: grid; grid-template-columns: 1fr; }
+      .hero-btn { width: 100%; min-height: 48px; }
+      .quick-card, .announcement, .tip-card, .calendar-card, .list-card, .modal-card, .booking-card, .notice-card {
+        border-radius: 22px;
+      }
+      .status-strip { grid-template-columns: 1fr; }
+      .tab-shell {
+        margin-top: 18px;
+        padding: 8px;
+        border-radius: 24px;
+      }
+      .tabs {
+        position: static;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        padding: 6px;
+        border-radius: 20px;
+      }
+      .tab-btn {
+        min-width: 0;
+        width: 100%;
+        min-height: 44px;
+        padding: 0 8px;
+        font-size: 13px;
+      }
+      .tab-panel { padding-top: 10px; }
+      .section { margin-top: 18px; }
+      .section-head {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .section-title { font-size: 28px; }
+      #refreshBtn { width: 100%; }
+      .booking-card { padding: 10px; }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+      .calendar-card, .list-card { padding: 14px; }
+      .calendar-head { margin-bottom: 12px; }
+      .month-title { font-size: 18px; text-align: center; }
+      .icon-btn { width: 40px; height: 40px; border-radius: 14px; }
+      .week-row, .days-grid { gap: 5px; }
+      .day {
+        min-height: 44px;
+        border-radius: 14px;
+        font-size: 13px;
+      }
+      .hint { font-size: 13px; }
+      .meetup-top {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .meetup-title { font-size: 19px; }
+      .badge { width: fit-content; }
+      .info-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .btn-primary, .btn-secondary, .btn-danger, .btn-ghost {
+        width: 100%;
+        min-height: 48px;
+      }
+      .person {
+        align-items: flex-start;
+        gap: 8px;
+      }
+      .notice-grid, .knowledge-grid, .faq { grid-template-columns: 1fr; }
+      .knowledge-img { height: 180px; }
+      .modal {
+        align-items: flex-end;
+        padding: 10px;
+      }
+      .modal-card {
+        width: 100%;
+        max-height: 88vh;
+        border-radius: 24px 24px 18px 18px;
+        padding: 18px;
+      }
+      input, textarea { font-size: 16px; }
+      .footer { font-size: 13px; padding-bottom: env(safe-area-inset-bottom); }
+    }
+
+    @media (max-width: 380px) {
+      .nav a, .tab-btn { font-size: 12px; }
+      .day { min-height: 40px; font-size: 12px; }
+      .week-row, .days-grid { gap: 4px; }
+      .calendar-card, .list-card { padding: 12px; }
+    }
+
   </style>
 </head>
 <body>
@@ -649,10 +794,18 @@ function setMessage(el, text, ok) {
 function clearMessage(el) { el.textContent = ""; el.className = "message"; }
 
 async function loadAvailableWeekdays() {
+  // 只標記「目前開放中」的團。
+  // meetup_weekdays.is_active = 該星期是否開放
+  // meetups.is_active = 該團是否顯示給球友
   const { data, error } = await client
     .from("meetup_weekdays")
-    .select("weekday,is_active")
-    .eq("is_active", true);
+    .select(`
+      weekday,
+      is_active,
+      meetups!inner(id,is_active)
+    `)
+    .eq("is_active", true)
+    .eq("meetups.is_active", true);
   if (error) throw error;
   availableWeekdays = new Set((data || []).map((x) => x.weekday));
 }
@@ -799,7 +952,7 @@ async function toggleRoster(meetup) {
     }
     el.innerHTML = `<strong>已報名</strong><div class="roster-list">${rows.map((r, idx) => `
       <div class="person">
-        <div><div class="person-name">${idx + 1}. ${escapeHtml(r.nickname || "球友")}</div><div class="muted">${maskPhone(r.phone)}</div>${r.note ? `<div class="muted">${escapeHtml(r.note)}</div>` : ""}</div>
+        <div><div class="person-name">${idx + 1}. ${escapeHtml(r.nickname || "球友")}</div>${r.note ? `<div class="muted">${escapeHtml(r.note)}</div>` : ""}</div>
         ${r.is_beginner ? `<span class="pill">新手</span>` : ""}
       </div>`).join("")}</div>`;
   } catch (e) {
