@@ -252,9 +252,9 @@
     .day.empty { background: transparent; pointer-events: none; }
     .day.past { opacity: .35; pointer-events: none; }
     .day.available { background: #ccfbf1; color: var(--primary-2); font-weight: 950; }
-    .day.selected { background: var(--primary); color: #fff; box-shadow: 0 11px 24px rgba(15, 118, 110, .28); }
+    .day.selected { background: #99f6e4; color: #0f172a; font-weight: 950; box-shadow: 0 11px 24px rgba(15, 118, 110, .20); }
     .dot { width: 6px; height: 6px; border-radius: 99px; background: var(--primary); }
-    .day.selected .dot { background: #fff; }
+    .day.selected .dot { background: var(--primary); }
     .hint { display: flex; gap: 8px; align-items: center; margin-top: 14px; color: var(--sub); font-size: 14px; }
     .hint .dot { flex: 0 0 8px; height: 8px; }
 
@@ -952,7 +952,7 @@ const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
 const weekdaysFull = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
 let selectedDate = toISODate(new Date());
 let visibleMonth = selectedDate.slice(0, 7) + "-01";
-let availableWeekdays = new Set();
+let availableRules = [];
 let currentMeetup = null;
 const rosterCache = new Map();
 
@@ -1000,20 +1000,37 @@ function setMessage(el, text, ok) {
 function clearMessage(el) { el.textContent = ""; el.className = "message"; }
 
 async function loadAvailableWeekdays() {
-  // 只標記「目前開放中」的團。
+  // 只標記「目前開放中」且已到起始日期的團。
   // meetup_weekdays.is_active = 該星期是否開放
   // meetups.is_active = 該團是否顯示給球友
+  // meetups.start_date = 從哪一天開始讓球友看到預約
   const { data, error } = await client
     .from("meetup_weekdays")
     .select(`
       weekday,
       is_active,
-      meetups!inner(id,is_active)
+      meetups!inner(id,is_active,start_date)
     `)
     .eq("is_active", true)
     .eq("meetups.is_active", true);
   if (error) throw error;
-  availableWeekdays = new Set((data || []).map((x) => x.weekday));
+
+  availableRules = (data || []).map((x) => {
+    const meetup = Array.isArray(x.meetups) ? x.meetups[0] : x.meetups;
+    return {
+      weekday: x.weekday,
+      start_date: meetup?.start_date || null
+    };
+  });
+}
+
+function hasAvailableMeetupOnDate(dateStr) {
+  const weekday = dateFromISO(dateStr).getDay();
+  return availableRules.some((rule) => {
+    if (Number(rule.weekday) !== weekday) return false;
+    if (!rule.start_date) return true;
+    return dateStr >= rule.start_date;
+  });
 }
 
 async function loadMeetupsByDate(dateStr) {
@@ -1021,10 +1038,11 @@ async function loadMeetupsByDate(dateStr) {
   const { data, error } = await client
     .from("meetups")
     .select(`
-      id,name,city,address,start_time,end_time,capacity,fee,gear,notes,is_active,
+      id,name,city,address,start_time,end_time,capacity,fee,gear,notes,is_active,start_date,
       meetup_weekdays!inner(id,weekday,capacity_override,notes,is_active)
     `)
     .eq("is_active", true)
+    .lte("start_date", dateStr)
     .eq("meetup_weekdays.weekday", weekday)
     .eq("meetup_weekdays.is_active", true)
     .order("id", { ascending: false });
@@ -1087,7 +1105,7 @@ function renderCalendar() {
     if (!dateStr) return `<button class="day empty" tabindex="-1"></button>`;
     const d = dateFromISO(dateStr);
     const isPast = dateStr < today;
-    const has = availableWeekdays.has(d.getDay());
+    const has = hasAvailableMeetupOnDate(dateStr);
     const selected = dateStr === selectedDate;
     return `<button class="day ${isPast ? "past" : ""} ${has && !isPast ? "available" : ""} ${selected ? "selected" : ""}" data-date="${dateStr}">
       <span>${d.getDate()}</span>${has && !isPast ? `<span class="dot"></span>` : ""}
