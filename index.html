@@ -934,11 +934,10 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 });
 
-const announcements = [
-  { title: "本週六場次正常，請提早 10 分鐘到", content: "集合時間：14:50\n熱身：15:00\n新手會先做基本站位/輪轉練習。\n有問題進群 @ 管理員。" },
-  { title: "雨天取消/雨備規則", content: "戶外場：當天若下雨或場地濕滑，會在開打前 2 小時於 LINE 公告取消。\n如有室內雨備，會同時公告替代場地。" },
-  { title: "新手第一次來要準備什麼？", content: "建議：運動鞋、水、毛巾。\n球拍可借（數量有限），若有護具也可自行攜帶。" }
+const fallbackAnnouncements = [
+  { title: "歡迎使用線上預約", content: "最新公告會由發起人更新，請留意此頁資訊。", author_name: "系統" }
 ];
+let announcements = [...fallbackAnnouncements];
 
 const knowledgeItems = [
   { title: "發球：下手發球與落點", desc: "多數規則要求下手發球，球要落在對角發球區內。新手先追求穩定進場，再追求速度與旋轉。", image: { src: "https://i.postimg.cc/0NdMqvTG/s4.jpg", alt: "球場上的球示意" }, tags: [{ k: "重點", v: "下手、對角" }, { k: "新手", v: "先穩再快" }, { k: "練習", v: "固定落點" }] },
@@ -1285,7 +1284,32 @@ function escapeHtml(text) {
 }
 
 
-function renderStaticContent() {
+function formatAnnouncementDate(value) {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+}
+
+async function loadAnnouncements() {
+  const ann = $("announcementList");
+  if (ann) ann.innerHTML = `<p class="empty">公告讀取中...</p>`;
+  try {
+    const { data, error } = await client
+      .from("announcements")
+      .select("id,title,content,author_name,created_at")
+      .eq("is_active", true)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    announcements = (data && data.length) ? data : [...fallbackAnnouncements];
+  } catch (err) {
+    console.error(err);
+    announcements = [...fallbackAnnouncements];
+  }
+  renderAnnouncements();
+}
+
+function renderAnnouncements() {
   const ann = $("announcementList");
   if (ann) {
     ann.innerHTML = announcements.map((item, idx) => `
@@ -1293,8 +1317,13 @@ function renderStaticContent() {
         <span class="tag">公告 ${idx + 1}</span>
         <h3>${escapeHtml(item.title)}</h3>
         <p class="muted">${escapeHtml(item.content)}</p>
+        <p class="muted" style="margin-top:10px;font-size:13px;font-weight:900;">${escapeHtml(item.author_name || "發起人")}${item.created_at ? ` · ${escapeHtml(formatAnnouncementDate(item.created_at))}` : ""}</p>
       </article>`).join("");
   }
+}
+
+function renderStaticContent() {
+  renderAnnouncements();
   const know = $("knowledgeList");
   if (know) {
     know.innerHTML = knowledgeItems.map((item) => `
@@ -1332,6 +1361,7 @@ document.querySelectorAll("[data-open-tab]").forEach(link => {
 renderStaticContent();
 
 (async function init() {
+  await loadAnnouncements();
   try { await loadAvailableWeekdays(); } catch (e) { console.error(e); }
   refreshAll();
 })();
