@@ -269,6 +269,7 @@
     }
     .meetup-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
     .meetup-title { margin: 0; font-size: 20px; font-weight: 950; }
+    .organizer-line { margin: 6px 0 0; color: var(--primary-2); font-size: 14px; font-weight: 900; line-height: 1.5; }
     .badge { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; padding: 8px 12px; border-radius: 999px; background: var(--soft); color: var(--primary-2); font-weight: 950; font-size: 14px; }
     .badge.full { background: #f1f5f9; color: #64748b; }
     .info-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0; }
@@ -965,6 +966,63 @@ function skillLabel(value, isBeginner) {
 function isBeginnerSkill(value) {
   return value === "first_time" || value === "beginner";
 }
+
+function normalizePushTokens(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+    } catch (_) {
+      return value ? [value] : [];
+    }
+  }
+  return [];
+}
+
+async function notifyNewSignup({ meetup, meetupId, reservationDate, nickname, skillLevel }) {
+  const sourceMeetup = meetup || currentMeetup || {};
+  const tokens = normalizePushTokens(sourceMeetup.push_tokens);
+
+  if (!tokens.length) {
+    console.log("這個開團目前沒有可用的推播 token");
+    return;
+  }
+
+  const skillText = {
+    first_time: "第一次參加",
+    beginner: "初學",
+    normal: "一般",
+    advanced: "進階",
+  }[skillLevel] || "一般";
+
+  const title = "有人報名了";
+  const body = `${nickname || "球友"} 報名「${sourceMeetup.name || "開團"}」｜${skillText}`;
+
+  try {
+    await Promise.all(tokens.map((token) =>
+      fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: token,
+          title,
+          body,
+          sound: "default",
+          channelId: "new-signup",
+          data: {
+            type: "new_signup",
+            meetup_id: meetupId,
+            reservation_date: reservationDate,
+          },
+        }),
+      })
+    ));
+  } catch (error) {
+    console.log("notify new signup failed", error?.message || error);
+  }
+}
 let selectedDate = toISODate(new Date());
 let visibleMonth = selectedDate.slice(0, 7) + "-01";
 let availableRules = [];
@@ -1015,28 +1073,19 @@ function setMessage(el, text, ok) {
 function clearMessage(el) { el.textContent = ""; el.className = "message"; }
 
 async function loadAvailableWeekdays() {
-  // 只標記「目前開放中」且已到起始日期的團。
-  // meetup_weekdays.is_active = 該星期是否開放
-  // meetups.is_active = 該團是否顯示給球友
-  // meetups.start_date = 從哪一天開始讓球友看到預約
+  // 從 booking_meetup_weekdays_view 讀取可顯示的固定開團規則。
+  // View 會同時帶出團體、發起人與推播 token。
   const { data, error } = await client
-    .from("meetup_weekdays")
-    .select(`
-      weekday,
-      is_active,
-      meetups!inner(id,is_active,start_date)
-    `)
+    .from("booking_meetup_weekdays_view")
+    .select("id,weekday,start_date,is_active,weekday_is_active")
     .eq("is_active", true)
-    .eq("meetups.is_active", true);
+    .eq("weekday_is_active", true);
   if (error) throw error;
 
-  availableRules = (data || []).map((x) => {
-    const meetup = Array.isArray(x.meetups) ? x.meetups[0] : x.meetups;
-    return {
-      weekday: x.weekday,
-      start_date: meetup?.start_date || null
-    };
-  });
+  availableRules = (data || []).map((x) => ({
+    weekday: x.weekday,
+    start_date: x.start_date || null,
+  }));
 }
 
 function hasAvailableMeetupOnDate(dateStr) {
@@ -1051,22 +1100,21 @@ function hasAvailableMeetupOnDate(dateStr) {
 async function loadMeetupsByDate(dateStr) {
   const weekday = dateFromISO(dateStr).getDay();
   const { data, error } = await client
-    .from("meetups")
-    .select(`
-      id,name,city,address,start_time,end_time,capacity,fee,gear,notes,is_active,start_date,
-      meetup_weekdays!inner(id,weekday,capacity_override,notes,is_active)
-    `)
+    .from("booking_meetup_weekdays_view")
+    .select("*")
     .eq("is_active", true)
+    .eq("weekday_is_active", true)
+    .eq("weekday", weekday)
     .lte("start_date", dateStr)
-    .eq("meetup_weekdays.weekday", weekday)
-    .eq("meetup_weekdays.is_active", true)
     .order("id", { ascending: false });
   if (error) throw error;
 
-  const rows = (data || []).map((m) => {
-    const rule = Array.isArray(m.meetup_weekdays) ? m.meetup_weekdays[0] : m.meetup_weekdays;
-    return { ...m, capacity_override: rule?.capacity_override ?? null, weekday_notes: rule?.notes ?? null };
-  });
+  const rows = (data || []).map((m) => ({
+    ...m,
+    push_tokens: normalizePushTokens(m.push_tokens),
+    capacity_override: m.capacity_override ?? null,
+    weekday_notes: m.weekday_notes ?? null,
+  }));
 
   const ids = rows.map((x) => x.id);
   let counts = {};
@@ -1149,6 +1197,7 @@ function renderMeetups(meetups) {
       <div class="meetup-top">
         <div>
           <h3 class="meetup-title">${escapeHtml(m.name || "未命名活動")}</h3>
+          ${m.organizer_name ? `<p class="organizer-line">發起人｜${escapeHtml(m.organizer_name)}</p>` : ""}
           <p class="muted">${escapeHtml(m.address || m.city || "地點另行公告")}</p>
         </div>
         <span class="badge ${full ? "full" : ""}">${full ? "額滿" : cap > 0 ? `剩 ${left}` : "可報名"}</span>
@@ -1246,6 +1295,7 @@ async function handleSignup(e) {
     const result = Array.isArray(data) ? data[0] : data;
     if (result && result.ok === false) return setMessage($("formMessage"), result.message || "無法完成報名。", false);
     setMessage($("formMessage"), "報名成功，已為你保留這一天的名額。", true);
+    notifyNewSignup({ meetup: currentMeetup, meetupId: currentMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
     clearRosterCache();
     await refreshMeetupListOnly();
   } catch (err) {
