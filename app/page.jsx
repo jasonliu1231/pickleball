@@ -88,7 +88,14 @@ export default function Page() {
               <h2 class="section-title">線上預約</h2>
               <p class="section-sub">選擇日期後，就能看到當天可報名的團。</p>
             </div>
-            <button class="btn-secondary" id="refreshBtn">重新整理</button>
+            <div class="booking-controls">
+              <label class="city-filter-label">城市
+                <select id="cityFilter" class="city-filter-select" aria-label="篩選城市">
+                  <option value="all">全部城市</option>
+                </select>
+              </label>
+              <button class="btn-secondary" id="refreshBtn">重新整理</button>
+            </div>
           </div>
           <div class="booking-card">
             <div class="layout">

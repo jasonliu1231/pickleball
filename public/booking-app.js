@@ -19,6 +19,13 @@ const knowledgeItems = [
 
 const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
 const weekdaysFull = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+const taiwanCities = [
+  "台北市", "新北市", "桃園市", "台中市", "台南市", "高雄市",
+  "基隆市", "新竹市", "嘉義市", "新竹縣", "苗栗縣", "彰化縣",
+  "南投縣", "雲林縣", "嘉義縣", "屏東縣", "宜蘭縣", "花蓮縣",
+  "台東縣", "澎湖縣", "金門縣", "連江縣"
+];
+let selectedCity = "all";
 const skillLabels = {
   first_time: "第一次",
   beginner: "初學",
@@ -126,14 +133,33 @@ function setMessage(el, text, ok) {
 }
 function clearMessage(el) { el.textContent = ""; el.className = "message"; }
 
+function renderCityFilter() {
+  const select = $("cityFilter");
+  if (!select) return;
+  select.innerHTML = [
+    `<option value="all">全部城市</option>`,
+    ...taiwanCities.map((city) => `<option value="${escapeHtml(city)}">${escapeHtml(city)}</option>`)
+  ].join("");
+  select.value = selectedCity;
+}
+
+function applyCityFilter(query) {
+  if (selectedCity && selectedCity !== "all") {
+    return query.eq("city", selectedCity);
+  }
+  return query;
+}
+
 async function loadAvailableWeekdays() {
   // 從 booking_meetup_weekdays_view 讀取可顯示的固定開團規則。
   // View 會同時帶出團體、發起人與推播 token。
-  const { data, error } = await client
+  let query = client
     .from("booking_meetup_weekdays_view")
-    .select("id,weekday,start_date,is_active,weekday_is_active")
+    .select("id,weekday,start_date,is_active,weekday_is_active,city")
     .eq("is_active", true)
     .eq("weekday_is_active", true);
+  query = applyCityFilter(query);
+  const { data, error } = await query;
   if (error) throw error;
 
   availableRules = (data || []).map((x) => ({
@@ -153,14 +179,15 @@ function hasAvailableMeetupOnDate(dateStr) {
 
 async function loadMeetupsByDate(dateStr) {
   const weekday = dateFromISO(dateStr).getDay();
-  const { data, error } = await client
+  let query = client
     .from("booking_meetup_weekdays_view")
     .select("*")
     .eq("is_active", true)
     .eq("weekday_is_active", true)
     .eq("weekday", weekday)
-    .lte("start_date", dateStr)
-    .order("id", { ascending: false });
+    .lte("start_date", dateStr);
+  query = applyCityFilter(query);
+  const { data, error } = await query.order("id", { ascending: false });
   if (error) throw error;
 
   const rows = (data || []).map((m) => ({
@@ -251,12 +278,13 @@ function renderMeetups(meetups) {
       <div class="meetup-top">
         <div>
           <h3 class="meetup-title">${escapeHtml(m.name || "未命名活動")}</h3>
-          ${m.organizer_name ? `<p class="organizer-line">發起人｜${escapeHtml(m.organizer_name)}</p>` : ""}
-          <p class="muted">${escapeHtml(m.address || m.city || "地點另行公告")}</p>
+          <p class="muted">${escapeHtml(m.address || "地點另行公告")}</p>
         </div>
         <span class="badge ${full ? "full" : ""}">${full ? "額滿" : cap > 0 ? `剩 ${left}` : "可報名"}</span>
       </div>
       <div class="info-grid">
+        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}</div>
+        <div class="info"><strong>城市</strong>${escapeHtml(m.city || "未設定")}</div>
         <div class="info"><strong>日期</strong>${shortDate(selectedDate)}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(m.fee || "現場公告")}</div>
@@ -470,7 +498,13 @@ function openTab(tabId) {
 
 $("prevMonth").addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, -1); renderCalendar(); });
 $("nextMonth").addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, 1); renderCalendar(); });
-$("refreshBtn").addEventListener("click", () => { clearRosterCache(); refreshAll(); });
+$("refreshBtn").addEventListener("click", async () => { clearRosterCache(); await loadAvailableWeekdays(); refreshAll(); });
+$("cityFilter")?.addEventListener("change", async (e) => {
+  selectedCity = e.target.value || "all";
+  clearRosterCache();
+  await loadAvailableWeekdays();
+  refreshAll();
+});
 $("closeModal").addEventListener("click", closeSignup);
 $("closeCancelModal").addEventListener("click", closeCancel);
 $("signupModal").addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
@@ -483,6 +517,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click
 document.querySelectorAll("[data-open-tab]").forEach(link => {
   link.addEventListener("click", () => openTab(link.dataset.openTab));
 });
+renderCityFilter();
 renderStaticContent();
 
 (async function init() {
