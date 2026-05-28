@@ -57,3 +57,41 @@ DATABASE_SETUP.sql
 - 公告內容已對應 App 內 `data/announcements.js` 的資料。
 - 小知識內容已對應 App 內 `data/knowledgeItems.js` 的資料，包含圖片與標籤。
 - 預約功能仍維持原本 Supabase 資料與流程。
+
+## 會員與備取機制更新
+
+前台已支援：
+
+- 正取人數達上限後，報名按鈕改為「加入備取」。
+- 報名成功後會依後端結果顯示「正取」或「備取」。
+- 人數顯示封頂，不會顯示超過開團上限的數字。
+- 名單會分成正取名單與備取名單，並標示固定會員。
+
+部署前請先在 Supabase SQL Editor 執行後台專案內的 `MEMBER_WAITLIST_MIGRATION.sql`。
+
+
+## 會員請假電話判斷
+
+前台「取消預約」已整合會員請假：一般報名者輸入電話會取消 signups；固定會員輸入電話會新增 member_absences，當天不列入名單並釋出名額。
+
+## Next.js 前台說明
+
+這版前台已改為 Next.js App Router 結構，正式入口為：
+
+- `app/layout.jsx`
+- `app/page.jsx`
+- `app/globals.css`
+- `public/booking-app.js`
+
+已移除舊版根目錄 `index.html`，部署時請使用 Next.js 指令：
+
+```bash
+npm install
+npm run dev
+# 或正式環境
+npm run build
+npm run start
+```
+
+Vercel 會依 `vercel.json` 的 `framework: nextjs` 使用 Next.js 建置，不再走靜態 index。
+

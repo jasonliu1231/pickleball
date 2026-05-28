@@ -200,33 +200,69 @@ async function loadMeetupsByDate(dateStr) {
   const ids = rows.map((x) => x.id);
   let counts = {};
   if (ids.length) {
-    const { data: signups, error: signupError } = await client
-      .from("signups")
-      .select("meetup_id")
-      .in("meetup_id", ids)
-      .eq("reservation_date", dateStr)
-      .eq("status", "confirmed");
-    if (signupError) throw signupError;
-    counts = (signups || []).reduce((acc, row) => {
-      acc[row.meetup_id] = (acc[row.meetup_id] || 0) + 1;
-      return acc;
-    }, {});
+    const { data: countRows, error: rpcError } = await client.rpc("get_meetup_counts_by_date", {
+      p_reservation_date: dateStr,
+      p_meetup_ids: ids
+    });
+    if (!rpcError) {
+      counts = (countRows || []).reduce((acc, row) => {
+        acc[String(row.meetup_id)] = row;
+        return acc;
+      }, {});
+    } else {
+      const { data: signups, error: signupError } = await client
+        .from("signups")
+        .select("meetup_id,status")
+        .in("meetup_id", ids)
+        .eq("reservation_date", dateStr)
+        .in("status", ["confirmed", "waitlist"]);
+      if (signupError) throw signupError;
+      counts = (signups || []).reduce((acc, row) => {
+        const key = String(row.meetup_id);
+        acc[key] = acc[key] || { confirmed_total_count: 0, waitlist_count: 0, member_count: 0, confirmed_signup_count: 0 };
+        if (row.status === "waitlist") acc[key].waitlist_count += 1;
+        else acc[key].confirmed_total_count += 1;
+        return acc;
+      }, {});
+    }
   }
-  return rows.map((m) => ({ ...m, confirmed_count: counts[m.id] || 0 }));
+  return rows.map((m) => {
+    const cap = m.capacity_override ?? m.capacity ?? 0;
+    const c = counts[String(m.id)] || {};
+    const realConfirmed = Number(c.confirmed_total_count ?? c.confirmed_count ?? 0);
+    return {
+      ...m,
+      member_count: Number(c.member_count || 0),
+      confirmed_signup_count: Number(c.confirmed_signup_count || 0),
+      confirmed_count: realConfirmed,
+      display_confirmed_count: cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed,
+      waitlist_count: Number(c.waitlist_count || 0),
+      over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
+    };
+  });
 }
 
 async function fetchRoster(meetupId, dateStr) {
   const key = `${meetupId}-${dateStr}`;
   if (rosterCache.has(key)) return rosterCache.get(key);
-  const { data, error } = await client
+  const { data, error } = await client.rpc("get_roster_with_members", {
+    p_meetup_id: meetupId,
+    p_reservation_date: dateStr
+  });
+  if (!error) {
+    const rows = data || [];
+    rosterCache.set(key, rows);
+    return rows;
+  }
+  const fallback = await client
     .from("signups")
-    .select("id,nickname,phone,is_beginner,skill_level,note,created_at")
+    .select("id,nickname,phone,is_beginner,skill_level,note,status,created_at")
     .eq("meetup_id", meetupId)
     .eq("reservation_date", dateStr)
-    .eq("status", "confirmed")
+    .in("status", ["confirmed", "waitlist"])
     .order("created_at", { ascending: true });
-  if (error) throw error;
-  const rows = data || [];
+  if (fallback.error) throw fallback.error;
+  const rows = (fallback.data || []).map((x) => ({ ...x, display_name: x.nickname, source: "signup" }));
   rosterCache.set(key, rows);
   return rows;
 }
@@ -272,7 +308,11 @@ function renderMeetups(meetups) {
   }
   $("meetupList").innerHTML = meetups.map((m) => {
     const cap = m.capacity_override ?? m.capacity ?? 0;
-    const left = Math.max(0, cap - (m.confirmed_count || 0));
+    const realConfirmed = Number(m.confirmed_count || 0);
+    const displayConfirmed = Number(m.display_confirmed_count ?? (cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed));
+    const waitlistCount = Number(m.waitlist_count || 0);
+    const memberCount = Number(m.member_count || 0);
+    const left = Math.max(0, cap - realConfirmed);
     const full = cap > 0 && left <= 0;
     return `<article class="meetup-card" data-meetup-id="${m.id}">
       <div class="meetup-top">
@@ -280,7 +320,7 @@ function renderMeetups(meetups) {
           <h3 class="meetup-title">${escapeHtml(m.name || "未命名活動")}</h3>
           <p class="muted">${escapeHtml(m.address || "地點另行公告")}</p>
         </div>
-        <span class="badge ${full ? "full" : ""}">${full ? "額滿" : cap > 0 ? `剩 ${left}` : "可報名"}</span>
+        <span class="badge ${full ? "full" : ""}">${full ? "可備取" : cap > 0 ? `剩 ${left}` : "可報名"}</span>
       </div>
       <div class="info-grid">
         <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}</div>
@@ -288,11 +328,13 @@ function renderMeetups(meetups) {
         <div class="info"><strong>日期</strong>${shortDate(selectedDate)}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(m.fee || "現場公告")}</div>
-        <div class="info"><strong>人數</strong>${cap > 0 ? `${m.confirmed_count || 0}/${cap} 人` : `${m.confirmed_count || 0} 人`}</div>
+        <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
+        <div class="info"><strong>備取</strong>${waitlistCount} 人</div>
+        ${memberCount ? `<div class="info"><strong>會員</strong>${memberCount} 人</div>` : ""}
       </div>
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
       <div class="actions">
-        <button class="btn-primary signup-btn" ${full ? "disabled" : ""}>${full ? "目前已額滿" : "我要報名"}</button>
+        <button class="btn-primary signup-btn">${full ? "加入備取" : "我要報名"}</button>
         <button class="btn-secondary roster-btn">查看名單</button>
         <button class="btn-ghost cancel-btn">取消預約</button>
       </div>
@@ -301,8 +343,8 @@ function renderMeetups(meetups) {
   }).join("");
 
   document.querySelectorAll(".meetup-card").forEach((card) => {
-    const id = Number(card.dataset.meetupId);
-    const meetup = meetups.find((x) => Number(x.id) === id);
+    const id = String(card.dataset.meetupId);
+    const meetup = meetups.find((x) => String(x.id) === id);
     card.querySelector(".signup-btn")?.addEventListener("click", () => openSignup(meetup));
     card.querySelector(".cancel-btn")?.addEventListener("click", () => openCancel(meetup));
     card.querySelector(".roster-btn")?.addEventListener("click", () => toggleRoster(meetup));
@@ -320,14 +362,21 @@ async function toggleRoster(meetup) {
       el.innerHTML = `<p class="muted">目前還沒有人報名。</p>`;
       return;
     }
-    el.innerHTML = `<strong>已報名</strong><div class="roster-list">${rows.map((r, idx) => `
+    const confirmedRows = rows.filter((r) => (r.status || "confirmed") === "confirmed");
+    const waitlistRows = rows.filter((r) => r.status === "waitlist");
+    const renderPerson = (r, idx) => `
       <div class="person">
         <div class="person-main">
-          <div class="person-name">${idx + 1}. ${escapeHtml(r.nickname || "球友")}</div>
+          <div class="person-name">${idx + 1}. ${escapeHtml(r.display_name || r.nickname || "球友")} ${r.source === "member" ? "<span class=\"pill\">會員</span>" : ""}</div>
           ${r.note ? `<div class="person-note">${escapeHtml(r.note)}</div>` : ""}
         </div>
         <span class="pill">${escapeHtml(skillLabel(r.skill_level, r.is_beginner))}</span>
-      </div>`).join("")}</div>`;
+      </div>`;
+    el.innerHTML = `
+      <strong>正取名單</strong>
+      <div class="roster-list">${confirmedRows.length ? confirmedRows.map(renderPerson).join("") : `<p class="muted">目前尚無正取。</p>`}</div>
+      <strong style="display:block;margin-top:12px;">備取名單</strong>
+      <div class="roster-list">${waitlistRows.length ? waitlistRows.map(renderPerson).join("") : `<p class="muted">目前尚無備取。</p>`}</div>`;
   } catch (e) {
     el.innerHTML = `<p class="muted">名單讀取失敗，請稍後再試。</p>`;
   }
@@ -346,7 +395,7 @@ function openCancel(meetup) {
   currentMeetup = meetup;
   clearMessage($("cancelMessage"));
   $("cancelForm").reset();
-  $("cancelSubtitle").textContent = `${meetup.name || "活動"}｜${formatDate(selectedDate)}`;
+  $("cancelSubtitle").textContent = `${meetup.name || "活動"}｜${formatDate(selectedDate)}｜一般報名者會取消預約，固定會員會登記請假。`;
   $("cancelModal").classList.add("show");
 }
 function closeCancel() { $("cancelModal").classList.remove("show"); currentMeetup = null; }
@@ -376,7 +425,8 @@ async function handleSignup(e) {
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
     if (result && result.ok === false) return setMessage($("formMessage"), result.message || "無法完成報名。", false);
-    setMessage($("formMessage"), "報名成功，已為你保留這一天的名額。", true);
+    const status = result?.signup_status || result?.status;
+    setMessage($("formMessage"), status === "waitlist" ? "目前正取已滿，已幫你加入備取。" : "報名成功，你目前為正取。", true);
     notifyNewSignup({ meetup: currentMeetup, meetupId: currentMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
     clearRosterCache();
     await refreshMeetupListOnly();
@@ -392,7 +442,7 @@ async function handleCancel(e) {
   e.preventDefault();
   if (!currentMeetup) return;
   const phone = cleanPhone($("cancelPhone").value);
-  if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入報名時的手機，例如 0912345678。", false);
+  if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入報名或會員手機，例如 0912345678。", false);
   $("cancelSubmitBtn").disabled = true;
   $("cancelSubmitBtn").textContent = "取消中...";
   try {
@@ -404,7 +454,13 @@ async function handleCancel(e) {
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
     if (result && result.ok === false) return setMessage($("cancelMessage"), result.message || "找不到這筆預約。", false);
-    setMessage($("cancelMessage"), "已取消預約，名額已釋出。", true);
+    const actionType = result?.action_type;
+    const successMessage = actionType === "member_absence_created"
+      ? "已完成會員請假，當天不會列入名單，名額已釋出。"
+      : actionType === "member_already_absent"
+        ? "你已經完成請假，當天不會列入名單。"
+        : (result?.message || "已取消預約，名額已釋出。");
+    setMessage($("cancelMessage"), successMessage, true);
     clearRosterCache();
     await refreshMeetupListOnly();
   } catch (err) {
