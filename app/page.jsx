@@ -185,10 +185,11 @@ export default function Page() {
         </label>
         <label>手機
           <input id="phone" placeholder="0912345678" inputmode="numeric" autocomplete="tel" />
+          <span class="muted" style="font-size:13px;">電話僅作為取消預約或會員請假識別使用，不作其他用途。</span>
         </label>
         <label>你的程度
           <select id="skillLevel">
-            <option value="first_time">第一次參加</option>
+            <option value="first_time">第一次需要教學</option>
             <option value="beginner" selected>初學</option>
             <option value="normal">一般</option>
             <option value="advanced">進階</option>
