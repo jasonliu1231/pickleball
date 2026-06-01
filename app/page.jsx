@@ -159,7 +159,7 @@ export default function Page() {
             </div>
           </div>
           <div class="faq">
-            <article class="tip-card"><h3>報名後可以取消嗎？</h3><p>可以。到該日期的團體卡片點「取消預約」，輸入報名手機即可取消。</p></article>
+            <article class="tip-card"><h3>報名後可以取消嗎？</h3><p>可以。到該日期的團體卡片點「取消預約」，輸入報名手機即可取消；當天不開放線上取消，請直接聯絡團長處理續數與名額調整。</p></article>
             <article class="tip-card"><h3>我沒有打過可以參加嗎？</h3><p>可以。報名時勾選新手，現場會依活動狀況協助安排。</p></article>
             <article class="tip-card"><h3>看不到可報名日期？</h3><p>代表目前尚未開放該月份場次，請換月份查看或留意公告。</p></article>
           </div>
@@ -210,7 +210,7 @@ export default function Page() {
       <div class="modal-head">
         <div>
           <h2 class="section-title" style="font-size:24px">取消預約</h2>
-          <p class="muted" id="cancelSubtitle">輸入報名時的手機即可取消。</p>
+          <p class="muted" id="cancelSubtitle">輸入報名時的手機即可取消。當天不開放線上取消，請直接聯絡團長處理續數與名額調整。</p>
         </div>
         <button class="close-btn" id="closeCancelModal">×</button>
       </div>

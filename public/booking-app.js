@@ -122,6 +122,8 @@ function timeText(start, end) {
 }
 function cleanPhone(phone) { return String(phone || "").replace(/\D/g, ""); }
 function validatePhone(phone) { return /^09\d{8}$/.test(cleanPhone(phone)); }
+function isTodayDate(dateStr) { return dateStr === toISODate(new Date()); }
+function sameDayCancelMessage() { return "當天不開放線上取消預約，請直接聯絡團長處理續數與名額調整。"; }
 function maskPhone(phone) {
   const p = cleanPhone(phone);
   if (p.length < 7) return "";
@@ -395,7 +397,13 @@ function openCancel(meetup) {
   currentMeetup = meetup;
   clearMessage($("cancelMessage"));
   $("cancelForm").reset();
-  $("cancelSubtitle").textContent = `${meetup.name || "活動"}｜${formatDate(selectedDate)}｜一般報名者會取消預約，固定會員會登記請假。`;
+  const baseText = `${meetup.name || "活動"}｜${formatDate(selectedDate)}｜一般報名者會取消預約，固定會員會登記請假。`;
+  $("cancelSubtitle").textContent = isTodayDate(selectedDate)
+    ? `${baseText}｜提醒：${sameDayCancelMessage()}`
+    : baseText;
+  $("cancelSubmitBtn").disabled = isTodayDate(selectedDate);
+  $("cancelSubmitBtn").textContent = isTodayDate(selectedDate) ? "當天不可線上取消" : "確認取消";
+  if (isTodayDate(selectedDate)) setMessage($("cancelMessage"), sameDayCancelMessage(), false);
   $("cancelModal").classList.add("show");
 }
 function closeCancel() { $("cancelModal").classList.remove("show"); currentMeetup = null; }
@@ -441,6 +449,7 @@ async function handleSignup(e) {
 async function handleCancel(e) {
   e.preventDefault();
   if (!currentMeetup) return;
+  if (isTodayDate(selectedDate)) return setMessage($("cancelMessage"), sameDayCancelMessage(), false);
   const phone = cleanPhone($("cancelPhone").value);
   if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入報名或會員手機，例如 0912345678。", false);
   $("cancelSubmitBtn").disabled = true;
