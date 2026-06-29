@@ -214,16 +214,20 @@ async function loadMeetupsByDate(dateStr) {
     } else {
       const { data: signups, error: signupError } = await client
         .from("signups")
-        .select("meetup_id,status")
+        .select("meetup_id,status,people_count")
         .in("meetup_id", ids)
         .eq("reservation_date", dateStr)
         .in("status", ["confirmed", "waitlist"]);
       if (signupError) throw signupError;
       counts = (signups || []).reduce((acc, row) => {
         const key = String(row.meetup_id);
+        const pCount = Number(row.people_count || 1);
         acc[key] = acc[key] || { confirmed_total_count: 0, waitlist_count: 0, member_count: 0, confirmed_signup_count: 0 };
-        if (row.status === "waitlist") acc[key].waitlist_count += 1;
-        else acc[key].confirmed_total_count += 1;
+        if (row.status === "waitlist") acc[key].waitlist_count += pCount;
+        else {
+          acc[key].confirmed_total_count += pCount;
+          acc[key].confirmed_signup_count += pCount;
+        }
         return acc;
       }, {});
     }
@@ -313,6 +317,9 @@ function renderMeetups(meetups) {
     const realConfirmed = Number(m.confirmed_count || 0);
     const displayConfirmed = Number(m.display_confirmed_count ?? (cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed));
     const waitlistCount = Number(m.waitlist_count || 0);
+    const mapAddr = m.street_address || m.address;
+    const hasCity = mapAddr ? (mapAddr.includes("台中") || mapAddr.includes("臺中") || (m.city && mapAddr.includes(m.city))) : false;
+    const queryStr = hasCity ? mapAddr : `${m.city || ""} ${mapAddr}`;
     const memberCount = Number(m.member_count || 0);
     const left = Math.max(0, cap - realConfirmed);
     const full = cap > 0 && left <= 0;
@@ -320,7 +327,13 @@ function renderMeetups(meetups) {
       <div class="meetup-top">
         <div>
           <h3 class="meetup-title">${escapeHtml(m.name || "未命名活動")}</h3>
-          <p class="muted">${escapeHtml(m.address || "地點另行公告")}</p>
+          <p class="muted">
+            ${m.address && m.address !== "地點另行公告" ? `
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryStr)}" target="_blank" rel="noopener noreferrer" class="map-link" title="在地圖中搜尋">
+                📍 ${escapeHtml(m.address)}${m.street_address ? ` <span class="street-addr">(${escapeHtml(m.street_address)})</span>` : ""}
+              </a>
+            ` : "📍 地點另行公告"}
+          </p>
         </div>
         <span class="badge ${full ? "full" : ""}">${full ? "可備取" : cap > 0 ? `剩 ${left}` : "可報名"}</span>
       </div>
@@ -366,14 +379,17 @@ async function toggleRoster(meetup) {
     }
     const confirmedRows = rows.filter((r) => (r.status || "confirmed") === "confirmed");
     const waitlistRows = rows.filter((r) => r.status === "waitlist");
-    const renderPerson = (r, idx) => `
+    const renderPerson = (r, idx) => {
+      const countSuffix = (r.people_count > 1) ? ` (+${r.people_count - 1}人)` : '';
+      return `
       <div class="person">
         <div class="person-main">
-          <div class="person-name">${idx + 1}. ${escapeHtml(r.display_name || r.nickname || "球友")} ${r.source === "member" ? "<span class=\"pill\">會員</span>" : ""}</div>
+          <div class="person-name">${idx + 1}. ${escapeHtml(r.display_name || r.nickname || "球友")}${countSuffix} ${r.source === "member" ? "<span class=\"pill\">會員</span>" : ""}</div>
           ${r.note ? `<div class="person-note">${escapeHtml(r.note)}</div>` : ""}
         </div>
         <span class="pill">${escapeHtml(skillLabel(r.skill_level, r.is_beginner))}</span>
       </div>`;
+    };
     el.innerHTML = `
       <strong>正取名單</strong>
       <div class="roster-list">${confirmedRows.length ? confirmedRows.map(renderPerson).join("") : `<p class="muted">目前尚無正取。</p>`}</div>
@@ -390,6 +406,12 @@ function openSignup(meetup) {
   $("signupForm").reset();
   $("modalTitle").textContent = meetup.name || "我要報名";
   $("modalSubtitle").textContent = `${formatDate(selectedDate)}｜${timeText(meetup.start_time, meetup.end_time)}`;
+  
+  const peopleCountLabel = $("peopleCount")?.closest("label");
+  if (peopleCountLabel) {
+    peopleCountLabel.style.display = meetup.allow_multiple_people ? "grid" : "none";
+  }
+  
   $("signupModal").classList.add("show");
 }
 function closeSignup() { $("signupModal").classList.remove("show"); currentMeetup = null; }
@@ -397,16 +419,71 @@ function openCancel(meetup) {
   currentMeetup = meetup;
   clearMessage($("cancelMessage"));
   $("cancelForm").reset();
+  $("cancelFormSecondStep").style.display = "none";
+  $("queryResultText").textContent = "";
   const baseText = `${meetup.name || "活動"}｜${formatDate(selectedDate)}｜一般報名者會取消預約，固定會員會登記請假。`;
   $("cancelSubtitle").textContent = isTodayDate(selectedDate)
     ? `${baseText}｜提醒：${sameDayCancelMessage()}`
     : baseText;
+  $("queryCancelBtn").disabled = isTodayDate(selectedDate);
   $("cancelSubmitBtn").disabled = isTodayDate(selectedDate);
   $("cancelSubmitBtn").textContent = isTodayDate(selectedDate) ? "當天不可線上取消" : "確認取消";
   if (isTodayDate(selectedDate)) setMessage($("cancelMessage"), sameDayCancelMessage(), false);
   $("cancelModal").classList.add("show");
 }
 function closeCancel() { $("cancelModal").classList.remove("show"); currentMeetup = null; }
+
+async function handleQueryCancel() {
+  if (!currentMeetup) return;
+  if (isTodayDate(selectedDate)) return setMessage($("cancelMessage"), sameDayCancelMessage(), false);
+  const phone = cleanPhone($("cancelPhone").value);
+  if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
+
+  clearMessage($("cancelMessage"));
+  $("queryCancelBtn").disabled = true;
+  $("queryCancelBtn").textContent = "查詢中...";
+  try {
+    const { data, error } = await client
+      .from("signups")
+      .select("id, nickname, people_count, status")
+      .eq("meetup_id", currentMeetup.id)
+      .eq("reservation_date", selectedDate)
+      .eq("phone", phone)
+      .in("status", ["confirmed", "waitlist"])
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      $("cancelFormSecondStep").style.display = "none";
+      return setMessage($("cancelMessage"), "找不到該手機的預約紀錄。", false);
+    }
+
+    const select = $("cancelPeopleCount");
+    select.innerHTML = "";
+    const count = Number(data.people_count || 1);
+    for (let i = 1; i <= count; i++) {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = `${i} 人`;
+      if (i === 1) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    const cancelPeopleLabel = select.closest("label");
+    if (cancelPeopleLabel) {
+      cancelPeopleLabel.style.display = count > 1 ? "grid" : "none";
+    }
+
+    const statusText = data.status === "waitlist" ? "備取" : "正取";
+    $("queryResultText").textContent = `查得預約：${data.nickname || "球友"} (${statusText} ${count}人)`;
+    $("cancelFormSecondStep").style.display = "block";
+  } catch (err) {
+    setMessage($("cancelMessage"), err.message || "查詢失敗，請稍後再試。", false);
+  } finally {
+    $("queryCancelBtn").disabled = false;
+    $("queryCancelBtn").textContent = "查詢預約";
+  }
+}
 
 async function handleSignup(e) {
   e.preventDefault();
@@ -416,6 +493,7 @@ async function handleSignup(e) {
   const note = $("note").value.trim();
   const skillLevel = $("skillLevel").value || "normal";
   const isBeginner = isBeginnerSkill(skillLevel);
+  const peopleCount = parseInt($("peopleCount").value) || 1;
   if (!nickname) return setMessage($("formMessage"), "請填寫暱稱。", false);
   if (!validatePhone(phone)) return setMessage($("formMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
   $("submitBtn").disabled = true;
@@ -428,7 +506,8 @@ async function handleSignup(e) {
       p_phone: phone,
       p_is_beginner: isBeginner,
       p_skill_level: skillLevel,
-      p_note: note || null
+      p_note: note || null,
+      p_people_count: peopleCount
     });
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
@@ -451,6 +530,7 @@ async function handleCancel(e) {
   if (!currentMeetup) return;
   if (isTodayDate(selectedDate)) return setMessage($("cancelMessage"), sameDayCancelMessage(), false);
   const phone = cleanPhone($("cancelPhone").value);
+  const cancelPeopleCount = parseInt($("cancelPeopleCount").value) || 1;
   if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入報名或會員手機，例如 0912345678。", false);
   $("cancelSubmitBtn").disabled = true;
   $("cancelSubmitBtn").textContent = "取消中...";
@@ -458,7 +538,8 @@ async function handleCancel(e) {
     const { data, error } = await client.rpc("cancel_signup_by_phone", {
       p_meetup_id: currentMeetup.id,
       p_reservation_date: selectedDate,
-      p_phone: phone
+      p_phone: phone,
+      p_cancel_people_count: cancelPeopleCount
     });
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
@@ -470,6 +551,8 @@ async function handleCancel(e) {
         ? "你已經完成請假，當天不會列入名單。"
         : (result?.message || "已取消預約，名額已釋出。");
     setMessage($("cancelMessage"), successMessage, true);
+    $("cancelFormSecondStep").style.display = "none";
+    $("queryResultText").textContent = "";
     clearRosterCache();
     await refreshMeetupListOnly();
   } catch (err) {
@@ -561,6 +644,52 @@ function openTab(tabId) {
   document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.toggle("active", panel.id === tabId));
 }
 
+async function handleQueryPoints() {
+  const phInput = $("queryPointsPhone");
+  const resultP = $("queryPointsResult");
+  if (!phInput || !resultP) return;
+
+  const phoneVal = phInput.value.trim().replace(/\D/g, "");
+  if (!phoneVal) {
+    alert("請輸入手機號碼");
+    return;
+  }
+  if (!/^09\d{8}$/.test(phoneVal)) {
+    alert("手機號碼格式不正確，例：0912345678");
+    return;
+  }
+
+  try {
+    resultP.style.display = "block";
+    resultP.style.color = "#475569";
+    resultP.textContent = "查詢中...";
+
+    const { data, error } = await client
+      .from("members")
+      .select("name, remaining_times, end_date, status")
+      .eq("status", "active")
+      .eq("phone", phoneVal);
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      resultP.style.color = "#dc2626";
+      resultP.textContent = "查無此會員或該會員已停用。";
+      return;
+    }
+
+    const resultsText = data.map(m => {
+      const expText = m.end_date ? m.end_date : "無期限";
+      return `${m.name}：剩餘 ${m.remaining_times} 次 (期限: ${expText})`;
+    }).join(" ｜ ");
+    resultP.style.color = "#15803d";
+    resultP.textContent = `查得餘額 ➔ ${resultsText}`;
+  } catch (e) {
+    resultP.style.color = "#dc2626";
+    resultP.textContent = `查詢失敗：${e.message || String(e)}`;
+  }
+}
+
 $("prevMonth").addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, -1); renderCalendar(); });
 $("nextMonth").addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, 1); renderCalendar(); });
 $("refreshBtn").addEventListener("click", async () => { clearRosterCache(); await loadAvailableWeekdays(); refreshAll(); });
@@ -576,6 +705,8 @@ $("signupModal").addEventListener("click", (e) => { if (e.target.id === "signupM
 $("cancelModal").addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
 $("signupForm").addEventListener("submit", handleSignup);
 $("cancelForm").addEventListener("submit", handleCancel);
+$("queryCancelBtn").addEventListener("click", handleQueryCancel);
+$("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
 
 
 document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => openTab(btn.dataset.tab)));

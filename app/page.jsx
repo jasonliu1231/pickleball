@@ -45,31 +45,15 @@ export default function Page() {
     <section id="top" class="hero">
       <div class="hero-main">
         <div class="hero-content">
-          <div class="eyebrow">PICKLEBALL BOOKING</div>
+          <div class="eyebrow">🏓 PICKLEBALL BOOKING</div>
           <h1>想打球，選一天就好。</h1>
-          <p>用月曆查看開團日期，選好日期後就能看到當天可報名的團。第一次來也不用擔心，我們會依照程度協助安排。</p>
+          <p>歡迎來到匹克球同樂會！在下方月曆點選有標示小點的日期，即可一覽當天所有球團、時間與場地。填寫暱稱與手機即可迅速完成預約，無需繁瑣註冊。</p>
           <div class="hero-actions">
             <a class="hero-btn main" href="#main-tabs" data-open-tab="bookingPanel">查看可報名日期</a>
-            <a class="hero-btn sub" href="#main-tabs" data-open-tab="knowledgePanel">先看新手小知識</a>
+            <a class="hero-btn sub" href="#main-tabs" data-open-tab="noticePanel">閱讀最新公告</a>
           </div>
         </div>
       </div>
-
-      <aside class="hero-side">
-        <div class="quick-card">
-          <h2 class="quick-title"><span>✓</span>預約很簡單</h2>
-          <div class="steps">
-            <div class="step"><span>1</span><div>選擇月曆上有小點的日期。</div></div>
-            <div class="step"><span>2</span><div>查看當天團體、時間、地點與剩餘名額。</div></div>
-            <div class="step"><span>3</span><div>填暱稱與手機完成報名，也可用手機取消。</div></div>
-          </div>
-        </div>
-        <div class="status-strip">
-          <div class="status-box"><b>快速</b><span>不用註冊帳號</span></div>
-          <div class="status-box"><b>清楚</b><span>名額即時顯示</span></div>
-          <div class="status-box"><b>安心</b><span>手機遮罩顯示</span></div>
-        </div>
-      </aside>
     </section>
 
     <section class="tab-shell" id="main-tabs">
@@ -108,6 +92,19 @@ export default function Page() {
                 <div class="week-row" id="weekRow"></div>
                 <div class="days-grid" id="daysGrid"></div>
                 <div class="hint"><span class="dot"></span><span>有小點的日期可以報名</span></div>
+                
+                <div class="points-card">
+                  <h3 class="points-title">
+                    <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                    會員點數/額度查詢
+                  </h3>
+                  <p class="points-desc">輸入註冊手機號碼，即可查詢剩餘可用次數與期限。</p>
+                  <div class="points-row">
+                    <input id="queryPointsPhone" placeholder="例如：0912345678" inputmode="numeric" maxLength="12" />
+                    <button id="queryPointsBtn">查詢</button>
+                  </div>
+                  <p id="queryPointsResult"></p>
+                </div>
               </div>
 
               <div class="list-card">
@@ -196,6 +193,16 @@ export default function Page() {
           </select>
           <span class="muted" style="font-size:13px;">讓發起人更好安排分組。</span>
         </label>
+        <label style="display: none;">預約人數
+          <select id="peopleCount">
+            <option value="1" selected>1 人</option>
+            <option value="2">2 人</option>
+            <option value="3">3 人</option>
+            <option value="4">4 人</option>
+            <option value="5">5 人</option>
+          </select>
+          <span class="muted" style="font-size:13px;">包含自己。若有多人請在此選擇，不需重複報名。</span>
+        </label>
         <label>備註，可不填
           <textarea id="note" placeholder="有想先告知的事可以寫在這裡"></textarea>
         </label>
@@ -217,8 +224,18 @@ export default function Page() {
       <form class="form" id="cancelForm">
         <label>報名手機
           <input id="cancelPhone" placeholder="0912345678" inputmode="numeric" autocomplete="tel" />
+          <button class="btn-primary" id="queryCancelBtn" type="button" style="margin-top: 8px;">查詢預約</button>
         </label>
-        <button class="btn-danger" id="cancelSubmitBtn" type="submit">確認取消</button>
+        <div id="cancelFormSecondStep" style="display: none; margin-top: 16px;">
+          <p id="queryResultText" style="font-weight: bold; color: #0d9488; margin-bottom: 12px; font-size: 15px;"></p>
+          <label style="display: none;">取消人數
+            <select id="cancelPeopleCount">
+              <option value="1" selected>1 人</option>
+            </select>
+            <span class="muted" style="font-size:13px;">如果有多人報名且只想取消部分人數，請選擇要取消的人數。</span>
+          </label>
+          <button class="btn-danger" id="cancelSubmitBtn" type="submit" style="margin-top: 12px;">確認取消</button>
+        </div>
       </form>
       <div class="message" id="cancelMessage"></div>
     </div>
