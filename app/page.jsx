@@ -36,9 +36,10 @@ export default function Page() {
         <span>匹克球同樂會</span>
       </a>
       <nav class="nav" aria-label="主要選單">
+        <a href="#main-tabs" class="active" data-open-tab="bookingPanel">立即預約</a>
         <a href="#main-tabs" data-open-tab="noticePanel">公告</a>
         <a href="#main-tabs" data-open-tab="knowledgePanel">小知識</a>
-        <a href="#main-tabs" class="primary-link" data-open-tab="bookingPanel">立即預約</a>
+        <a href="#main-tabs" data-open-tab="faqPanel">常見問題</a>
       </nav>
     </header>
 
@@ -49,20 +50,13 @@ export default function Page() {
           <h1>想打球，選一天就好。</h1>
           <p>歡迎來到匹克球同樂會！在下方月曆點選有標示小點的日期，即可一覽當天所有球團、時間與場地。填寫暱稱與手機即可迅速完成預約，無需繁瑣註冊。</p>
           <div class="hero-actions">
-            <a class="hero-btn main" href="#main-tabs" data-open-tab="bookingPanel">查看可報名日期</a>
-            <a class="hero-btn sub" href="#main-tabs" data-open-tab="noticePanel">閱讀最新公告</a>
+            <a class="hero-btn main" href="#main-tabs" data-open-tab="bookingPanel">查看可報名日期 ➔</a>
           </div>
         </div>
       </div>
     </section>
 
     <section class="tab-shell" id="main-tabs">
-      <div class="tabs" role="tablist" aria-label="網站分頁">
-        <button class="tab-btn active" data-tab="bookingPanel" type="button">📅 線上預約</button>
-        <button class="tab-btn" data-tab="noticePanel" type="button">📢 公告</button>
-        <button class="tab-btn" data-tab="knowledgePanel" type="button">🏓 小知識</button>
-        <button class="tab-btn" data-tab="faqPanel" type="button">❓ 常見問題</button>
-      </div>
 
       <section id="bookingPanel" class="tab-panel active">
         <section id="booking" class="section">

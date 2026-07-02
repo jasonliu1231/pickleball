@@ -4,6 +4,107 @@ const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
 });
 
+let countdownInterval = null;
+let exclusions = [];
+
+function getBookingWindow(m, dateStr) {
+  if (!m || !dateStr) return { openDateTime: null, closeDateTime: null };
+  const [yr, mo, dy] = dateStr.split("-").map(Number);
+  const [h, min] = (m.start_time || "00:00").split(":");
+  const gameStart = new Date(yr, mo - 1, dy, Number(h), Number(min), 0, 0);
+  
+  let openDateTime = null;
+  if (m.booking_open_days_before !== null && m.booking_open_days_before !== undefined && Number(m.booking_open_days_before) > 0) {
+    openDateTime = new Date(gameStart.getTime() - Number(m.booking_open_days_before) * 60 * 60 * 1000);
+  }
+  
+  let closeDateTime = null;
+  if (m.booking_close_days_before !== null && m.booking_close_days_before !== undefined && Number(m.booking_close_days_before) > 0) {
+    closeDateTime = new Date(gameStart.getTime() - Number(m.booking_close_days_before) * 60 * 60 * 1000);
+  } else {
+    closeDateTime = gameStart;
+  }
+  
+  return { openDateTime, closeDateTime };
+}
+
+function formatShortDateTime(dt) {
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  const h = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${m}/${d} ${h}:${min}`;
+}
+
+function startCountdownTicker() {
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(() => {
+    const now = new Date().getTime();
+    let activeCountdowns = 0;
+    
+    document.querySelectorAll(".meetup-card[data-open-time]").forEach((card) => {
+      const openTimeMs = Number(card.dataset.openTime);
+      const btn = card.querySelector(".signup-btn");
+      if (!btn) return;
+      
+      const delta = openTimeMs - now;
+      if (delta > 0) {
+        activeCountdowns++;
+        if (delta <= 60000) {
+          const seconds = Math.ceil(delta / 1000);
+          btn.disabled = true;
+          btn.textContent = `即將開放 (${seconds}秒)`;
+        }
+      } else {
+        card.removeAttribute("data-open-time");
+        const isFull = card.dataset.isFull === "true";
+        btn.disabled = false;
+        btn.textContent = isFull ? "加入備取" : "我要報名";
+        
+        const badge = card.querySelector(".badge");
+        if (badge && badge.textContent.includes("尚未開放")) {
+          const cap = Number(card.dataset.capacity || 0);
+          const left = Number(card.dataset.slotsLeft || 0);
+          badge.textContent = isFull ? "可備取" : cap > 0 ? `剩 ${left}` : "可報名";
+          badge.className = `badge ${isFull ? "full" : ""}`;
+        }
+      }
+    });
+    
+    if (activeCountdowns === 0) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+  }, 1000);
+}
+
+function isCancelBlocked(meetup, selectedDate) {
+  if (!meetup || !selectedDate) return { blocked: false, reason: "" };
+  
+  const [yr, mo, dy] = selectedDate.split("-").map(Number);
+  const [h, min] = (meetup.start_time || "00:00").split(":");
+  const gameStart = new Date(yr, mo - 1, dy, Number(h), Number(min), 0, 0);
+  const now = new Date();
+  
+  if (now >= gameStart) {
+    return { blocked: true, reason: "活動已開始，不可線上取消。" };
+  }
+  
+  if (meetup.cancel_deadline_hours !== null && meetup.cancel_deadline_hours !== undefined && Number(meetup.cancel_deadline_hours) > 0) {
+    const deadline = new Date(gameStart.getTime() - Number(meetup.cancel_deadline_hours) * 60 * 60 * 1000);
+    if (now > deadline) {
+      return { 
+        blocked: true, 
+        reason: `此場次限制於開始前 ${meetup.cancel_deadline_hours} 小時內不可線上取消預約，請聯絡團長。` 
+      };
+    }
+  }
+  
+  return { blocked: false, reason: "" };
+}
+
+
+
 const fallbackAnnouncements = [
   { title: "歡迎使用線上預約", content: "最新公告會由發起人更新，請留意此頁資訊。", author_name: "系統" }
 ];
@@ -153,11 +254,9 @@ function applyCityFilter(query) {
 }
 
 async function loadAvailableWeekdays() {
-  // 從 booking_meetup_weekdays_view 讀取可顯示的固定開團規則。
-  // View 會同時帶出團體、發起人與推播 token。
   let query = client
     .from("booking_meetup_weekdays_view")
-    .select("id,weekday,start_date,is_active,weekday_is_active,city")
+    .select("id,weekday,start_date,is_active,weekday_is_active,city,is_one_off,one_off_date")
     .eq("is_active", true)
     .eq("weekday_is_active", true);
   query = applyCityFilter(query);
@@ -165,17 +264,30 @@ async function loadAvailableWeekdays() {
   if (error) throw error;
 
   availableRules = (data || []).map((x) => ({
+    id: x.id,
     weekday: x.weekday,
     start_date: x.start_date || null,
+    is_one_off: !!x.is_one_off,
+    one_off_date: x.one_off_date || null,
   }));
+
+  try {
+    const { data: exclData } = await client.from("meetup_exclusions").select("meetup_id, exclude_date");
+    exclusions = exclData || [];
+  } catch (err) {
+    console.error("載入停開日期失敗", err);
+  }
 }
 
 function hasAvailableMeetupOnDate(dateStr) {
   const weekday = dateFromISO(dateStr).getDay();
   return availableRules.some((rule) => {
     if (Number(rule.weekday) !== weekday) return false;
-    if (!rule.start_date) return true;
-    return dateStr >= rule.start_date;
+    if (rule.start_date && dateStr < rule.start_date) return false;
+    if (rule.is_one_off && rule.one_off_date !== dateStr) return false;
+    const isExcluded = exclusions.some(ex => String(ex.meetup_id) === String(rule.id) && ex.exclude_date === dateStr);
+    if (isExcluded) return false;
+    return true;
   });
 }
 
@@ -192,12 +304,24 @@ async function loadMeetupsByDate(dateStr) {
   const { data, error } = await query.order("id", { ascending: false });
   if (error) throw error;
 
-  const rows = (data || []).map((m) => ({
-    ...m,
-    push_tokens: normalizePushTokens(m.push_tokens),
-    capacity_override: m.capacity_override ?? null,
-    weekday_notes: m.weekday_notes ?? null,
-  }));
+  const { data: exclRows } = await client
+    .from("meetup_exclusions")
+    .select("meetup_id")
+    .eq("exclude_date", dateStr);
+  const excludedIds = new Set((exclRows || []).map(x => String(x.meetup_id)));
+
+  const rows = (data || [])
+    .filter(m => {
+      if (excludedIds.has(String(m.id))) return false;
+      if (m.is_one_off && m.one_off_date !== dateStr) return false;
+      return true;
+    })
+    .map((m) => ({
+      ...m,
+      push_tokens: normalizePushTokens(m.push_tokens),
+      capacity_override: m.capacity_override ?? null,
+      weekday_notes: m.weekday_notes ?? null,
+    }));
 
   const ids = rows.map((x) => x.id);
   let counts = {};
@@ -323,7 +447,44 @@ function renderMeetups(meetups) {
     const memberCount = Number(m.member_count || 0);
     const left = Math.max(0, cap - realConfirmed);
     const full = cap > 0 && left <= 0;
-    return `<article class="meetup-card" data-meetup-id="${m.id}">
+
+    const { openDateTime, closeDateTime } = getBookingWindow(m, selectedDate);
+    const now = new Date();
+    
+    let isBookingNotOpen = openDateTime && now < openDateTime;
+    let isBookingClosed = closeDateTime && now > closeDateTime;
+    
+    let badgeText = "";
+    let badgeClass = "";
+    if (isBookingNotOpen) {
+      badgeText = "尚未開放";
+      badgeClass = "muted";
+    } else if (isBookingClosed) {
+      badgeText = "已截止";
+      badgeClass = "muted";
+    } else {
+      badgeText = full ? "可備取" : cap > 0 ? `剩 ${left}` : "可報名";
+      badgeClass = full ? "full" : "";
+    }
+    
+    let primaryBtnText = "";
+    let btnDisabledAttr = "";
+    if (isBookingNotOpen) {
+      const delta = openDateTime.getTime() - now.getTime();
+      primaryBtnText = delta <= 60000 ? `即將開放 (${Math.ceil(delta / 1000)}秒)` : `${formatShortDateTime(openDateTime)} 開放`;
+      btnDisabledAttr = "disabled";
+    } else if (isBookingClosed) {
+      primaryBtnText = "預約已截止";
+      btnDisabledAttr = "disabled";
+    } else {
+      primaryBtnText = full ? "加入備取" : "我要報名";
+    }
+
+    return `<article class="meetup-card" data-meetup-id="${m.id}" 
+      ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
+      data-is-full="${full}"
+      data-capacity="${cap}"
+      data-slots-left="${left}">
       <div class="meetup-top">
         <div>
           <h3 class="meetup-title">${escapeHtml(m.name || "未命名活動")}</h3>
@@ -335,21 +496,19 @@ function renderMeetups(meetups) {
             ` : "📍 地點另行公告"}
           </p>
         </div>
-        <span class="badge ${full ? "full" : ""}">${full ? "可備取" : cap > 0 ? `剩 ${left}` : "可報名"}</span>
+        <span class="badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="info-grid">
         <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}</div>
-        <div class="info"><strong>城市</strong>${escapeHtml(m.city || "未設定")}</div>
-        <div class="info"><strong>日期</strong>${shortDate(selectedDate)}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(m.fee || "現場公告")}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
-        <div class="info"><strong>備取</strong>${waitlistCount} 人</div>
-        ${memberCount ? `<div class="info"><strong>會員</strong>${memberCount} 人</div>` : ""}
+        ${waitlistCount > 0 ? `<div class="info"><strong>備取</strong>${waitlistCount} 人</div>` : ""}
+        ${m.coach ? `<div class="info"><strong>教練</strong>${escapeHtml(m.coach)}</div>` : ""}
       </div>
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
       <div class="actions">
-        <button class="btn-primary signup-btn">${full ? "加入備取" : "我要報名"}</button>
+        <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
         <button class="btn-secondary roster-btn">查看名單</button>
         <button class="btn-ghost cancel-btn">取消預約</button>
       </div>
@@ -364,6 +523,10 @@ function renderMeetups(meetups) {
     card.querySelector(".cancel-btn")?.addEventListener("click", () => openCancel(meetup));
     card.querySelector(".roster-btn")?.addEventListener("click", () => toggleRoster(meetup));
   });
+
+  if (document.querySelector(".meetup-card[data-open-time]")) {
+    startCountdownTicker();
+  }
 }
 
 async function toggleRoster(meetup) {
@@ -422,20 +585,28 @@ function openCancel(meetup) {
   $("cancelFormSecondStep").style.display = "none";
   $("queryResultText").textContent = "";
   const baseText = `${meetup.name || "活動"}｜${formatDate(selectedDate)}｜一般報名者會取消預約，固定會員會登記請假。`;
-  $("cancelSubtitle").textContent = isTodayDate(selectedDate)
-    ? `${baseText}｜提醒：${sameDayCancelMessage()}`
-    : baseText;
-  $("queryCancelBtn").disabled = isTodayDate(selectedDate);
-  $("cancelSubmitBtn").disabled = isTodayDate(selectedDate);
-  $("cancelSubmitBtn").textContent = isTodayDate(selectedDate) ? "當天不可線上取消" : "確認取消";
-  if (isTodayDate(selectedDate)) setMessage($("cancelMessage"), sameDayCancelMessage(), false);
+  
+  const blockCheck = isCancelBlocked(meetup, selectedDate);
+  if (blockCheck.blocked) {
+    $("cancelSubtitle").textContent = `${baseText}｜提醒：${blockCheck.reason}`;
+    $("queryCancelBtn").disabled = true;
+    $("cancelSubmitBtn").disabled = true;
+    $("cancelSubmitBtn").textContent = "不可線上取消";
+    setMessage($("cancelMessage"), blockCheck.reason, false);
+  } else {
+    $("cancelSubtitle").textContent = baseText;
+    $("queryCancelBtn").disabled = false;
+    $("cancelSubmitBtn").disabled = false;
+    $("cancelSubmitBtn").textContent = "確認取消";
+  }
   $("cancelModal").classList.add("show");
 }
 function closeCancel() { $("cancelModal").classList.remove("show"); currentMeetup = null; }
 
 async function handleQueryCancel() {
   if (!currentMeetup) return;
-  if (isTodayDate(selectedDate)) return setMessage($("cancelMessage"), sameDayCancelMessage(), false);
+  const blockCheck = isCancelBlocked(currentMeetup, selectedDate);
+  if (blockCheck.blocked) return setMessage($("cancelMessage"), blockCheck.reason, false);
   const phone = cleanPhone($("cancelPhone").value);
   if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
 
@@ -528,7 +699,8 @@ async function handleSignup(e) {
 async function handleCancel(e) {
   e.preventDefault();
   if (!currentMeetup) return;
-  if (isTodayDate(selectedDate)) return setMessage($("cancelMessage"), sameDayCancelMessage(), false);
+  const blockCheck = isCancelBlocked(currentMeetup, selectedDate);
+  if (blockCheck.blocked) return setMessage($("cancelMessage"), blockCheck.reason, false);
   const phone = cleanPhone($("cancelPhone").value);
   const cancelPeopleCount = parseInt($("cancelPeopleCount").value) || 1;
   if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入報名或會員手機，例如 0912345678。", false);
@@ -640,7 +812,9 @@ function renderStaticContent() {
 }
 
 function openTab(tabId) {
-  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tabId));
+  document.querySelectorAll(".nav a").forEach(link => {
+    link.classList.toggle("active", link.dataset.openTab === tabId);
+  });
   document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.toggle("active", panel.id === tabId));
 }
 
@@ -709,7 +883,6 @@ $("queryCancelBtn").addEventListener("click", handleQueryCancel);
 $("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
 
 
-document.querySelectorAll(".tab-btn").forEach(btn => btn.addEventListener("click", () => openTab(btn.dataset.tab)));
 document.querySelectorAll("[data-open-tab]").forEach(link => {
   link.addEventListener("click", () => openTab(link.dataset.openTab));
 });

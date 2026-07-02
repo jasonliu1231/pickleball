@@ -69,11 +69,18 @@ a {
 
 /* Header / Topbar */
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 0;
-  margin-bottom: 12px;
+  margin-bottom: 24px;
+  background: rgba(248, 250, 252, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.5);
 }
 
 .brand {
@@ -121,7 +128,7 @@ a {
   color: var(--text);
 }
 
-.nav a.primary-link {
+.nav a.active {
   background: var(--bg-court);
   color: #fff;
   box-shadow: 0 4px 12px rgba(6, 78, 59, 0.15);

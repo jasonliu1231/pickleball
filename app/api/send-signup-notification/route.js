@@ -26,11 +26,21 @@ export async function POST(request) {
     const skillText = skillTextMap[body.skillLevel] || "一般";
     const meetupName = body.meetupName || "開團";
     const nickname = body.nickname || "球友";
+    const reservationDate = body.reservationDate || "";
+    let formattedDate = "";
+    if (reservationDate) {
+      const parts = reservationDate.split("-");
+      if (parts.length === 3) {
+        formattedDate = `${Number(parts[1])}/${Number(parts[2])}`;
+      }
+    }
 
     const messages = pushTokens.map((token) => ({
       to: token,
-      title: "有人報名了",
-      body: `${nickname} 報名「${meetupName}」｜${skillText}`,
+      title: formattedDate ? `有人報名 ${formattedDate}` : "有人報名了",
+      body: formattedDate 
+        ? `${nickname} 報名 ${formattedDate}「${meetupName}」｜${skillText}`
+        : `${nickname} 報名「${meetupName}」｜${skillText}`,
       sound: "default",
       channelId: "new-signup",
       data: {
