@@ -291,6 +291,23 @@ function hasAvailableMeetupOnDate(dateStr) {
   });
 }
 
+function isMeetupEnded(m, dateStr) {
+  if (!m || !dateStr) return false;
+  const [yr, mo, dy] = dateStr.split("-").map(Number);
+  const [hStart, minStart] = (m.start_time || "00:00").split(":");
+  const gameStart = new Date(yr, mo - 1, dy, Number(hStart), Number(minStart), 0, 0);
+  
+  let gameEnd;
+  if (m.end_time) {
+    const [hEnd, minEnd] = m.end_time.split(":");
+    gameEnd = new Date(yr, mo - 1, dy, Number(hEnd), Number(minEnd), 0, 0);
+  } else {
+    // 預設活動長度為 2 小時
+    gameEnd = new Date(gameStart.getTime() + 2 * 60 * 60 * 1000);
+  }
+  return new Date() > gameEnd;
+}
+
 async function loadMeetupsByDate(dateStr) {
   const weekday = dateFromISO(dateStr).getDay();
   let query = client
@@ -356,7 +373,8 @@ async function loadMeetupsByDate(dateStr) {
       }, {});
     }
   }
-  return rows.map((m) => {
+  
+  const mapped = rows.map((m) => {
     const cap = m.capacity_override ?? m.capacity ?? 0;
     const c = counts[String(m.id)] || {};
     const realConfirmed = Number(c.confirmed_total_count ?? c.confirmed_count ?? 0);
@@ -369,6 +387,25 @@ async function loadMeetupsByDate(dateStr) {
       waitlist_count: Number(c.waitlist_count || 0),
       over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
     };
+  });
+
+  // 排序邏輯：未結束的活動排前面，已結束的排後面；在此大分類下，以開始時間 start_time 由小到大排序
+  return mapped.sort((a, b) => {
+    const aEnded = isMeetupEnded(a, dateStr);
+    const bEnded = isMeetupEnded(b, dateStr);
+    
+    // 1. 已結束的排最下面
+    if (aEnded && !bEnded) return 1;
+    if (!aEnded && bEnded) return -1;
+    
+    // 2. 其餘照開始時間由小到大排序
+    const aTime = a.start_time || "00:00";
+    const bTime = b.start_time || "00:00";
+    if (aTime !== bTime) {
+      return aTime.localeCompare(bTime);
+    }
+    
+    return Number(a.id) - Number(b.id);
   });
 }
 
