@@ -1,8 +1,6 @@
 const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
-});
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let countdownInterval = null;
 let exclusions = [];
@@ -436,8 +434,13 @@ async function fetchRoster(meetupId, dateStr) {
 function clearRosterCache() { rosterCache.clear(); }
 
 function renderCalendar() {
-  $("monthTitle").textContent = monthTitle(visibleMonth);
-  $("weekRow").innerHTML = weekdays.map(w => `<div>${w}</div>`).join("");
+  const monthTitleEl = $("monthTitle");
+  const weekRowEl = $("weekRow");
+  const daysGridEl = $("daysGrid");
+  if (!monthTitleEl || !weekRowEl || !daysGridEl) return;
+
+  monthTitleEl.textContent = monthTitle(visibleMonth);
+  weekRowEl.innerHTML = weekdays.map(w => `<div>${w}</div>`).join("");
   const base = dateFromISO(visibleMonth);
   const year = base.getFullYear();
   const month = base.getMonth();
@@ -448,13 +451,14 @@ function renderCalendar() {
   for (let d = 1; d <= last.getDate(); d++) cells.push(toISODate(new Date(year, month, d)));
   while (cells.length % 7 !== 0) cells.push(null);
   const today = toISODate(new Date());
-  $("daysGrid").innerHTML = cells.map((dateStr) => {
+  daysGridEl.innerHTML = cells.map((dateStr) => {
     if (!dateStr) return `<button class="day empty" tabindex="-1"></button>`;
     const d = dateFromISO(dateStr);
     const isPast = dateStr < today;
     const has = hasAvailableMeetupOnDate(dateStr);
     const selected = dateStr === selectedDate;
-    return `<button class="day ${isPast ? "past" : ""} ${has && !isPast ? "available" : ""} ${selected ? "selected" : ""}" data-date="${dateStr}">
+    const isToday = dateStr === today;
+    return `<button class="day ${isToday ? "today" : ""} ${isPast ? "past" : ""} ${has && !isPast ? "available" : ""} ${selected ? "selected" : ""}" data-date="${dateStr}">
       <span>${d.getDate()}</span>${has && !isPast ? `<span class="dot"></span>` : ""}
     </button>`;
   }).join("");
@@ -462,18 +466,22 @@ function renderCalendar() {
     btn.addEventListener("click", () => {
       selectedDate = btn.dataset.date;
       visibleMonth = selectedDate.slice(0, 7) + "-01";
-      refreshAll(false);
+      refreshAll(true);
     });
   });
 }
 
 function renderMeetups(meetups) {
-  $("selectedDateText").textContent = formatDate(selectedDate);
+  const dateEl = $("selectedDateText");
+  const listEl = $("meetupList");
+  if (!listEl) return;
+  if (dateEl) dateEl.textContent = formatDate(selectedDate);
+
   if (!meetups.length) {
-    $("meetupList").innerHTML = `<p class="empty">這天目前沒有開放報名，請換一天看看。</p>`;
+    listEl.innerHTML = `<p class="empty">這天目前沒有開放報名，請換一天看看。</p>`;
     return;
   }
-  $("meetupList").innerHTML = meetups.map((m) => {
+  listEl.innerHTML = meetups.map((m) => {
     const cap = m.capacity_override ?? m.capacity ?? 0;
     const realConfirmed = Number(m.confirmed_count || 0);
     const displayConfirmed = Number(m.display_confirmed_count ?? (cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed));
@@ -607,9 +615,19 @@ function openSignup(meetup) {
   $("modalTitle").textContent = meetup.name || "我要報名";
   $("modalSubtitle").textContent = `${formatDate(selectedDate)}｜${timeText(meetup.start_time, meetup.end_time)}`;
   
+  if (currentSystemMember) {
+    $("nickname").value = currentSystemMember.nickname || "";
+    $("phone").value = currentSystemMember.phone || "";
+    $("nickname").readOnly = true;
+    $("phone").readOnly = true;
+  } else {
+    $("nickname").readOnly = false;
+    $("phone").readOnly = false;
+  }
+  
   const peopleCountLabel = $("peopleCount")?.closest("label");
   if (peopleCountLabel) {
-    peopleCountLabel.style.display = meetup.allow_multiple_people ? "grid" : "none";
+    peopleCountLabel.style.display = "none";
   }
   
   $("signupModal").classList.add("show");
@@ -777,15 +795,40 @@ async function refreshMeetupListOnly() {
   renderMeetups(meetups);
 }
 async function refreshAll(showLoading = true) {
+  if (!$("daysGrid") && !$("meetupList")) return;
   renderCalendar();
-  $("selectedDateText").textContent = formatDate(selectedDate);
-  if (showLoading) $("meetupList").innerHTML = `<p class="empty">讀取中...</p>`;
+  const dateEl = $("selectedDateText");
+  if (dateEl) dateEl.textContent = formatDate(selectedDate);
+  
+  const meetupEl = $("meetupList");
+  if (meetupEl && showLoading) {
+    meetupEl.innerHTML = `
+      <style>
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.6; }
+          50% { opacity: 1; }
+        }
+      </style>
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; gap: 16px; width: 100%; min-height: 200px;">
+        <svg viewBox="0 0 50 50" style="width: 40px; height: 40px; animation: spin 1s linear infinite;">
+          <circle cx="25" cy="25" r="20" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-dasharray="80, 200" stroke-dashoffset="0"></circle>
+        </svg>
+        <span style="font-size: 14px; color: var(--sub); font-weight: 700; animation: pulse 1.5s ease-in-out infinite; letter-spacing: 0.5px;">正在讀取預約場次資料...</span>
+      </div>
+    `;
+  }
   try {
     const meetups = await loadMeetupsByDate(selectedDate);
     renderCalendar();
     renderMeetups(meetups);
   } catch (e) {
-    $("meetupList").innerHTML = `<p class="empty">資料讀取失敗，請稍後再試。</p>`;
+    if (meetupEl) {
+      meetupEl.innerHTML = `<p class="empty">資料讀取失敗，請稍後再試。</p>`;
+    }
     console.error(e);
   }
 }
@@ -826,7 +869,7 @@ function renderAnnouncements() {
       <article class="notice-card">
         <span class="tag">公告 ${idx + 1}</span>
         <h3>${escapeHtml(item.title)}</h3>
-        <p class="muted">${escapeHtml(item.content)}</p>
+        <p class="muted" style="white-space: pre-line;">${escapeHtml(item.content)}</p>
         <p class="muted" style="margin-top:10px;font-size:13px;font-weight:900;">${escapeHtml(item.author_name || "發起人")}${item.created_at ? ` · ${escapeHtml(formatAnnouncementDate(item.created_at))}` : ""}</p>
       </article>`).join("");
   }
@@ -901,33 +944,465 @@ async function handleQueryPoints() {
   }
 }
 
-$("prevMonth").addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, -1); renderCalendar(); });
-$("nextMonth").addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, 1); renderCalendar(); });
-$("refreshBtn").addEventListener("click", async () => { clearRosterCache(); await loadAvailableWeekdays(); refreshAll(); });
+let currentUser = null;
+let currentSystemMember = null;
+
+function initAuthTabs() {
+  const tabLogin = $("authTabLogin");
+  const tabRegister = $("authTabRegister");
+  const regFields = $("registerFields");
+  if (!tabLogin || !tabRegister || !regFields) return;
+
+  tabLogin.addEventListener("click", () => {
+    tabLogin.classList.add("active");
+    tabLogin.style.color = "var(--accent)";
+    tabLogin.style.borderBottom = "2px solid var(--accent)";
+    tabRegister.classList.remove("active");
+    tabRegister.style.color = "var(--sub)";
+    tabRegister.style.borderBottom = "none";
+    regFields.style.display = "none";
+  });
+
+  tabRegister.addEventListener("click", () => {
+    tabRegister.classList.add("active");
+    tabRegister.style.color = "var(--accent)";
+    tabRegister.style.borderBottom = "2px solid var(--accent)";
+    tabLogin.classList.remove("active");
+    tabLogin.style.color = "var(--sub)";
+    tabLogin.style.borderBottom = "none";
+    regFields.style.display = "flex";
+  });
+}
+
+async function ensureSystemMember(user) {
+  const { data, error } = await client
+    .from("system_members")
+    .select("id, nickname, phone, line_user_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error loading system member:", error);
+    return null;
+  }
+
+  const defaultName = user.user_metadata?.full_name || user.user_metadata?.name || user.raw_user_meta_data?.name || user.user_metadata?.nickname || user.email?.split("@")[0] || "球友";
+  const lineUserId = user.identities?.[0]?.identity_id || user.raw_user_meta_data?.sub || user.user_metadata?.sub || null;
+
+  if (!data) {
+    const defaultPhone = user.user_metadata?.phone || "";
+    const { data: inserted, error: insertError } = await client
+      .from("system_members")
+      .insert({ id: user.id, nickname: defaultName, phone: defaultPhone, line_user_id: lineUserId })
+      .select()
+      .single();
+    if (insertError) {
+      console.error("Error creating system member record:", insertError);
+      return null;
+    }
+    return inserted;
+  } else {
+    // 預防防禦：若資料庫內仍為預設的「球友」或無 LINE ID，在登入時自動同步更新
+    if ((data.nickname === "球友" && defaultName !== "球友") || !data.line_user_id) {
+      const { data: updated } = await client
+        .from("system_members")
+        .update({ 
+          nickname: data.nickname === "球友" ? defaultName : data.nickname, 
+          line_user_id: data.line_user_id || lineUserId 
+        })
+        .eq("id", user.id)
+        .select()
+        .single();
+      if (updated) return updated;
+    }
+  }
+  return data;
+}
+
+async function loadMemberDashboard() {
+  if (!currentUser || !currentSystemMember) return;
+  
+  if ($("dashboardNickname")) $("dashboardNickname").textContent = currentSystemMember.nickname || "球友";
+  if ($("dashboardPhone")) $("dashboardPhone").textContent = currentSystemMember.phone || "未設定";
+  if ($("dashboardMemberId")) $("dashboardMemberId").textContent = currentSystemMember.id;
+
+  const avatarEl = $("dashboardAvatar");
+  if (avatarEl) {
+    const firstChar = (currentSystemMember.nickname || "球").charAt(0).toUpperCase();
+    avatarEl.textContent = firstChar;
+  }
+  
+  if ($("profileNickname")) $("profileNickname").value = currentSystemMember.nickname || "";
+  if ($("profilePhone")) $("profilePhone").value = currentSystemMember.phone || "";
+
+  const cleanPh = cleanPhone(currentSystemMember.phone);
+  let clubMembers = [];
+  if (cleanPh) {
+    let { data: rows, error } = await client
+      .from("members")
+      .select("id, balance, remaining_times, status, organizer_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
+      .or(`phone.eq.${currentSystemMember.phone},system_member_id.eq.${currentSystemMember.id}`);
+
+    if (error) {
+      const fallbackResult = await client
+        .from("members")
+        .select("id, balance, remaining_times, status, organizer_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
+        .or(`phone.eq.${currentSystemMember.phone},system_member_id.eq.${currentSystemMember.id}`);
+      if (!fallbackResult.error && fallbackResult.data) {
+        clubMembers = fallbackResult.data;
+      }
+    } else if (rows) {
+      clubMembers = rows;
+    }
+  }
+
+  const balancesList = $("balancesList");
+  if (balancesList) {
+    balancesList.innerHTML = "";
+    
+    let lowBalanceDetected = false;
+
+    if (clubMembers.length === 0) {
+      balancesList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">尚未加入任何俱樂部或無儲值資料</p>`;
+    } else {
+      clubMembers.forEach(m => {
+        const isActive = m.status === "active";
+        const clubName = m.organizers?.name || m.meetups?.organizers?.name || m.meetups?.name || "未知俱樂部";
+        const balanceVal = m.balance !== undefined ? m.balance : (m.remaining_times * 200);
+        
+        let feeVal = 200;
+        if (m.member_meetup_subscriptions && m.member_meetup_subscriptions.length > 0) {
+          const prices = m.member_meetup_subscriptions.map(s => s.meetups?.member_price || 200);
+          feeVal = Math.max(...prices);
+        } else if (m.meetups?.member_price !== undefined) {
+          feeVal = m.meetups.member_price;
+        }
+        
+        // 僅對「活躍」會員進行餘額不足的卡位警示
+        const isLow = isActive && (balanceVal < feeVal);
+        if (isLow) lowBalanceDetected = true;
+
+        const div = document.createElement("div");
+        div.className = `wallet-item-card ${isActive ? 'active-wallet' : 'inactive-wallet'}`;
+
+        div.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+              <span style="font-weight: 800; font-size: 15px; color: ${isActive ? 'var(--text)' : 'var(--muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(clubName)}</span>
+              ${isActive ? '' : '<span style="background: #E2E8F0; color: #64748B; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; white-space: nowrap; flex-shrink: 0;">已停用</span>'}
+            </div>
+            <div style="flex-shrink: 0; text-align: right;">
+              <span style="font-size: 13px; color: var(--muted); font-weight: 700;">餘額: </span>
+              <span class="wallet-item-balance ${isLow ? 'insufficient' : ''}" style="font-weight: 850; font-size: 15.5px;">$${balanceVal}</span>
+              <span style="font-size: 13px; color: var(--muted); font-weight: 700;"> 元</span>
+            </div>
+          </div>
+          ${isLow ? `
+            <div style="color: var(--danger); font-size: 12px; font-weight: 700; background: rgba(239, 68, 68, 0.05); padding: 8px; border-radius: 8px; text-align: center; margin-top: 2px;">
+              ⚠️ 餘額不足以支付下週預約，請儘速儲值
+            </div>
+          ` : ''}
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 8px; font-size: 12.5px; border-radius: 10px; height: 38px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; cursor: pointer;" onclick="showTransactions('${m.id}', '${escapeHtml(clubName)}')">
+            明細
+          </button>
+        `;
+        balancesList.appendChild(div);
+      });
+    }
+
+    const warningBanner = $("balanceWarningBanner");
+    if (warningBanner) {
+      warningBanner.style.display = lowBalanceDetected ? "flex" : "none";
+    }
+  }
+
+  const upcomingList = $("userBookingsList");
+  if (upcomingList) {
+    upcomingList.innerHTML = "";
+    
+    if (cleanPh) {
+      const { data: signups, error: signupsError } = await client
+        .from("signups")
+        .select("id, status, reservation_date, arrived_count, meetup_id, meetups(id, name, start_time, end_time, address)")
+        .eq("phone", currentSystemMember.phone)
+        .gte("reservation_date", toISODate(new Date()))
+        .neq("status", "cancelled")
+        .order("reservation_date", { ascending: true });
+
+      if (!signupsError && signups && signups.length > 0) {
+        signups.forEach(s => {
+          const dateStr = s.reservation_date;
+          const meetupName = s.meetups?.name || "匹克球活動";
+          const timeStr = s.meetups?.start_time ? s.meetups.start_time.slice(0, 5) : "";
+          const statusLabel = s.status === 'confirmed' ? '✓ 正取' : '⏳ 備取';
+          const statusColor = s.status === 'confirmed' ? 'var(--accent)' : 'var(--orange)';
+          const arrivedLabel = s.arrived_count > 0 ? ' (已簽到已扣點)' : '';
+
+          const div = document.createElement("div");
+          div.className = "booking-item-card";
+          
+          const badgeClass = s.status === 'confirmed' ? 'confirmed' : 'pending';
+          
+          div.innerHTML = `
+            <div>
+              <span style="font-weight: 800; font-size: 14.5px; color: var(--text);">${escapeHtml(dateStr)} ${timeStr}</span>
+              <p style="font-size: 12.5px; color: var(--muted); margin-top: 4px; font-weight: 600;">
+                ${escapeHtml(meetupName)}${arrivedLabel ? ' <span style="color: var(--primary); font-weight: 800; font-size: 11.5px;">(已簽到已扣點)</span>' : ''}
+              </p>
+            </div>
+            <span class="status-badge ${badgeClass}">${statusLabel}</span>
+          `;
+          upcomingList.appendChild(div);
+        });
+      } else {
+        upcomingList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">近期無任何預約紀錄</p>`;
+      }
+    } else {
+      upcomingList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">請在下方編輯設定手機號碼以讀取您的預約紀錄</p>`;
+    }
+  }
+}
+
+window.showTransactions = async function(memberId, clubName) {
+  const container = $("transactionListContainer");
+  const modalTitle = $("transactionModalTitle");
+  if (!container || !modalTitle) return;
+
+  modalTitle.textContent = `${clubName} 交易明細`;
+  container.innerHTML = `<p style="color: var(--muted); text-align: center; padding: 20px;">載入中...</p>`;
+  $("transactionModal").classList.add("show");
+
+  try {
+    const { data, error } = await client
+      .from("wallet_transactions")
+      .select("id, amount, type, reservation_date, notes, created_at")
+      .eq("member_id", memberId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      container.innerHTML = `<p style="color: var(--muted); text-align: center; padding: 20px;">尚無任何交易與扣點明細紀錄</p>`;
+      return;
+    }
+
+    container.innerHTML = data.map(t => {
+      const typeLabel = t.type === 'topup' ? '儲值' : (t.type === 'checkin' ? '出席扣款' : '取消退款');
+      const amountColor = t.amount >= 0 ? '#16A34A' : '#EF4444';
+      const amountLabel = t.amount >= 0 ? `+$${t.amount}` : `-$${Math.abs(t.amount)}`;
+      const dateText = t.reservation_date ? ` (${t.reservation_date})` : '';
+      const notesText = t.notes ? `<p style="font-size: 11px; color: var(--muted); margin-top: 2px;">${escapeHtml(t.notes)}</p>` : '';
+      const timeStr = new Date(t.created_at).toLocaleString();
+
+      return `
+        <div style="border-bottom: 1px solid var(--line); padding: 12px 6px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="font-weight: 800; font-size: 13.5px; color: var(--text);">${typeLabel}${dateText}</span>
+            <p style="font-size: 11px; color: var(--muted); margin-top: 2px;">時間: ${timeStr}</p>
+            ${notesText}
+          </div>
+          <span style="font-weight: 900; font-size: 15px; color: ${amountColor};">${amountLabel}</span>
+        </div>
+      `;
+    }).join("");
+  } catch (e) {
+    container.innerHTML = `<p style="color: #EF4444; text-align: center; padding: 20px;">載入失敗: ${e.message || String(e)}</p>`;
+  }
+};
+
+async function handleUpdateProfile(e) {
+  e.preventDefault();
+  if (!currentUser || !currentSystemMember) return;
+  const nickname = $("profileNickname").value.trim();
+  const phone = cleanPhone($("profilePhone").value);
+  const msgEl = $("profileMessage");
+  if (!nickname) return setMessage(msgEl, "請填寫姓名或暱稱", false);
+  if (phone && !validatePhone(phone)) return setMessage(msgEl, "手機格式不正確", false);
+
+  try {
+    setMessage(msgEl, "更新中...", true);
+    const { data, error } = await client
+      .from("system_members")
+      .update({ nickname, phone, created_at: new Date().toISOString() })
+      .eq("id", currentUser.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    currentSystemMember = data;
+
+    // 自動綁定：將所有相同手機號碼的俱樂部會員，自動寫入關聯此系統 ID
+    const cleanPh = cleanPhone(phone);
+    if (cleanPh) {
+      await client
+        .from("members")
+        .update({ system_member_id: currentSystemMember.id })
+        .eq("phone", cleanPh);
+    }
+
+    setMessage(msgEl, "個人資料更新成功！", true);
+    loadMemberDashboard();
+  } catch (err) {
+    setMessage(msgEl, err.message || "更新失敗，請重試", false);
+  }
+}
+
+async function handleAuthSubmit(e) {
+  e.preventDefault();
+  const email = $("authEmail").value.trim();
+  const password = $("authPassword").value.trim();
+  const isRegister = $("authTabRegister").classList.contains("active");
+  const msgEl = $("authMessage");
+
+  if (!email || !password) return setMessage(msgEl, "請填寫信箱與密碼。", false);
+  if (password.length < 6) return setMessage(msgEl, "密碼長度至少為 6 位元。", false);
+
+  $("authSubmitBtn").disabled = true;
+  $("authSubmitBtn").textContent = "處理中...";
+
+  try {
+    if (isRegister) {
+      const nickname = $("authNickname").value.trim();
+      const phone = cleanPhone($("authPhone").value);
+      if (!nickname) throw new Error("請填寫姓名/暱稱");
+      if (!validatePhone(phone)) throw new Error("請填寫正確的手機號碼");
+
+      const { data, error } = await client.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { nickname, phone }
+        }
+      });
+      if (error) throw error;
+      
+      if (data?.user) {
+        currentUser = data.user;
+        currentSystemMember = await ensureSystemMember(currentUser);
+        toggleAuthView(true);
+        loadMemberDashboard();
+        setMessage(msgEl, "註冊成功！已自動登入。", true);
+      } else {
+        setMessage(msgEl, "註冊成功！請至信箱收取驗證信登入。", true);
+      }
+    } else {
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      if (data?.user) {
+        currentUser = data.user;
+        currentSystemMember = await ensureSystemMember(currentUser);
+        toggleAuthView(true);
+        loadMemberDashboard();
+        setMessage(msgEl, "登入成功！", true);
+      }
+    }
+  } catch (err) {
+    setMessage(msgEl, err.message || "操作失敗，請稍候重試。", false);
+  } finally {
+    $("authSubmitBtn").disabled = false;
+    $("authSubmitBtn").textContent = "確認";
+  }
+}
+
+async function handleLineLogin() {
+  const loadingContainer = $("memberLoading");
+  const authContainer = $("authContainer");
+  if (authContainer) authContainer.style.display = "none";
+  if (loadingContainer) {
+    loadingContainer.style.display = "flex";
+    const textEl = loadingContainer.querySelector("span");
+    if (textEl) textEl.textContent = "正在跳轉至 LINE 登入頁面...";
+  }
+
+  const { data, error } = await client.auth.signInWithOAuth({
+    provider: 'custom:line',
+    options: {
+      redirectTo: window.location.origin + window.location.pathname
+    }
+  });
+  if (error) {
+    alert("LINE 登入啟動失敗：" + error.message);
+    toggleAuthView(false);
+  }
+}
+
+function toggleAuthView(isLoggedIn) {
+  const loadingContainer = $("memberLoading");
+  const authContainer = $("authContainer");
+  const memberDashboard = $("memberDashboard");
+  
+  if (loadingContainer) loadingContainer.style.display = "none";
+  
+  if (isLoggedIn) {
+    if (authContainer) authContainer.style.display = "none";
+    if (memberDashboard) memberDashboard.style.display = "flex";
+  } else {
+    if (authContainer) authContainer.style.display = "block";
+    if (memberDashboard) memberDashboard.style.display = "none";
+  }
+}
+
+$("prevMonth")?.addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, -1); renderCalendar(); });
+$("nextMonth")?.addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, 1); renderCalendar(); });
+$("refreshBtn")?.addEventListener("click", async () => { clearRosterCache(); await loadAvailableWeekdays(); refreshAll(); });
 $("cityFilter")?.addEventListener("change", async (e) => {
   selectedCity = e.target.value || "all";
   clearRosterCache();
   await loadAvailableWeekdays();
   refreshAll();
 });
-$("closeModal").addEventListener("click", closeSignup);
-$("closeCancelModal").addEventListener("click", closeCancel);
-$("signupModal").addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
-$("cancelModal").addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
-$("signupForm").addEventListener("submit", handleSignup);
-$("cancelForm").addEventListener("submit", handleCancel);
-$("queryCancelBtn").addEventListener("click", handleQueryCancel);
+$("closeModal")?.addEventListener("click", closeSignup);
+$("closeCancelModal")?.addEventListener("click", closeCancel);
+$("closeTransactionModal")?.addEventListener("click", () => $("transactionModal")?.classList.remove("show"));
+$("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "transactionModal") $("transactionModal")?.classList.remove("show"); });
+$("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
+$("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
+$("signupForm")?.addEventListener("submit", handleSignup);
+$("cancelForm")?.addEventListener("submit", handleCancel);
+$("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
 $("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
-
+$("logoutBtn")?.addEventListener("click", async () => { await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
+$("lineLoginBtn")?.addEventListener("click", handleLineLogin);
+$("authForm")?.addEventListener("submit", handleAuthSubmit);
+$("updateProfileForm")?.addEventListener("submit", handleUpdateProfile);
+$("copyIdBtn")?.addEventListener("click", () => {
+  if (currentSystemMember?.id) {
+    navigator.clipboard.writeText(currentSystemMember.id);
+    alert("會員 ID 已複製至剪貼簿！");
+  }
+});
 
 document.querySelectorAll("[data-open-tab]").forEach(link => {
   link.addEventListener("click", () => openTab(link.dataset.openTab));
 });
-renderCityFilter();
-renderStaticContent();
+if ($("cityFilter")) renderCityFilter();
+if ($("knowledgeList")) renderStaticContent();
 
 (async function init() {
-  await loadAnnouncements();
-  try { await loadAvailableWeekdays(); } catch (e) { console.error(e); }
+  if ($("announcementList")) await loadAnnouncements();
+  try { if ($("daysGrid")) await loadAvailableWeekdays(); } catch (e) { console.error(e); }
+
+  client.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      currentUser = session.user;
+      currentSystemMember = await ensureSystemMember(currentUser);
+      toggleAuthView(true);
+      if ($("memberDashboard")) loadMemberDashboard();
+    } else {
+      currentUser = null;
+      currentSystemMember = null;
+      toggleAuthView(false);
+    }
+  });
+
+  const { data: { session } } = await client.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    currentSystemMember = await ensureSystemMember(currentUser);
+    toggleAuthView(true);
+    if ($("memberDashboard")) loadMemberDashboard();
+  }
+
+  if ($("authTabLogin")) initAuthTabs();
   refreshAll();
 })();
