@@ -1317,7 +1317,10 @@ async function handleLineLogin() {
   const { data, error } = await client.auth.signInWithOAuth({
     provider: 'custom:line',
     options: {
-      redirectTo: window.location.origin + window.location.pathname
+      redirectTo: window.location.origin + window.location.pathname,
+      queryParams: {
+        bot_prompt: 'normal'
+      }
     }
   });
   if (error) {
