@@ -1251,15 +1251,6 @@ async function handleUpdateProfile(e) {
     if (error) throw error;
     currentSystemMember = data;
 
-    // 自動綁定：將所有相同手機號碼的俱樂部會員，自動寫入關聯此系統 ID
-    const cleanPh = cleanPhone(phone);
-    if (cleanPh) {
-      await client
-        .from("members")
-        .update({ system_member_id: currentSystemMember.id })
-        .eq("phone", cleanPh);
-    }
-
     setMessage(msgEl, "個人資料更新成功！", true);
     toggleAuthView(true);
     loadMemberDashboard();

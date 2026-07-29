@@ -106,7 +106,7 @@ export default function MemberPage() {
                     📊 手機聊天室一鍵 <strong>查詢儲值餘額與使用紀錄</strong>
                   </p>
                   <p style={{ margin: "8px 0 0 0", fontSize: "12.5px", color: "#dc2626", fontWeight: "bold" }}>
-                    ⚠️ 提醒：請務必在下方「編輯個人資料」填寫並【 儲存手機號碼 】，否則系統將無法為您發送 LINE 即時通知！
+                    ⚠️ 提醒：請務必在下方「編輯個人資料」填寫並【 儲存手機號碼 】，否則系統將無法為您發送「備取遞補成功通知」，且預約時無法自動帶入手機號碼喔！
                   </p>
                 </div>
               </div>
