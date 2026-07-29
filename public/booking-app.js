@@ -1058,13 +1058,13 @@ async function loadMemberDashboard() {
   if (cleanPh) {
     let { data: rows, error } = await client
       .from("members")
-      .select("id, balance, remaining_times, status, organizer_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
+      .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
       .or(`phone.eq.${currentSystemMember.phone},system_member_id.eq.${currentSystemMember.id}`);
 
     if (error) {
       const fallbackResult = await client
         .from("members")
-        .select("id, balance, remaining_times, status, organizer_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
+        .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
         .or(`phone.eq.${currentSystemMember.phone},system_member_id.eq.${currentSystemMember.id}`);
       if (!fallbackResult.error && fallbackResult.data) {
         clubMembers = fallbackResult.data;
@@ -1120,7 +1120,7 @@ async function loadMemberDashboard() {
               ⚠️ 餘額不足以支付下週預約，請儘速儲值
             </div>
           ` : ''}
-          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 8px; font-size: 12.5px; border-radius: 10px; height: 38px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; cursor: pointer;" onclick="showTransactions('${m.id}', '${escapeHtml(clubName)}')">
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 8px; font-size: 12.5px; border-radius: 10px; height: 38px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; cursor: pointer;" onclick="showTransactions('${m.id}', '${escapeHtml(clubName)}', '${m.payer_member_id || ''}')">
             明細
           </button>
         `;
@@ -1181,7 +1181,7 @@ async function loadMemberDashboard() {
   }
 }
 
-window.showTransactions = async function(memberId, clubName) {
+window.showTransactions = async function(memberId, clubName, payerMemberId) {
   const container = $("transactionListContainer");
   const modalTitle = $("transactionModalTitle");
   if (!container || !modalTitle) return;
@@ -1190,11 +1190,13 @@ window.showTransactions = async function(memberId, clubName) {
   container.innerHTML = `<p style="color: var(--muted); text-align: center; padding: 20px;">載入中...</p>`;
   $("transactionModal").classList.add("show");
 
+  const targetId = payerMemberId && payerMemberId !== 'null' ? payerMemberId : memberId;
+
   try {
     const { data, error } = await client
       .from("wallet_transactions")
       .select("id, amount, type, reservation_date, notes, created_at")
-      .eq("member_id", memberId)
+      .eq("member_id", targetId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;

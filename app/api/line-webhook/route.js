@@ -291,7 +291,7 @@ async function handleQueryHistory(replyToken, lineUserId) {
     const members = await querySupabase("members", {
       system_member_id: `eq.${sysMember.id}`,
       organizer_id: `eq.${TARGET_ORGANIZER_ID}`,
-      select: "id"
+      select: "id,payer_member_id"
     });
     
     if (!members || members.length === 0) {
@@ -305,10 +305,11 @@ async function handleQueryHistory(replyToken, lineUserId) {
     }
     
     const member = members[0];
+    const targetMemberId = member.payer_member_id || member.id;
     
     // 3. Query transactions (limit 10, desc order)
     const transactions = await querySupabase("wallet_transactions", {
-      member_id: `eq.${member.id}`,
+      member_id: `eq.${targetMemberId}`,
       order: "created_at.desc",
       limit: "10",
       select: "id,type,amount,notes,created_at,reservation_date"
