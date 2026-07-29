@@ -987,7 +987,24 @@ async function ensureSystemMember(user) {
   }
 
   const defaultName = user.user_metadata?.full_name || user.user_metadata?.name || user.raw_user_meta_data?.name || user.user_metadata?.nickname || user.email?.split("@")[0] || "球友";
-  const lineUserId = user.identities?.[0]?.identity_id || user.raw_user_meta_data?.sub || user.user_metadata?.sub || null;
+  
+  let lineUserId = null;
+  const metaSub = user.raw_user_meta_data?.sub || user.user_metadata?.sub;
+  if (metaSub && typeof metaSub === "string" && metaSub.startsWith("U") && metaSub.length === 33) {
+    lineUserId = metaSub;
+  }
+  
+  if (!lineUserId) {
+    const identId = user.identities?.[0]?.identity_id;
+    if (identId && typeof identId === "string" && identId.startsWith("U") && identId.length === 33) {
+      lineUserId = identId;
+    }
+  }
+  
+  if (!lineUserId) {
+    console.log("Could not find standard LINE User ID starting with U. Falling back.");
+    lineUserId = user.raw_user_meta_data?.sub || user.user_metadata?.sub || user.identities?.[0]?.identity_id || null;
+  }
 
   if (!data) {
     const defaultPhone = user.user_metadata?.phone || "";
