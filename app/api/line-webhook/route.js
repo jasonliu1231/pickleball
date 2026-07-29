@@ -128,27 +128,62 @@ async function handleQueryBalance(replyToken, lineUserId) {
     
     const sysMember = systemMembers[0];
     
-    // 2. Find member profile under our organizer
+    // 2. Find all member profiles linked to this system member (across all organizers)
     const members = await querySupabase("members", {
       system_member_id: `eq.${sysMember.id}`,
-      organizer_id: `eq.${TARGET_ORGANIZER_ID}`,
-      select: "id,balance,name"
+      select: "id,balance,name,organizers(name)"
     });
     
     if (!members || members.length === 0) {
       await sendLineReply(replyToken, [
         {
           type: "text",
-          text: `您好 ${sysMember.nickname || "球友"}！您已完成網站登入綁定，但您目前在「匹克球同樂會」尚未開通儲值金會員帳戶。\n\n若您有儲值需求，請提供您的姓名或手機，聯絡團長東東在後台為您建立會員錢包！`
+          text: `您好 ${sysMember.nickname || "球友"}！您已完成網站登入綁定，但您目前尚未在任何球團或俱樂部開通儲值金會員帳戶。\n\n若您有儲值需求，請提供您的姓名或手機，聯絡各球團團長在後台為您建立會員錢包！`
         }
       ]);
       return;
     }
     
-    const member = members[0];
-    const balanceAmount = Number(member.balance || 0);
+    // 3. Build dynamic card rows for each wallet
+    const walletRows = [];
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      const orgName = m.organizers?.name || "未知團主";
+      const balanceAmount = Number(m.balance || 0);
+      
+      walletRows.push({
+        type: "box",
+        layout: "vertical",
+        spacing: "xs",
+        contents: [
+          {
+            type: "text",
+            text: `團主：${orgName}`,
+            weight: "bold",
+            color: "#38bdf8",
+            size: "sm"
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              { type: "text", text: `球友姓名：${m.name}`, color: "#e5e7eb", size: "sm" },
+              { type: "text", text: `$ ${balanceAmount.toLocaleString()} 元`, color: "#4ade80", size: "md", align: "end", weight: "bold" }
+            ]
+          }
+        ]
+      });
+      
+      if (i < members.length - 1) {
+        walletRows.push({
+          type: "separator",
+          color: "#374151",
+          margin: "md"
+        });
+      }
+    }
     
-    // 3. Build a beautiful Flex Message
+    // 4. Build a beautiful Flex Message
     const flexMessage = {
       type: "flex",
       altText: "🏓 匹克球同樂會 - 儲值餘額查詢",
@@ -165,14 +200,14 @@ async function handleQueryBalance(replyToken, lineUserId) {
           contents: [
             {
               type: "text",
-              text: "匹克球同樂會",
+              text: "我的儲值餘額",
               weight: "bold",
               color: "#38bdf8",
               size: "lg"
             },
             {
               type: "text",
-              text: "會員儲值餘額查詢",
+              text: "各團主帳戶儲值金明細",
               color: "#9ca3af",
               size: "xs",
               margin: "xs"
@@ -188,33 +223,16 @@ async function handleQueryBalance(replyToken, lineUserId) {
               type: "box",
               layout: "horizontal",
               contents: [
-                { type: "text", text: "會員姓名", color: "#9ca3af", size: "sm" },
-                { type: "text", text: member.name || sysMember.nickname || "球友", color: "#ffffff", size: "sm", align: "end", weight: "bold" }
-              ]
-            },
-            {
-              type: "box",
-              layout: "horizontal",
-              contents: [
-                { type: "text", text: "綁定手機", color: "#9ca3af", size: "sm" },
-                { type: "text", text: sysMember.phone || "無", color: "#ffffff", size: "sm", align: "end" }
+                { type: "text", text: "綁定手機", color: "#9ca3af", size: "xs" },
+                { type: "text", text: sysMember.phone || "無", color: "#ffffff", size: "xs", align: "end" }
               ]
             },
             {
               type: "separator",
-              color: "#374151",
-              margin: "md"
+              color: "#4b5563",
+              margin: "sm"
             },
-            {
-              type: "box",
-              layout: "vertical",
-              spacing: "xs",
-              margin: "lg",
-              contents: [
-                { type: "text", text: "目前可用餘額", color: "#9ca3af", size: "xs", align: "center" },
-                { type: "text", text: `$ ${balanceAmount.toLocaleString()} 元`, color: "#4ade80", size: "xxl", align: "center", weight: "bold", margin: "xs" }
-              ]
-            }
+            ...walletRows
           ]
         },
         footer: {

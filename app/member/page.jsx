@@ -94,6 +94,24 @@ export default function MemberPage() {
               <span><strong>系統關聯提示</strong>：將您的「系統 ID」提供給球館或團主，即可在後台進行儲值與卡位扣點！</span>
             </div>
             
+            <div className="line-friend-card" style={{ background: "rgba(6, 199, 85, 0.06)", border: "1px solid rgba(6, 199, 85, 0.25)", borderRadius: "16px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                <span style={{ fontSize: "20px", marginTop: "2px" }}>💬</span>
+                <div style={{ flex: 1 }}>
+                  <h4 style={{ margin: 0, fontSize: "15px", fontWeight: "900", color: "#047857" }}>加入 LINE 官方好友，啟用即時通知</h4>
+                  <p style={{ margin: "6px 0 0 0", fontSize: "13px", color: "var(--sub)", lineHeight: "1.6" }}>
+                    <strong>加入好友後，您將享有以下專屬服務：</strong><br/>
+                    🔔 <strong>儲值扣點、簽到扣款</strong> 即時收到 LINE 提醒通知<br/>
+                    🎉 <strong>備取排上正取</strong> 時自動發送 LINE 通知<br/>
+                    📊 手機聊天室一鍵 <strong>查詢儲值餘額與使用紀錄</strong>
+                  </p>
+                </div>
+              </div>
+              <a href="https://line.me/R/ti/p/%40657kasvh" target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ background: "#06C755", color: "#fff", borderColor: "#06C755", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px", borderRadius: "12px", fontSize: "14px", fontWeight: "800", textAlign: "center" }}>
+                ➕ 立即加入 LINE 官方好友
+              </a>
+            </div>
+            
             {/* Warning Banner */}
             <div id="balanceWarningBanner" style={{ display: "none", background: "#FFF1F2", border: "1px solid #FECACA", borderRadius: "16px", padding: "14px", color: "#991B1B", fontWeight: "bold", flexDirection: "row", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "18px" }}>⚠️</span>
