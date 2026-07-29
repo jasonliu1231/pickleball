@@ -1241,6 +1241,7 @@ async function handleUpdateProfile(e) {
     }
 
     setMessage(msgEl, "個人資料更新成功！", true);
+    toggleAuthView(true);
     loadMemberDashboard();
   } catch (err) {
     setMessage(msgEl, err.message || "更新失敗，請重試", false);
@@ -1319,7 +1320,7 @@ async function handleLineLogin() {
     options: {
       redirectTo: window.location.origin + window.location.pathname,
       queryParams: {
-        bot_prompt: 'normal'
+        bot_prompt: 'aggressive'
       }
     }
   });
@@ -1335,6 +1336,17 @@ function toggleAuthView(isLoggedIn) {
   const memberDashboard = $("memberDashboard");
   
   if (loadingContainer) loadingContainer.style.display = "none";
+  
+  const welcomeEl = $("headerWelcome");
+  if (welcomeEl) {
+    if (isLoggedIn) {
+      const name = currentSystemMember?.nickname || currentUser?.email || "球友";
+      welcomeEl.innerHTML = `👋 您好，<span style="color:#15803d;margin-left:2px">${name}</span>！`;
+      welcomeEl.style.display = "inline-flex";
+    } else {
+      welcomeEl.style.display = "none";
+    }
+  }
   
   if (isLoggedIn) {
     if (authContainer) authContainer.style.display = "none";
@@ -1364,7 +1376,7 @@ $("signupForm")?.addEventListener("submit", handleSignup);
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
 $("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
-$("logoutBtn")?.addEventListener("click", async () => { await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
+$("logoutBtn")?.addEventListener("click", async () => { sessionStorage.setItem("user_logged_out", "true"); await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
 $("lineLoginBtn")?.addEventListener("click", handleLineLogin);
 $("authForm")?.addEventListener("submit", handleAuthSubmit);
 $("updateProfileForm")?.addEventListener("submit", handleUpdateProfile);
@@ -1387,6 +1399,7 @@ if ($("knowledgeList")) renderStaticContent();
 
   client.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
+      sessionStorage.removeItem("user_logged_out");
       currentUser = session.user;
       currentSystemMember = await ensureSystemMember(currentUser);
       toggleAuthView(true);
@@ -1400,10 +1413,24 @@ if ($("knowledgeList")) renderStaticContent();
 
   const { data: { session } } = await client.auth.getSession();
   if (session?.user) {
+    sessionStorage.removeItem("user_logged_out");
     currentUser = session.user;
     currentSystemMember = await ensureSystemMember(currentUser);
     toggleAuthView(true);
     if ($("memberDashboard")) loadMemberDashboard();
+  } else {
+    // If inside LINE in-app browser, not logged out manually, and not currently returning from auth redirect
+    const isLineBrowser = /Line/i.test(navigator.userAgent);
+    const hasAuthParams = window.location.hash.includes("access_token") || 
+                          window.location.hash.includes("error") || 
+                          window.location.search.includes("error");
+    const userLoggedOut = sessionStorage.getItem("user_logged_out") === "true";
+    
+    if (isLineBrowser && !hasAuthParams && !userLoggedOut) {
+      console.log("LINE in-app browser detected, performing seamless auto-login...");
+      await handleLineLogin();
+      return;
+    }
   }
 
   if ($("authTabLogin")) initAuthTabs();

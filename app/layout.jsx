@@ -22,6 +22,9 @@ export default function RootLayout({ children }) {
               <span className="logo">🏓</span>
               <span>匹克球同樂會</span>
             </a>
+            
+            <a id="headerWelcome" href="/member" style={{ display: "none", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "800", color: "#0d9488", textDecoration: "none", padding: "6px 14px", background: "#f0fdf4", borderRadius: "100px", border: "1px solid #bbf7d0", transition: "all 0.2s ease" }}></a>
+
             <Navbar />
           </header>
 
