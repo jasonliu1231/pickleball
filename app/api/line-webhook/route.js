@@ -342,9 +342,9 @@ async function handleQueryHistory(replyToken, lineUserId) {
       const orgName = memberIdToOrgName[t.member_id] || "未知團主";
       const notesText = `[${orgName}] ${t.notes || (t.type === "checkin" ? "簽到出席扣款" : t.type === "topup" ? "帳戶儲值" : "取消退款")}`;
       
-      const dateObj = new Date(t.created_at);
-      // Format to YYYY/MM/DD HH:MM
-      const dateStr = `${dateObj.getFullYear()}/${String(dateObj.getMonth() + 1).padStart(2, "0")}/${String(dateObj.getDate()).padStart(2, "0")} ${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`;
+      const utcDate = new Date(t.created_at);
+      const taipeiDate = new Date(utcDate.getTime() + 8 * 60 * 60 * 1000);
+      const dateStr = `${taipeiDate.getUTCFullYear()}/${String(taipeiDate.getUTCMonth() + 1).padStart(2, "0")}/${String(taipeiDate.getUTCDate()).padStart(2, "0")} ${String(taipeiDate.getUTCHours()).padStart(2, "0")}:${String(taipeiDate.getUTCMinutes()).padStart(2, "0")}`;
       
       const itemBox = {
         type: "box",
