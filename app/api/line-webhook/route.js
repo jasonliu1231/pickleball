@@ -132,7 +132,7 @@ async function handleQueryBalance(replyToken, lineUserId) {
     const members = await querySupabase("members", {
       system_member_id: `eq.${sysMember.id}`,
       organizer_id: `eq.${TARGET_ORGANIZER_ID}`,
-      select: "id,balance,nickname"
+      select: "id,balance,name"
     });
     
     if (!members || members.length === 0) {
@@ -189,7 +189,7 @@ async function handleQueryBalance(replyToken, lineUserId) {
               layout: "horizontal",
               contents: [
                 { type: "text", text: "會員姓名", color: "#9ca3af", size: "sm" },
-                { type: "text", text: member.nickname || sysMember.nickname || "球友", color: "#ffffff", size: "sm", align: "end", weight: "bold" }
+                { type: "text", text: member.name || sysMember.nickname || "球友", color: "#ffffff", size: "sm", align: "end", weight: "bold" }
               ]
             },
             {
@@ -288,11 +288,11 @@ async function handleQueryHistory(replyToken, lineUserId) {
     
     const member = members[0];
     
-    // 3. Query transactions (limit 4, desc order)
+    // 3. Query transactions (limit 10, desc order)
     const transactions = await querySupabase("wallet_transactions", {
       member_id: `eq.${member.id}`,
       order: "created_at.desc",
-      limit: "4",
+      limit: "10",
       select: "id,type,amount,notes,created_at,reservation_date"
     });
     
@@ -403,7 +403,7 @@ async function handleQueryHistory(replyToken, lineUserId) {
             },
             {
               type: "text",
-              text: "最近 4 筆儲值與消費明細",
+              text: `最近 ${transactions.length} 筆儲值與消費明細`,
               color: "#9ca3af",
               size: "xs",
               margin: "xs"
