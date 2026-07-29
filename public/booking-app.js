@@ -1019,13 +1019,14 @@ async function ensureSystemMember(user) {
     }
     return inserted;
   } else {
-    // 預防防禦：若資料庫內仍為預設的「球友」或無 LINE ID，在登入時自動同步更新
-    if ((data.nickname === "球友" && defaultName !== "球友") || !data.line_user_id) {
+    // 預防防禦：若資料庫內仍為預設的「球友」或無有效 LINE ID (以 U 開頭)，在登入時自動同步更新
+    const hasValidLineId = data.line_user_id && typeof data.line_user_id === "string" && data.line_user_id.startsWith("U") && data.line_user_id.length === 33;
+    if ((data.nickname === "球友" && defaultName !== "球友") || !hasValidLineId) {
       const { data: updated } = await client
         .from("system_members")
         .update({ 
           nickname: data.nickname === "球友" ? defaultName : data.nickname, 
-          line_user_id: data.line_user_id || lineUserId 
+          line_user_id: lineUserId 
         })
         .eq("id", user.id)
         .select()
