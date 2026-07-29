@@ -68,7 +68,7 @@ export async function POST(request) {
     // 1. Fetch member details and current balance
     const members = await querySupabase("members", {
       id: `eq.${member_id}`,
-      select: "system_member_id,balance,nickname"
+      select: "system_member_id,balance,name"
     });
     
     if (!members || members.length === 0 || !members[0].system_member_id) {
@@ -92,7 +92,7 @@ export async function POST(request) {
     }
     
     const lineUserId = systemMembers[0].line_user_id;
-    const playerNickname = member.nickname || "會員";
+    const playerNickname = member.name || "會員";
     
     // 3. Format push message based on transaction type
     let messageText = "";
