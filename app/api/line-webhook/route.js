@@ -287,32 +287,37 @@ async function handleQueryHistory(replyToken, lineUserId) {
     
     const sysMember = systemMembers[0];
     
-    // 2. Find member profile
+    // 2. Find member profiles across all organizers
     const members = await querySupabase("members", {
       system_member_id: `eq.${sysMember.id}`,
-      organizer_id: `eq.${TARGET_ORGANIZER_ID}`,
-      select: "id,payer_member_id"
+      select: "id,payer_member_id,organizers(name)"
     });
     
     if (!members || members.length === 0) {
       await sendLineReply(replyToken, [
         {
           type: "text",
-          text: "您在「匹克球同樂會」尚未開通儲值金會員帳戶，目前沒有交易紀錄。"
+          text: "您尚未開通任何團主的儲值金會員帳戶，目前沒有交易紀錄。"
         }
       ]);
       return;
     }
     
-    const member = members[0];
-    const targetMemberId = member.payer_member_id || member.id;
+    // Map target member IDs (incorporating shared wallets) to organizer names
+    const memberIdToOrgName = {};
+    const memberIds = [];
+    members.forEach(m => {
+      const targetId = m.payer_member_id || m.id;
+      memberIds.push(targetId);
+      memberIdToOrgName[targetId] = m.organizers?.name || "未知團主";
+    });
     
     // 3. Query transactions (limit 10, desc order)
     const transactions = await querySupabase("wallet_transactions", {
-      member_id: `eq.${targetMemberId}`,
+      member_id: `in.(${[...new Set(memberIds)].join(",")})`,
       order: "created_at.desc",
       limit: "10",
-      select: "id,type,amount,notes,created_at,reservation_date"
+      select: "id,type,amount,notes,created_at,reservation_date,member_id"
     });
     
     if (!transactions || transactions.length === 0) {
@@ -334,6 +339,9 @@ async function handleQueryHistory(replyToken, lineUserId) {
     
     const bubbleContents = transactions.map((t, idx) => {
       const typeInfo = typeLabelMap[t.type] || { label: "交易", color: "#ffffff", sign: "" };
+      const orgName = memberIdToOrgName[t.member_id] || "未知團主";
+      const notesText = `[${orgName}] ${t.notes || (t.type === "checkin" ? "簽到出席扣款" : t.type === "topup" ? "帳戶儲值" : "取消退款")}`;
+      
       const dateObj = new Date(t.created_at);
       // Format to YYYY/MM/DD HH:MM
       const dateStr = `${dateObj.getFullYear()}/${String(dateObj.getMonth() + 1).padStart(2, "0")}/${String(dateObj.getDate()).padStart(2, "0")} ${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`;
@@ -368,10 +376,11 @@ async function handleQueryHistory(replyToken, lineUserId) {
           },
           {
             type: "text",
-            text: t.notes || (t.type === "checkin" ? "簽到扣款" : t.type === "topup" ? "帳戶儲值" : "取消退款"),
+            text: notesText,
             color: "#ffffff",
             size: "xs",
-            margin: "xs"
+            margin: "xs",
+            wrap: true
           },
           {
             type: "text",
