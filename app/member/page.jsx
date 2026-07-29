@@ -105,6 +105,9 @@ export default function MemberPage() {
                     🎉 <strong>備取排上正取</strong> 時自動發送 LINE 通知<br/>
                     📊 手機聊天室一鍵 <strong>查詢儲值餘額與使用紀錄</strong>
                   </p>
+                  <p style={{ margin: "8px 0 0 0", fontSize: "12.5px", color: "#dc2626", fontWeight: "bold" }}>
+                    ⚠️ 提醒：請務必在下方「編輯個人資料」填寫並【 儲存手機號碼 】，否則系統將無法為您發送 LINE 即時通知！
+                  </p>
                 </div>
               </div>
               <a href="https://line.me/R/ti/p/%40657kasvh" target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ background: "#06C755", color: "#fff", borderColor: "#06C755", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px", borderRadius: "12px", fontSize: "14px", fontWeight: "800", textAlign: "center" }}>
