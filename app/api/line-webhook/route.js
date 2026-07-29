@@ -65,19 +65,24 @@ async function sendLineReply(replyToken, messages) {
 }
 
 export async function POST(request) {
-  const channelSecret = process.env.LINE_CHANNEL_SECRET;
+  const channelSecret = process.env.LINE_CHANNEL_SECRET ? process.env.LINE_CHANNEL_SECRET.trim() : null;
   
   try {
     const rawBody = await request.text();
     const signature = request.headers.get("x-line-signature");
     
-    // Verify signature if secret is configured
+    const body = JSON.parse(rawBody);
+    const events = body.events || [];
+    
+    // If it is LINE's verify request (empty events), return 200 directly
+    if (events.length === 0) {
+      return Response.json({ ok: true, message: "Verification success" });
+    }
+    
+    // Verify signature for real events if secret is configured
     if (channelSecret && !verifySignature(rawBody, channelSecret, signature)) {
       return new Response("Invalid signature", { status: 401 });
     }
-    
-    const body = JSON.parse(rawBody);
-    const events = body.events || [];
     
     for (const event of events) {
       if (event.type === "message" && event.message.type === "text") {
