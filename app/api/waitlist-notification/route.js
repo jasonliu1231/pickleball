@@ -23,8 +23,8 @@ async function querySupabase(endpoint, queryParams = {}) {
   return await response.json();
 }
 
-// Helper to send LINE Push Notification
-async function sendLinePush(lineUserId, text) {
+// Helper to send LINE Push Flex Notification
+async function sendLinePushFlex(lineUserId, flexContents, altText) {
   const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
   if (!channelAccessToken) {
     console.error("Missing LINE_CHANNEL_ACCESS_TOKEN env variable");
@@ -41,8 +41,9 @@ async function sendLinePush(lineUserId, text) {
       to: lineUserId,
       messages: [
         {
-          type: "text",
-          text: text
+          type: "flex",
+          altText: altText,
+          contents: flexContents
         }
       ]
     })
@@ -82,15 +83,17 @@ export async function POST(request) {
     const lineUserId = systemMembers[0].line_user_id;
     const playerNickname = nickname || systemMembers[0].nickname || "球友";
     
-    // 2. Fetch meetup details
+    // 2. Fetch meetup details and organizer name
     let meetupName = "球團活動";
+    let orgName = "未知團主";
     if (meetup_id) {
       const meetups = await querySupabase("meetups", {
         id: `eq.${meetup_id}`,
-        select: "name"
+        select: "name,organizers(name)"
       });
       if (meetups && meetups.length > 0) {
         meetupName = meetups[0].name;
+        orgName = meetups[0].organizers?.name || "未知團主";
       }
     }
     
@@ -103,10 +106,182 @@ export async function POST(request) {
       }
     }
     
-    // 3. Send LINE Push Message
-    const messageText = `🎉 匹克球同樂會 - 備取遞補成功！\n\n球友您好：您的預約活動 「${meetupName}」於 ${formattedDate || reservation_date} 已成功遞補為【 正取席位 】！\n\n期待您的出席，祝您打球愉快！🏓`;
+    // 3. Construct Purple Celebration Flex Message Bubble
+    const flexContents = {
+      type: "bubble",
+      size: "giga",
+      styles: {
+        header: {
+          backgroundColor: "#2e1065" // Deep Royal Purple
+        },
+        body: {
+          backgroundColor: "#3b0764" // Violet dark
+        },
+        footer: {
+          backgroundColor: "#2e1065"
+        }
+      },
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "備取遞補成功！🎉",
+            weight: "bold",
+            color: "#c084fc", // Violet accent
+            size: "lg"
+          },
+          {
+            type: "text",
+            text: "匹克球同樂會 - 預約通知",
+            color: "#d8b4fe",
+            size: "xs",
+            margin: "xs"
+          }
+        ]
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        spacing: "md",
+        contents: [
+          {
+            type: "box",
+            layout: "horizontal",
+            margin: "md",
+            contents: [
+              {
+                type: "text",
+                text: "團主",
+                color: "#d8b4fe",
+                size: "sm",
+                flex: 2
+              },
+              {
+                type: "text",
+                text: orgName,
+                color: "#ffffff",
+                size: "sm",
+                weight: "bold",
+                align: "end",
+                flex: 4
+              }
+            ]
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: "球友姓名",
+                color: "#d8b4fe",
+                size: "sm",
+                flex: 2
+              },
+              {
+                type: "text",
+                text: playerNickname,
+                color: "#ffffff",
+                size: "sm",
+                align: "end",
+                flex: 4
+              }
+            ]
+          },
+          {
+            type: "separator",
+            color: "#5b21b6", // purple separator
+            margin: "md"
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            margin: "md",
+            contents: [
+              {
+                type: "text",
+                text: "預約活動",
+                color: "#d8b4fe",
+                size: "sm",
+                flex: 2
+              },
+              {
+                type: "text",
+                text: meetupName,
+                color: "#ffffff",
+                size: "sm",
+                wrap: true,
+                align: "end",
+                flex: 4
+              }
+            ]
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: "活動日期",
+                color: "#d8b4fe",
+                size: "sm",
+                flex: 2
+              },
+              {
+                type: "text",
+                text: formattedDate || reservation_date,
+                color: "#ffffff",
+                size: "sm",
+                align: "end",
+                flex: 4
+              }
+            ]
+          },
+          {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "text",
+                text: "席位狀態",
+                color: "#d8b4fe",
+                size: "sm",
+                flex: 2
+              },
+              {
+                type: "text",
+                text: "已遞補為【 正取 】",
+                color: "#4ade80", // bright green for positive status
+                size: "md",
+                weight: "bold",
+                align: "end",
+                flex: 4
+              }
+            ]
+          }
+        ]
+      },
+      footer: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "button",
+            action: {
+              type: "uri",
+              label: "前往預約網站 ➔",
+              uri: "https://pickleball.jason1231.com"
+            },
+            style: "primary",
+            color: "#8b5cf6" // Violet button
+          }
+        ]
+      }
+    };
     
-    const success = await sendLinePush(lineUserId, messageText);
+    const success = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - 備取遞補成功！`);
     
     return Response.json({ ok: true, sent: success });
   } catch (error) {

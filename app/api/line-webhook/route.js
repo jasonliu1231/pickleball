@@ -168,7 +168,7 @@ async function handleQueryBalance(replyToken, lineUserId) {
             layout: "horizontal",
             contents: [
               { type: "text", text: `球友姓名：${m.name}`, color: "#e5e7eb", size: "sm" },
-              { type: "text", text: `$ ${balanceAmount.toLocaleString()} 元`, color: "#4ade80", size: "md", align: "end", weight: "bold" }
+              { type: "text", text: `${balanceAmount.toLocaleString()} 點`, color: "#4ade80", size: "md", align: "end", weight: "bold" }
             ]
           }
         ]
@@ -365,7 +365,7 @@ async function handleQueryHistory(replyToken, lineUserId) {
               },
               {
                 type: "text",
-                text: `${typeInfo.sign}${Math.abs(Number(t.amount))} 元`,
+                text: `${typeInfo.sign}${Math.abs(Number(t.amount))} 點`,
                 weight: "bold",
                 color: typeInfo.color,
                 size: "sm",

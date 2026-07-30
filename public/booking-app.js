@@ -1055,23 +1055,28 @@ async function loadMemberDashboard() {
 
   const cleanPh = cleanPhone(currentSystemMember.phone);
   let clubMembers = [];
+  
+  // Query by system_member_id, or phone (if present)
+  let filterStr = `system_member_id.eq.${currentSystemMember.id}`;
   if (cleanPh) {
-    let { data: rows, error } = await client
-      .from("members")
-      .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
-      .or(`phone.eq.${currentSystemMember.phone},system_member_id.eq.${currentSystemMember.id}`);
+    filterStr = `phone.eq.${cleanPh},${filterStr}`;
+  }
 
-    if (error) {
-      const fallbackResult = await client
-        .from("members")
-        .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
-        .or(`phone.eq.${currentSystemMember.phone},system_member_id.eq.${currentSystemMember.id}`);
-      if (!fallbackResult.error && fallbackResult.data) {
-        clubMembers = fallbackResult.data;
-      }
-    } else if (rows) {
-      clubMembers = rows;
+  let { data: rows, error } = await client
+    .from("members")
+    .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
+    .or(filterStr);
+
+  if (error) {
+    const fallbackResult = await client
+      .from("members")
+      .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
+      .or(filterStr);
+    if (!fallbackResult.error && fallbackResult.data) {
+      clubMembers = fallbackResult.data;
     }
+  } else if (rows) {
+    clubMembers = rows;
   }
 
   const balancesList = $("balancesList");
@@ -1111,8 +1116,8 @@ async function loadMemberDashboard() {
             </div>
             <div style="flex-shrink: 0; text-align: right;">
               <span style="font-size: 13px; color: var(--muted); font-weight: 700;">餘額: </span>
-              <span class="wallet-item-balance ${isLow ? 'insufficient' : ''}" style="font-weight: 850; font-size: 15.5px;">$${balanceVal}</span>
-              <span style="font-size: 13px; color: var(--muted); font-weight: 700;"> 元</span>
+              <span class="wallet-item-balance ${isLow ? 'insufficient' : ''}" style="font-weight: 850; font-size: 15.5px;">${balanceVal}</span>
+              <span style="font-size: 13px; color: var(--muted); font-weight: 700;"> 點</span>
             </div>
           </div>
           ${isLow ? `
@@ -1209,7 +1214,7 @@ window.showTransactions = async function(memberId, clubName, payerMemberId) {
     container.innerHTML = data.map(t => {
       const typeLabel = t.type === 'topup' ? '儲值' : (t.type === 'checkin' ? '出席扣款' : '取消退款');
       const amountColor = t.amount >= 0 ? '#16A34A' : '#EF4444';
-      const amountLabel = t.amount >= 0 ? `+$${t.amount}` : `-$${Math.abs(t.amount)}`;
+      const amountLabel = t.amount >= 0 ? `+${t.amount} 點` : `-${Math.abs(t.amount)} 點`;
       const dateText = t.reservation_date ? ` (${t.reservation_date})` : '';
       const notesText = t.notes ? `<p style="font-size: 11px; color: var(--muted); margin-top: 2px;">${escapeHtml(t.notes)}</p>` : '';
       const timeStr = new Date(t.created_at).toLocaleString();
