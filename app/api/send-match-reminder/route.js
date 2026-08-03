@@ -151,7 +151,9 @@ export async function POST(request) {
       if (cleanPh) {
         combinedPlayersMap.set(cleanPh, {
           phone: cleanPh,
-          nickname: s.nickname || "球友"
+          nickname: s.nickname || "球友",
+          type: "signup",
+          id: s.id
         });
       }
     });
@@ -162,7 +164,9 @@ export async function POST(request) {
       if (cleanPh) {
         combinedPlayersMap.set(cleanPh, {
           phone: cleanPh,
-          nickname: m.name || "會員"
+          nickname: m.name || "會員",
+          type: "member",
+          id: m.id
         });
       }
     });
@@ -199,6 +203,10 @@ export async function POST(request) {
       
       const lineUserId = systemMembers[0].line_user_id;
       const playerNickname = player.nickname || systemMembers[0].nickname || "球友";
+      
+      const cancelUrl = player.type === "signup"
+        ? `https://pickleball.jason1231.com/api/cancel-match-booking?type=signup&id=${player.id}`
+        : `https://pickleball.jason1231.com/api/cancel-match-booking?type=member&member_id=${player.id}&meetup_id=${meetup_id}&date=${date}`;
       
       // Deduct 1 point from organizer quota
       if (organizerId) {
@@ -388,17 +396,30 @@ export async function POST(request) {
         },
         footer: {
           type: "box",
-          layout: "vertical",
+          layout: "horizontal",
+          spacing: "sm",
           contents: [
             {
               type: "button",
               action: {
                 type: "uri",
-                label: "查看預約狀態 ➔",
+                label: "查看預約 ➔",
                 uri: "https://pickleball.jason1231.com/member"
               },
               style: "primary",
-              color: "#059669"
+              color: "#059669",
+              flex: 1
+            },
+            {
+              type: "button",
+              action: {
+                type: "uri",
+                label: "取消預約 ➔",
+                uri: cancelUrl
+              },
+              style: "primary",
+              color: "#ef4444",
+              flex: 1
             }
           ]
         }
