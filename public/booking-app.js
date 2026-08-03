@@ -555,7 +555,7 @@ function renderMeetups(meetups) {
       <div class="actions">
         <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
         <button class="btn-secondary roster-btn">查看名單</button>
-        <button class="btn-ghost cancel-btn">取消預約</button>
+        <button class="btn-ghost cancel-btn">預約管理</button>
       </div>
       <div class="roster" id="roster-${m.id}"></div>
     </article>`;
@@ -639,7 +639,8 @@ function openCancel(meetup) {
   $("cancelForm").reset();
   $("cancelFormSecondStep").style.display = "none";
   $("queryResultText").textContent = "";
-  const baseText = `${meetup.name || "活動"}｜${formatDate(selectedDate)}｜一般報名者會取消預約，固定會員會登記請假。`;
+  if ($("guestPromoteBtn")) $("guestPromoteBtn").style.display = "none";
+  const baseText = `${meetup.name || "活動"}｜${formatDate(selectedDate)}｜一般報名可在此查詢、取消或轉正；固定會員可登記請假。`;
   
   const blockCheck = isCancelBlocked(meetup, selectedDate);
   if (blockCheck.blocked) {
@@ -652,7 +653,7 @@ function openCancel(meetup) {
     $("cancelSubtitle").textContent = baseText;
     $("queryCancelBtn").disabled = false;
     $("cancelSubmitBtn").disabled = false;
-    $("cancelSubmitBtn").textContent = "確認取消";
+    $("cancelSubmitBtn").textContent = "取消預約";
   }
   $("cancelModal").classList.add("show");
 }
@@ -671,7 +672,7 @@ async function handleQueryCancel() {
   try {
     const { data, error } = await client
       .from("signups")
-      .select("id, nickname, people_count, status")
+      .select("id, nickname, people_count, status, is_tentative")
       .eq("meetup_id", currentMeetup.id)
       .eq("reservation_date", selectedDate)
       .eq("phone", phone)
@@ -685,23 +686,36 @@ async function handleQueryCancel() {
     }
 
     const select = $("cancelPeopleCount");
-    select.innerHTML = "";
     const count = Number(data.people_count || 1);
-    for (let i = 1; i <= count; i++) {
-      const opt = document.createElement("option");
-      opt.value = String(i);
-      opt.textContent = `${i} 人`;
-      if (i === 1) opt.selected = true;
-      select.appendChild(opt);
+    if (select) {
+      select.innerHTML = "";
+      for (let i = 1; i <= count; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `${i} 人`;
+        if (i === 1) opt.selected = true;
+        select.appendChild(opt);
+      }
+
+      const cancelPeopleLabel = select.closest("label");
+      if (cancelPeopleLabel) {
+        cancelPeopleLabel.style.display = count > 1 ? "grid" : "none";
+      }
     }
 
-    const cancelPeopleLabel = select.closest("label");
-    if (cancelPeopleLabel) {
-      cancelPeopleLabel.style.display = count > 1 ? "grid" : "none";
-    }
-
-    const statusText = data.status === "waitlist" ? "備取" : "正取";
+    const statusText = data.status === "waitlist" ? (data.is_tentative ? "彈性候補" : "備取") : "正取";
     $("queryResultText").textContent = `查得預約：${data.nickname || "球友"} (${statusText} ${count}人)`;
+    
+    const promoteBtn = $("guestPromoteBtn");
+    if (promoteBtn) {
+      if (data.status === "waitlist" && data.is_tentative) {
+        promoteBtn.style.display = "block";
+        promoteBtn.onclick = () => promoteTentativeGuest(data.id);
+      } else {
+        promoteBtn.style.display = "none";
+      }
+    }
+    
     $("cancelFormSecondStep").style.display = "block";
   } catch (err) {
     setMessage($("cancelMessage"), err.message || "查詢失敗，請稍後再試。", false);
@@ -719,7 +733,8 @@ async function handleSignup(e) {
   const note = $("note").value.trim();
   const skillLevel = $("skillLevel").value || "normal";
   const isBeginner = isBeginnerSkill(skillLevel);
-  const peopleCount = parseInt($("peopleCount").value) || 1;
+  const peopleCount = parseInt($("peopleCount")?.value || "1") || 1;
+  const isTentative = $("isTentative") ? $("isTentative").checked : false;
   if (!nickname) return setMessage($("formMessage"), "請填寫暱稱。", false);
   if (!validatePhone(phone)) return setMessage($("formMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
   $("submitBtn").disabled = true;
@@ -733,7 +748,8 @@ async function handleSignup(e) {
       p_is_beginner: isBeginner,
       p_skill_level: skillLevel,
       p_note: note || null,
-      p_people_count: peopleCount
+      p_people_count: peopleCount,
+      p_is_tentative: isTentative
     });
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
@@ -757,7 +773,7 @@ async function handleCancel(e) {
   const blockCheck = isCancelBlocked(currentMeetup, selectedDate);
   if (blockCheck.blocked) return setMessage($("cancelMessage"), blockCheck.reason, false);
   const phone = cleanPhone($("cancelPhone").value);
-  const cancelPeopleCount = parseInt($("cancelPeopleCount").value) || 1;
+  const cancelPeopleCount = $("cancelPeopleCount") ? (parseInt($("cancelPeopleCount").value) || 1) : 1;
   if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入報名或會員手機，例如 0912345678。", false);
   $("cancelSubmitBtn").disabled = true;
   $("cancelSubmitBtn").textContent = "取消中...";
@@ -1043,6 +1059,7 @@ async function loadMemberDashboard() {
   if ($("dashboardNickname")) $("dashboardNickname").textContent = currentSystemMember.nickname || "球友";
   if ($("dashboardPhone")) $("dashboardPhone").textContent = currentSystemMember.phone || "未設定";
   if ($("dashboardMemberId")) $("dashboardMemberId").textContent = currentSystemMember.id;
+  if ($("memberQrImg")) $("memberQrImg").src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${currentSystemMember.id}`;
 
   const avatarEl = $("dashboardAvatar");
   if (avatarEl) {
@@ -1146,7 +1163,7 @@ async function loadMemberDashboard() {
     if (cleanPh) {
       const { data: signups, error: signupsError } = await client
         .from("signups")
-        .select("id, status, reservation_date, arrived_count, meetup_id, meetups(id, name, start_time, end_time, address)")
+        .select("id, status, reservation_date, arrived_count, meetup_id, is_tentative, meetups(id, name, start_time, end_time, address)")
         .eq("phone", currentSystemMember.phone)
         .gte("reservation_date", toISODate(new Date()))
         .neq("status", "cancelled")
@@ -1157,8 +1174,7 @@ async function loadMemberDashboard() {
           const dateStr = s.reservation_date;
           const meetupName = s.meetups?.name || "匹克球活動";
           const timeStr = s.meetups?.start_time ? s.meetups.start_time.slice(0, 5) : "";
-          const statusLabel = s.status === 'confirmed' ? '✓ 正取' : '⏳ 備取';
-          const statusColor = s.status === 'confirmed' ? 'var(--accent)' : 'var(--orange)';
+          const statusLabel = s.status === 'confirmed' ? '✓ 正取' : (s.is_tentative ? '⏳ 彈性候補' : '⏳ 備取');
           const arrivedLabel = s.arrived_count > 0 ? ' (已簽到已扣點)' : '';
 
           const div = document.createElement("div");
@@ -1166,15 +1182,39 @@ async function loadMemberDashboard() {
           
           const badgeClass = s.status === 'confirmed' ? 'confirmed' : 'pending';
           
-          div.innerHTML = `
-            <div>
-              <span style="font-weight: 800; font-size: 14.5px; color: var(--text);">${escapeHtml(dateStr)} ${timeStr}</span>
-              <p style="font-size: 12.5px; color: var(--muted); margin-top: 4px; font-weight: 600;">
-                ${escapeHtml(meetupName)}${arrivedLabel ? ' <span style="color: var(--primary); font-weight: 800; font-size: 11.5px;">(已簽到已扣點)</span>' : ''}
-              </p>
-            </div>
-            <span class="status-badge ${badgeClass}">${statusLabel}</span>
-          `;
+          if (s.status === 'waitlist' && s.is_tentative) {
+            div.style.flexDirection = "column";
+            div.style.alignItems = "stretch";
+            
+            div.innerHTML = `
+              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                  <span style="font-weight: 800; font-size: 14.5px; color: var(--text);">${escapeHtml(dateStr)} ${timeStr}</span>
+                  <p style="font-size: 12.5px; color: var(--muted); margin-top: 4px; font-weight: 600;">
+                    ${escapeHtml(meetupName)}${arrivedLabel ? ' <span style="color: var(--primary); font-weight: 800; font-size: 11.5px;">(已簽到已扣點)</span>' : ''}
+                  </p>
+                </div>
+                <span class="status-badge pending">⏳ 彈性候補</span>
+              </div>
+              <div style="width: 100%; margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; justify-content: flex-end;">
+                <button type="button" class="btn-secondary" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); transition: all 0.2s ease;" onclick="promoteTentative('${s.id}')">
+                  確認出席轉正 ➔
+                </button>
+              </div>
+            `;
+          } else {
+            div.innerHTML = `
+              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                  <span style="font-weight: 800; font-size: 14.5px; color: var(--text);">${escapeHtml(dateStr)} ${timeStr}</span>
+                  <p style="font-size: 12.5px; color: var(--muted); margin-top: 4px; font-weight: 600;">
+                    ${escapeHtml(meetupName)}${arrivedLabel ? ' <span style="color: var(--primary); font-weight: 800; font-size: 11.5px;">(已簽到已扣點)</span>' : ''}
+                  </p>
+                </div>
+                <span class="status-badge ${badgeClass}">${statusLabel}</span>
+              </div>
+            `;
+          }
           upcomingList.appendChild(div);
         });
       } else {
@@ -1185,6 +1225,46 @@ async function loadMemberDashboard() {
     }
   }
 }
+
+window.promoteTentative = async function(signupId) {
+  if (!confirm("確定要將此預約轉為正式席位嗎？")) return;
+  try {
+    const { data, error } = await client.rpc("promote_tentative_signup", {
+      p_signup_id: parseInt(signupId)
+    });
+    if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result && result.ok === false) {
+      alert(result.message || "無法手動轉正。");
+    } else {
+      alert(result?.message || "已成功轉為正式正取席位！");
+      await refreshAll(true);
+    }
+  } catch (err) {
+    alert("操作失敗：" + (err.message || String(err)));
+  }
+};
+
+window.promoteTentativeGuest = async function(signupId) {
+  if (!confirm("確定要將此預約轉為正式席位嗎？")) return;
+  try {
+    const { data, error } = await client.rpc("promote_tentative_signup", {
+      p_signup_id: parseInt(signupId)
+    });
+    if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result && result.ok === false) {
+      alert(result.message || "無法手動轉正。");
+    } else {
+      alert(result?.message || "已成功轉為正式正取席位！");
+      $("cancelFormSecondStep").style.display = "none";
+      $("queryResultText").textContent = "";
+      await refreshAll(true);
+    }
+  } catch (err) {
+    alert("操作失敗：" + (err.message || String(err)));
+  }
+};
 
 window.showTransactions = async function(memberId, clubName, payerMemberId) {
   const container = $("transactionListContainer");

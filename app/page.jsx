@@ -107,6 +107,10 @@ export default function Page() {
                 <option value="1">1 人</option>
               </select>
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: "12px 0 16px 0", userSelect: "none" }}>
+              <input type="checkbox" id="isTentative" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
+              <span style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text)" }}>排彈性候補 (直接排備取，不佔正取名額)</span>
+            </label>
             <label>備註，可不填
               <textarea id="note" placeholder="有想先告知的事可以寫在這裡"></textarea>
             </label>
@@ -120,8 +124,8 @@ export default function Page() {
         <div className="modal-card">
           <div className="modal-head">
             <div>
-              <h2 className="section-title" style={{ fontSize: "24px" }}>取消預約</h2>
-              <p className="muted" id="cancelSubtitle">輸入報名時的手機即可取消。當天不開放線上取消，請直接聯絡團長處理續數與名額調整。</p>
+              <h2 className="section-title" style={{ fontSize: "24px" }}>預約管理</h2>
+              <p className="muted" id="cancelSubtitle">輸入報名手機即可進行查詢、取消預約或確認出席轉正。</p>
             </div>
             <button className="close-btn" id="closeCancelModal">×</button>
           </div>
@@ -132,7 +136,13 @@ export default function Page() {
             </label>
             <div id="cancelFormSecondStep" style={{ display: "none", marginTop: "16px" }}>
               <p id="queryResultText" style={{ fontWeight: "bold", color: "#0d9488", marginBottom: "12px", fontSize: "15px" }}></p>
-              <button className="btn-danger" id="cancelSubmitBtn" type="submit" style={{ marginTop: "12px" }}>確認取消</button>
+              <label style={{ display: "none", marginBottom: "12px" }}>取消人數
+                <select id="cancelPeopleCount"></select>
+              </label>
+              <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                <button className="btn-danger" id="cancelSubmitBtn" type="submit" style={{ flex: 1, margin: 0 }}>取消預約</button>
+                <button className="btn-primary" id="guestPromoteBtn" type="button" style={{ flex: 1, margin: 0, display: "none", backgroundColor: "var(--accent)", borderColor: "var(--accent)" }}>確認出席轉正</button>
+              </div>
             </div>
           </form>
           <div className="message" id="cancelMessage"></div>

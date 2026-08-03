@@ -69,7 +69,7 @@ export default function MemberPage() {
           <div id="memberDashboard" style={{ display: "none", flexDirection: "column", gap: "20px" }}>
             {/* Profile Summary Card */}
             <div className="member-profile-card" style={{ background: "linear-gradient(135deg, #064e3b 0%, #15803d 50%, #166534 100%)", color: "#ffffff" }}>
-              <div className="profile-main-info">
+              <div className="profile-main-info" style={{ flex: 1 }}>
                 <div className="profile-avatar-circle" id="dashboardAvatar" style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.4)", backgroundColor: "rgba(255,255,255,0.15)" }}>球</div>
                 <div className="profile-text-group" style={{ alignItems: "flex-start" }}>
                   <h3 className="profile-welcome" style={{ color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -86,6 +86,13 @@ export default function MemberPage() {
                   </div>
                 </div>
               </div>
+
+              {/* QR Code Section */}
+              <div id="memberQrContainer" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", background: "rgba(255, 255, 255, 0.08)", padding: "10px 14px", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.15)", alignSelf: "center" }}>
+                <img id="memberQrImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="會員 QR Code" style={{ width: "90px", height: "90px", borderRadius: "8px", backgroundColor: "#ffffff", padding: "4px" }} />
+                <span style={{ fontSize: "11px", fontWeight: "800", opacity: 0.9, letterSpacing: "0.5px" }}>掃描綁定 LINE 官方帳號</span>
+              </div>
+
               <button className="logout-btn-sleek" id="logoutBtn" type="button" style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.3)", backgroundColor: "rgba(255, 255, 255, 0.12)" }}>登出帳號</button>
             </div>
             
