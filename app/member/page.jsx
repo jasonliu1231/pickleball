@@ -88,9 +88,9 @@ export default function MemberPage() {
               </div>
 
               {/* QR Code Section */}
-              <div id="memberQrContainer" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", background: "rgba(255, 255, 255, 0.08)", padding: "10px 14px", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.15)", alignSelf: "center" }}>
-                <img id="memberQrImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="會員 QR Code" style={{ width: "90px", height: "90px", borderRadius: "8px", backgroundColor: "#ffffff", padding: "4px" }} />
-                <span style={{ fontSize: "11px", fontWeight: "800", opacity: 0.9, letterSpacing: "0.5px" }}>出示給教練/團主掃描綁定</span>
+              <div id="memberQrContainer" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "rgba(255, 255, 255, 0.08)", padding: "14px 20px", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.15)", alignSelf: "center" }}>
+                <img id="memberQrImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="會員 QR Code" style={{ width: "150px", height: "150px", borderRadius: "12px", backgroundColor: "#ffffff", padding: "6px" }} />
+                <span style={{ fontSize: "12px", fontWeight: "800", opacity: 0.9, letterSpacing: "0.5px" }}>出示給教練/團主掃描綁定</span>
               </div>
 
               <button className="logout-btn-sleek" id="logoutBtn" type="button" style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.3)", backgroundColor: "rgba(255, 255, 255, 0.12)" }}>登出帳號</button>

@@ -17,8 +17,24 @@ async function querySupabase(endpoint, queryParams = {}) {
     }
   });
   
+}
+
+// Helper to call Supabase RPC via REST API
+async function callSupabaseRpc(rpcName, rpcParams = {}) {
+  const url = `${SUPABASE_URL}/rest/v1/rpc/${rpcName}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(rpcParams)
+  });
+  
   if (!response.ok) {
-    throw new Error(`Supabase query failed: ${response.statusText}`);
+    const errText = await response.text();
+    throw new Error(`RPC ${rpcName} failed: ${response.status} ${errText}`);
   }
   return await response.json();
 }
@@ -83,16 +99,18 @@ export async function POST(request) {
     const lineUserId = systemMembers[0].line_user_id;
     const playerNickname = nickname || systemMembers[0].nickname || "球友";
     
-    // 2. Fetch meetup details and organizer name
+    // 2. Fetch meetup details, organizer_id and organizer name
     let meetupName = "球團活動";
     let orgName = "未知團主";
+    let organizerId = null;
     if (meetup_id) {
       const meetups = await querySupabase("meetups", {
         id: `eq.${meetup_id}`,
-        select: "name,organizers(name)"
+        select: "name,organizer_id,organizers(name)"
       });
       if (meetups && meetups.length > 0) {
         meetupName = meetups[0].name;
+        organizerId = meetups[0].organizer_id;
         orgName = meetups[0].organizers?.name || "未知團主";
       }
     }
@@ -280,6 +298,29 @@ export async function POST(request) {
         ]
       }
     };
+    
+    // 4. Deduct LINE push quota from organizer balance
+    if (organizerId) {
+      try {
+        const deductResult = await callSupabaseRpc("deduct_organizer_message_quota", {
+          p_organizer_id: organizerId,
+          p_message_type: "waitlist",
+          p_recipient_phone: normalizedPhone,
+          p_content: `遞補成功: ${playerNickname} - ${formattedDate || reservation_date} - ${meetupName}`,
+          p_cost: 1,
+          p_allow_overdraft: false // strict blocking
+        });
+        
+        const deductRes = Array.isArray(deductResult) ? deductResult[0] : deductResult;
+        if (deductRes && deductRes.ok === false) {
+          console.warn(`[Quota Blocked] Organizer ${orgName} (${organizerId}) has insufficient quota: ${deductRes.message}`);
+          return Response.json({ ok: false, error: deductRes.message || "推播額度不足，發送失敗。" }, { status: 403 });
+        }
+      } catch (deductErr) {
+        console.error("Failed to deduct message quota:", deductErr);
+        // Fail-safe: if DB RPC call throws error, proceed to send the message anyway so we don't break service
+      }
+    }
     
     const success = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - 備取遞補成功！`);
     

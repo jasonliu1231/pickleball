@@ -34,7 +34,7 @@ export default function RootLayout({ children }) {
         </main>
 
         <Script
-          src="/booking-app.js?v=1.1.9"
+          src="/booking-app.js?v=1.2.0"
           strategy="afterInteractive"
         />
       </body>
