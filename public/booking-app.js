@@ -1181,10 +1181,25 @@ async function loadMemberDashboard() {
           div.className = "booking-item-card";
           
           const badgeClass = s.status === 'confirmed' ? 'confirmed' : 'pending';
+          const blockCheck = isCancelBlocked(s.meetups, dateStr);
           
           if (s.status === 'waitlist' && s.is_tentative) {
             div.style.flexDirection = "column";
             div.style.alignItems = "stretch";
+            
+            let actionButtonsHtml = "";
+            if (!blockCheck.blocked && s.arrived_count === 0) {
+              actionButtonsHtml += `
+                <button type="button" class="btn-ghost" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; color: var(--red); border: 1px solid var(--red); background: transparent; transition: all 0.2s ease; margin-right: 8px;" onclick="cancelMemberDashboardSignup('${s.id}', '${escapeHtml(meetupName)}')">
+                  取消預約
+                </button>
+              `;
+            }
+            actionButtonsHtml += `
+              <button type="button" class="btn-secondary" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); transition: all 0.2s ease;" onclick="promoteTentative('${s.id}')">
+                確認出席轉正 ➔
+              </button>
+            `;
             
             div.innerHTML = `
               <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -1197,12 +1212,23 @@ async function loadMemberDashboard() {
                 <span class="status-badge pending">⏳ 彈性候補</span>
               </div>
               <div style="width: 100%; margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; justify-content: flex-end;">
-                <button type="button" class="btn-secondary" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); transition: all 0.2s ease;" onclick="promoteTentative('${s.id}')">
-                  確認出席轉正 ➔
-                </button>
+                ${actionButtonsHtml}
               </div>
             `;
           } else {
+            let cancelBtnHtml = "";
+            if (!blockCheck.blocked && s.arrived_count === 0) {
+              cancelBtnHtml = `
+                <div style="width: 100%; margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; justify-content: flex-end;">
+                  <button type="button" class="btn-ghost" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; color: var(--red); border: 1px solid var(--red); background: transparent; transition: all 0.2s ease;" onclick="cancelMemberDashboardSignup('${s.id}', '${escapeHtml(meetupName)}')">
+                    取消預約
+                  </button>
+                </div>
+              `;
+              div.style.flexDirection = "column";
+              div.style.alignItems = "stretch";
+            }
+            
             div.innerHTML = `
               <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div>
@@ -1213,6 +1239,7 @@ async function loadMemberDashboard() {
                 </div>
                 <span class="status-badge ${badgeClass}">${statusLabel}</span>
               </div>
+              ${cancelBtnHtml}
             `;
           }
           upcomingList.appendChild(div);
@@ -1226,6 +1253,42 @@ async function loadMemberDashboard() {
   }
 }
 
+window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
+  if (!confirm(`確定要取消「${meetupName}」的預約嗎？`)) return;
+  try {
+    const { data: signup, error: getError } = await client
+      .from("signups")
+      .select("meetup_id, reservation_date, phone")
+      .eq("id", parseInt(signupId))
+      .single();
+    if (getError) throw getError;
+
+    const { data, error } = await client.rpc("cancel_signup_by_phone", {
+      p_meetup_id: signup.meetup_id,
+      p_reservation_date: signup.reservation_date,
+      p_phone: signup.phone,
+      p_cancel_people_count: 999
+    });
+    if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result && result.ok === false) {
+      alert(result.message || "取消失敗。");
+    } else {
+      const actionType = result?.action_type;
+      const successMessage = actionType === "member_absence_created"
+        ? "已完成會員請假，當天不會列入名單，名額已釋出。"
+        : (result?.message || "已成功取消預約！");
+      alert(successMessage);
+      if (typeof loadMemberDashboard === "function") {
+        await loadMemberDashboard();
+      }
+      await refreshAll(true);
+    }
+  } catch (err) {
+    alert("取消失敗：" + (err.message || String(err)));
+  }
+};
+
 window.promoteTentative = async function(signupId) {
   if (!confirm("確定要將此預約轉為正式席位嗎？")) return;
   try {
@@ -1238,6 +1301,9 @@ window.promoteTentative = async function(signupId) {
       alert(result.message || "無法手動轉正。");
     } else {
       alert(result?.message || "已成功轉為正式正取席位！");
+      if (typeof loadMemberDashboard === "function") {
+        await loadMemberDashboard();
+      }
       await refreshAll(true);
     }
   } catch (err) {
@@ -1259,6 +1325,9 @@ window.promoteTentativeGuest = async function(signupId) {
       alert(result?.message || "已成功轉為正式正取席位！");
       $("cancelFormSecondStep").style.display = "none";
       $("queryResultText").textContent = "";
+      if (typeof loadMemberDashboard === "function") {
+        await loadMemberDashboard();
+      }
       await refreshAll(true);
     }
   } catch (err) {
