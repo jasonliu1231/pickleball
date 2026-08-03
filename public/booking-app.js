@@ -1158,8 +1158,6 @@ async function loadMemberDashboard() {
 
   const upcomingList = $("userBookingsList");
   if (upcomingList) {
-    upcomingList.innerHTML = "";
-    
     if (cleanPh) {
       const { data: signups, error: signupsError } = await client
         .from("signups")
@@ -1169,6 +1167,7 @@ async function loadMemberDashboard() {
         .neq("status", "cancelled")
         .order("reservation_date", { ascending: true });
 
+      upcomingList.innerHTML = "";
       if (!signupsError && signups && signups.length > 0) {
         signups.forEach(s => {
           const dateStr = s.reservation_date;
