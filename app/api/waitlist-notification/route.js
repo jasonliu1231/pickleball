@@ -17,6 +17,11 @@ async function querySupabase(endpoint, queryParams = {}) {
     }
   });
   
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Query ${endpoint} failed: ${response.status} ${errText}`);
+  }
+  return await response.json();
 }
 
 // Helper to call Supabase RPC via REST API
