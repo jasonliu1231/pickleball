@@ -754,6 +754,26 @@ async function handleSignup(e) {
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
     if (result && result.ok === false) return setMessage($("formMessage"), result.message || "無法完成報名。", false);
+
+    // 如果球友已登入，且個人資料中的手機號碼為空，我們在報名成功時自動幫他更新個人資料！
+    if (currentUser && currentSystemMember && !currentSystemMember.phone && phone) {
+      try {
+        const { data: updatedMember } = await client
+          .from("system_members")
+          .update({ phone: phone, nickname: nickname })
+          .eq("id", currentUser.id)
+          .select()
+          .single();
+        if (updatedMember) {
+          currentSystemMember = updatedMember;
+          if ($("profilePhone")) $("profilePhone").value = phone;
+          if ($("profileNickname")) $("profileNickname").value = nickname;
+        }
+      } catch (profileErr) {
+        console.error("Failed to auto-update profile phone:", profileErr);
+      }
+    }
+
     const status = result?.signup_status || result?.status;
     setMessage($("formMessage"), status === "waitlist" ? "目前正取已滿，已幫你加入備取。" : "報名成功，你目前為正取。", true);
     notifyNewSignup({ meetup: currentMeetup, meetupId: currentMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
