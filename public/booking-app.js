@@ -1078,6 +1078,15 @@ async function loadMemberDashboard() {
   if ($("dashboardMemberId")) $("dashboardMemberId").textContent = currentSystemMember.id;
   if ($("memberQrImg")) $("memberQrImg").src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${currentSystemMember.id}`;
 
+  const phoneWarningBanner = $("phoneWarningBanner");
+  if (phoneWarningBanner) {
+    if (!currentSystemMember.phone) {
+      phoneWarningBanner.style.display = "flex";
+    } else {
+      phoneWarningBanner.style.display = "none";
+    }
+  }
+
   const avatarEl = $("dashboardAvatar");
   if (avatarEl) {
     const firstChar = (currentSystemMember.nickname || "球").charAt(0).toUpperCase();

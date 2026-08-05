@@ -123,6 +123,11 @@ export default function MemberPage() {
             </div>
             
             {/* Warning Banner */}
+            <div id="phoneWarningBanner" style={{ display: "none", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "16px", padding: "14px", color: "#B45309", fontWeight: "bold", flexDirection: "row", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "18px" }}>📱</span>
+              <span style={{ fontSize: "13.5px", flex: 1 }}>您尚未設定手機號碼！請在下方「編輯個人資料」填寫並儲存手機，以便接收 LINE 遞補通知與自動填寫報名。</span>
+            </div>
+
             <div id="balanceWarningBanner" style={{ display: "none", background: "#FFF1F2", border: "1px solid #FECACA", borderRadius: "16px", padding: "14px", color: "#991B1B", fontWeight: "bold", flexDirection: "row", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "18px" }}>⚠️</span>
               <span style={{ fontSize: "13.5px", flex: 1 }}>您的餘額不足以支付下週的出席費用，請聯絡團長進行儲值，以免影響自動卡位權益。</span>
