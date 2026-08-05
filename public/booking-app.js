@@ -618,12 +618,9 @@ function openSignup(meetup) {
   if (currentSystemMember) {
     $("nickname").value = currentSystemMember.nickname || "";
     $("phone").value = currentSystemMember.phone || "";
-    $("nickname").readOnly = true;
-    $("phone").readOnly = true;
-  } else {
-    $("nickname").readOnly = false;
-    $("phone").readOnly = false;
   }
+  $("nickname").readOnly = false;
+  $("phone").readOnly = false;
   
   const peopleCountLabel = $("peopleCount")?.closest("label");
   if (peopleCountLabel) {
