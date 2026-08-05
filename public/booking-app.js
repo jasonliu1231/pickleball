@@ -1531,7 +1531,11 @@ function toggleAuthView(isLoggedIn) {
   if (welcomeEl) {
     if (isLoggedIn) {
       const name = currentSystemMember?.nickname || currentUser?.email || "球友";
-      welcomeEl.innerHTML = `👋 您好，<span style="color:#15803d;margin-left:2px">${name}</span>！`;
+      let phoneWarningHtml = "";
+      if (!currentSystemMember?.phone) {
+        phoneWarningHtml = `<span style="background-color:#FFFBEB;color:#D97706;font-size:11.5px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:6px;border:1px solid #FDE68A;display:inline-flex;align-items:center;gap:3px;vertical-align:middle;">⚠️ 設定手機</span>`;
+      }
+      welcomeEl.innerHTML = `👋 您好，<span style="color:#15803d;margin-left:2px">${name}</span>！${phoneWarningHtml}`;
       welcomeEl.style.display = "inline-flex";
     } else {
       welcomeEl.style.display = "none";
