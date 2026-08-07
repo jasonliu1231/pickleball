@@ -469,6 +469,39 @@ function renderCalendar() {
       refreshAll(true);
     });
   });
+
+  const mobileBarEl = $("mobileDateBar");
+  if (mobileBarEl) {
+    const mobileWeekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    const validDates = cells.filter(Boolean);
+    mobileBarEl.innerHTML = validDates.map((dateStr) => {
+      const d = dateFromISO(dateStr);
+      const isPast = dateStr < today;
+      const has = hasAvailableMeetupOnDate(dateStr);
+      const selected = dateStr === selectedDate;
+      const wkName = mobileWeekdays[d.getDay()];
+      return `<button class="mobile-date-item ${selected ? "active" : ""}" data-date="${dateStr}">
+        <span class="wk">週${wkName}</span>
+        <span class="day">${d.getDate()}</span>
+        ${has && !isPast ? `<span class="indicator-dot"></span>` : ""}
+      </button>`;
+    }).join("");
+    
+    setTimeout(() => {
+      const activeItem = mobileBarEl.querySelector(".mobile-date-item.active");
+      if (activeItem) {
+        activeItem.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+    }, 80);
+
+    mobileBarEl.querySelectorAll(".mobile-date-item").forEach(btn => {
+      btn.addEventListener("click", () => {
+        selectedDate = btn.dataset.date;
+        visibleMonth = selectedDate.slice(0, 7) + "-01";
+        refreshAll(true);
+      });
+    });
+  }
 }
 
 function renderMeetups(meetups) {
@@ -525,6 +558,11 @@ function renderMeetups(meetups) {
       primaryBtnText = full ? "加入備取" : "我要報名";
     }
 
+    const showQuickSignup = currentSystemMember && currentSystemMember.phone && currentSystemMember.nickname && !isBookingNotOpen && !isBookingClosed && !btnDisabledAttr;
+    const quickSignupBtnHtml = showQuickSignup 
+      ? `<button class="btn-secondary quick-signup-btn" style="background:#f0fdf4;border:1px solid #15803d;color:#15803d;font-weight:900" title="使用您的個人資料一鍵快速預約">⚡ 一鍵預約</button>`
+      : "";
+
     return `<article class="meetup-card" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
       data-is-full="${full}"
@@ -554,6 +592,7 @@ function renderMeetups(meetups) {
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
       <div class="actions">
         <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
+        ${quickSignupBtnHtml}
         <button class="btn-secondary roster-btn">查看名單</button>
         <button class="btn-ghost cancel-btn">預約管理</button>
       </div>
@@ -567,6 +606,7 @@ function renderMeetups(meetups) {
     card.querySelector(".signup-btn")?.addEventListener("click", () => openSignup(meetup));
     card.querySelector(".cancel-btn")?.addEventListener("click", () => openCancel(meetup));
     card.querySelector(".roster-btn")?.addEventListener("click", () => toggleRoster(meetup));
+    card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
   });
 
   if (document.querySelector(".meetup-card[data-open-time]")) {
@@ -781,6 +821,45 @@ async function handleSignup(e) {
   } finally {
     $("submitBtn").disabled = false;
     $("submitBtn").textContent = "確認報名";
+  }
+}
+async function handleQuickSignup(meetup, btn) {
+  if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) return;
+  if (!confirm(`確定要以帳號「${currentSystemMember.nickname} (${currentSystemMember.phone})」一鍵快速預約「${meetup.name}」嗎？`)) return;
+  
+  btn.disabled = true;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = "⏳ 傳送中...";
+  
+  try {
+    const { data, error } = await client.rpc("signup_basic_date", {
+      p_meetup_id: meetup.id,
+      p_reservation_date: selectedDate,
+      p_nickname: currentSystemMember.nickname,
+      p_phone: cleanPhone(currentSystemMember.phone),
+      p_is_beginner: false,
+      p_skill_level: "normal",
+      p_note: null,
+      p_people_count: 1,
+      p_is_tentative: false
+    });
+    if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (result && result.ok === false) {
+      alert(result.message || "無法完成預約。");
+    } else {
+      const status = result?.signup_status || result?.status;
+      const msg = status === "waitlist" ? "正取已滿，已幫您排入備取！" : "恭喜！您已成功預約正取！";
+      alert(msg);
+      notifyNewSignup({ meetup, meetupId: meetup.id, reservationDate: selectedDate, nickname: currentSystemMember.nickname, skillLevel: "normal" });
+      clearRosterCache();
+      await refreshMeetupListOnly();
+    }
+  } catch (err) {
+    alert("預約失敗：" + (err.message || String(err)));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
   }
 }
 

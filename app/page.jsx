@@ -34,7 +34,8 @@ export default function Page() {
                 <button className="btn-secondary" id="refreshBtn">重新整理</button>
               </div>
             </div>
-            <div className="booking-card">
+            <div className="booking-card" style={{ padding: "0", overflow: "hidden" }}>
+              <div id="mobileDateBar" className="mobile-date-bar"></div>
               <div className="layout">
                 <div className="calendar-card">
                   <div className="calendar-head">

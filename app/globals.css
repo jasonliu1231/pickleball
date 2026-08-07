@@ -640,8 +640,8 @@ a {
 }
 
 .badge.full {
-  background: #f1f5f9;
-  color: #475569;
+  background: #fef3c7;
+  color: #d97706;
 }
 
 /* Redesigned clean detail row instead of bulky box grid */
@@ -1529,5 +1529,136 @@ a {
     grid-template-columns: 1fr;
     gap: 12px;
   }
+}
+
+/* ==========================================================================
+   ✨ Premium UI/UX Enhancements
+   ========================================================================== */
+
+/* Glow Transitions for Primary Interactive Elements */
+.hero-btn.main,
+.btn-primary,
+.nav a.active,
+.tab-btn.active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero-btn.main:hover,
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(132, 204, 22, 0.35);
+}
+
+.nav a.active:hover,
+.tab-btn.active:hover {
+  box-shadow: 0 6px 16px rgba(6, 78, 59, 0.25);
+}
+
+/* Membership Card Metallic Shine Effect */
+.member-profile-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-25deg);
+  animation: cardShine 7s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes cardShine {
+  0% { left: -100%; }
+  15% { left: 150%; }
+  100% { left: 150%; }
+}
+
+/* Mobile Date Bar (Horizontal Sticky Day Selector) */
+.mobile-date-bar {
+  display: none;
+  position: sticky;
+  top: 68px; /* Fixed under topbar */
+  z-index: 990;
+  background: rgba(248, 250, 252, 0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 16px;
+  overflow-x: auto;
+  gap: 8px;
+  scrollbar-width: none; /* Hide scrollbar Firefox */
+}
+.mobile-date-bar::-webkit-scrollbar {
+  display: none; /* Hide scrollbar Chrome/Safari */
+}
+
+@media (max-width: 900px) {
+  .mobile-date-bar {
+    display: flex;
+  }
+}
+
+.mobile-date-item {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  outline: none;
+}
+
+.mobile-date-item:hover {
+  border-color: var(--muted);
+}
+
+.mobile-date-item .wk {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.mobile-date-item .day {
+  font-size: 14.5px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.mobile-date-item.active {
+  background: var(--bg-court);
+  border-color: var(--bg-court);
+  box-shadow: 0 4px 12px rgba(6, 78, 59, 0.15);
+}
+.mobile-date-item.active .wk {
+  color: rgba(255, 255, 255, 0.8);
+}
+.mobile-date-item.active .day {
+  color: #fff;
+}
+
+.mobile-date-item .indicator-dot {
+  position: absolute;
+  bottom: 4px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.mobile-date-item.active .indicator-dot {
+  background: #fff;
 }
 
