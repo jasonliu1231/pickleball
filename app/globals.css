@@ -1579,20 +1579,16 @@ a {
   100% { left: 150%; }
 }
 
-/* Mobile Date Bar (Horizontal Sticky Day Selector) */
+/* Mobile Date Bar (Horizontal Day Selector inside Calendar Card) */
 .mobile-date-bar {
   display: none;
-  position: sticky;
-  top: 68px; /* Fixed under topbar */
-  z-index: 990;
-  background: rgba(248, 250, 252, 0.96);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--line);
-  padding: 10px 16px;
+  background: transparent;
+  padding: 12px 4px;
   overflow-x: auto;
   gap: 8px;
   scrollbar-width: none; /* Hide scrollbar Firefox */
+  border-bottom: 1px dashed var(--line);
+  margin-bottom: 12px;
 }
 .mobile-date-bar::-webkit-scrollbar {
   display: none; /* Hide scrollbar Chrome/Safari */
@@ -1601,6 +1597,14 @@ a {
 @media (max-width: 900px) {
   .mobile-date-bar {
     display: flex;
+  }
+  /* Hide the desktop 7-day week row and full grid calendar on mobile to prevent redundancy */
+  #weekRow,
+  #daysGrid {
+    display: none !important;
+  }
+  .calendar-card .hint {
+    margin-top: 10px;
   }
 }
 

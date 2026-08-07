@@ -35,7 +35,6 @@ export default function Page() {
               </div>
             </div>
             <div className="booking-card" style={{ padding: "0", overflow: "hidden" }}>
-              <div id="mobileDateBar" className="mobile-date-bar"></div>
               <div className="layout">
                 <div className="calendar-card">
                   <div className="calendar-head">
@@ -43,6 +42,7 @@ export default function Page() {
                     <div className="month-title" id="monthTitle">--</div>
                     <button className="icon-btn" id="nextMonth" aria-label="下一個月">›</button>
                   </div>
+                  <div id="mobileDateBar" className="mobile-date-bar"></div>
                   <div className="week-row" id="weekRow"></div>
                   <div className="days-grid" id="daysGrid"></div>
                   <div className="hint"><span className="dot"></span><span>有小點的日期可以報名</span></div>
