@@ -125,6 +125,19 @@ export default function FaqPage() {
 
             <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", marginBottom: "8px" }}>
+                📱 報名時「手機號碼」無法輸入 / 怎麼讓系統自動帶入電話？
+              </h3>
+              <p style={{ fontSize: "13.5px", color: "var(--sub)", lineHeight: "22px" }}>
+                如果您使用 LINE 快速註冊/登入後尚未填寫電話，系統可能會顯示「未設定」或無法自動帶入。請照以下步驟完成設定：<br/>
+                1. 點擊選單前往<strong>「個人中心」</strong>。<br/>
+                2. 往下捲動至<strong>「✏️ 編輯個人資料」</strong>區塊，填入您的真實手機號碼，並點擊<strong>「儲存修改」</strong>。<br/>
+                3. 設定完畢後，未來每次報名系統就會<strong>自動幫您填入電話</strong>，且您的帳號就能順利接收到 LINE 官方帳號的「備取自動遞補成功通知」！<br/>
+                <span style={{ color: "var(--accent)", fontWeight: "800" }}>💡 貼心提醒：</span>如果您要幫親友報名，系統自動帶入您的手機後，您<strong>依然可以直接點選該欄位修改成親友的電話</strong>送出報名喔！
+              </p>
+            </article>
+
+            <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", marginBottom: "8px" }}>
                 👥 可以幫家人或朋友報名，並從我的儲值卡扣點嗎？
               </h3>
               <p style={{ fontSize: "13.5px", color: "var(--sub)", lineHeight: "22px" }}>
