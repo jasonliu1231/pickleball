@@ -482,7 +482,7 @@ function renderCalendar() {
       const wkName = mobileWeekdays[d.getDay()];
       return `<button class="mobile-date-item ${selected ? "active" : ""}" data-date="${dateStr}">
         <span class="wk">週${wkName}</span>
-        <span class="day">${d.getDate()}</span>
+        <span class="mday">${d.getDate()}</span>
         ${has && !isPast ? `<span class="indicator-dot"></span>` : ""}
       </button>`;
     }).join("");

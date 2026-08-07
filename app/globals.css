@@ -1639,7 +1639,7 @@ a {
   margin-bottom: 2px;
 }
 
-.mobile-date-item .day {
+.mobile-date-item .mday {
   font-size: 14.5px;
   font-weight: 900;
   color: var(--text);
@@ -1653,7 +1653,7 @@ a {
 .mobile-date-item.active .wk {
   color: rgba(255, 255, 255, 0.8);
 }
-.mobile-date-item.active .day {
+.mobile-date-item.active .mday {
   color: #fff;
 }
 
