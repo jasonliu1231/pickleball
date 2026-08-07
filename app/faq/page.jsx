@@ -138,6 +138,18 @@ export default function FaqPage() {
 
             <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", marginBottom: "8px" }}>
+                ⚡「⚡ 一鍵預約」與「我要報名」有什麼不同？我該用哪一個？
+              </h3>
+              <p style={{ fontSize: "13.5px", color: "var(--sub)", lineHeight: "22px" }}>
+                這兩個按鈕主要是為了提供不同的報名便利性：<br/>
+                * <strong>「⚡ 一鍵預約」</strong>：<strong>專為已登入且資料完整的會員設計的「極速卡位」功能</strong>。點擊後系統會直接使用您個人中心設定的姓名與手機，在背景以最快速度送出預約並完成卡位。適合<strong>您本人自己要預約打球</strong>時使用，速度最快！<br/>
+                * <strong>「我要報名」</strong>：<strong>提供完整彈性的手動填寫方式</strong>。點擊後會開啟報名視窗，您可以手動修改報名人的姓名、手機號碼、選擇匹克球程度（如：第一次需要教學、初學等）、填寫特殊備註，或是要幫親友報名時使用。<br/>
+                <span style={{ color: "#d97706", fontWeight: "800" }}>⚠️ 時間限制說明：</span>不論是「一鍵預約」還是「我要報名」，<strong>兩者都遵守完全相同的工作限時規則</strong>（如：開團前 X 天開放、開團前 Y 小時截止）。一鍵預約並不會提早或延後預約時間，請大家在開放時間到達時點擊即可！
+              </p>
+            </article>
+
+            <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", marginBottom: "8px" }}>
                 👥 可以幫家人或朋友報名，並從我的儲值卡扣點嗎？
               </h3>
               <p style={{ fontSize: "13.5px", color: "var(--sub)", lineHeight: "22px" }}>
