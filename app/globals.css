@@ -352,6 +352,7 @@ a {
   border: 1px solid var(--line);
   padding: 24px;
   box-shadow: var(--shadow);
+  min-width: 0; /* Prevents child horizontal scrollbars from stretching the grid tracks */
 }
 
 .calendar-card {
@@ -1589,6 +1590,8 @@ a {
   scrollbar-width: none; /* Hide scrollbar Firefox */
   border-bottom: 1px dashed var(--line);
   margin-bottom: 12px;
+  width: 100%;
+  max-width: 100%;
 }
 .mobile-date-bar::-webkit-scrollbar {
   display: none; /* Hide scrollbar Chrome/Safari */
