@@ -1662,3 +1662,35 @@ a {
   background: #fff;
 }
 
+
+/* ==========================================================================
+   📱 Mobile Navigation Bar Layout optimization
+   ========================================================================== */
+@media (max-width: 600px) {
+  .nav {
+    gap: 4px;
+    padding: 4px;
+  }
+  .nav a {
+    padding: 8px 12px;
+    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 99px;
+  }
+  .nav-text {
+    display: none;
+  }
+  .nav-icon {
+    display: inline-block;
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 601px) {
+  .nav-icon {
+    display: none;
+  }
+}
+
