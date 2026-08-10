@@ -83,6 +83,7 @@ export default function Page() {
             <div>
               <h2 className="section-title" id="modalTitle" style={{ fontSize: "24px" }}>我要報名</h2>
               <p className="muted" id="modalSubtitle">--</p>
+              <div id="ratingLimitWarning" style={{ display: "none", background: "#FEF3C7", border: "1px solid #D97706", padding: "10px 12px", borderRadius: "10px", color: "#B45309", fontSize: "13px", fontWeight: "700", marginTop: "10px", lineHeight: "1.4" }}></div>
             </div>
             <button className="close-btn" id="closeModal">×</button>
           </div>

@@ -668,6 +668,17 @@ function openSignup(meetup) {
     peopleCountLabel.style.display = "none";
   }
   
+  const ratingWarningEl = $("ratingLimitWarning");
+  if (ratingWarningEl) {
+    if (meetup.rating_min > 0) {
+      const minDupr = Math.max(2.0, 2.0 + (meetup.rating_min - 1000) / 400).toFixed(2);
+      ratingWarningEl.style.display = "block";
+      ratingWarningEl.innerHTML = `🏆 <b>本場次設有戰力限制</b>：報名積分需達 <b>${meetup.rating_min}分</b> (等同 DUPR ${minDupr} 以上)。<br/>若您的積分未達限制，報名送出後會<b>自動加入「彈性候補」</b>，待場主審核後即可轉為正取！`;
+    } else {
+      ratingWarningEl.style.display = "none";
+    }
+  }
+
   $("signupModal").classList.add("show");
 }
 function closeSignup() { $("signupModal").classList.remove("show"); currentMeetup = null; }
