@@ -558,9 +558,9 @@ function renderMeetups(meetups) {
       primaryBtnText = full ? "加入備取" : "我要報名";
     }
 
-    const showQuickSignup = currentSystemMember && currentSystemMember.phone && currentSystemMember.nickname && !isBookingNotOpen && !isBookingClosed && !btnDisabledAttr;
+    const showQuickSignup = currentSystemMember && currentSystemMember.phone && currentSystemMember.nickname && !isBookingNotOpen && !isBookingClosed && !btnDisabledAttr && !(m.rating_min > 0);
     const quickSignupBtnHtml = showQuickSignup 
-      ? `<button class="btn-secondary quick-signup-btn" style="background:#f0fdf4;border:1px solid #15803d;color:#15803d;font-weight:900" title="使用您的個人資料一鍵快速預約">⚡ 一鍵預約</button>`
+      ? `<button class="btn-secondary quick-signup-btn" style="background:#f0fdf4;border:1px solid #15803d;color:#15803d;font-weight:900" title="使用您的個人資料快速報名">⚡ 快速報名</button>`
       : "";
 
     return `<article class="meetup-card" data-meetup-id="${m.id}" 
