@@ -588,6 +588,7 @@ function renderMeetups(meetups) {
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
         ${waitlistCount > 0 ? `<div class="info"><strong>備取</strong>${waitlistCount} 人</div>` : ""}
         ${m.coach ? `<div class="info"><strong>教練</strong>${escapeHtml(m.coach)}</div>` : ""}
+        ${m.rating_min > 0 ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${m.rating_min} 以上 (等同 DUPR ${Math.max(2.0, 2.0 + (m.rating_min - 1000) / 400).toFixed(2)})</div>` : ""}
       </div>
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
       <div class="actions">
