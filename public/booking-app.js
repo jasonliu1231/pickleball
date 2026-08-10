@@ -1186,19 +1186,51 @@ async function loadMemberDashboard() {
 
   let { data: rows, error } = await client
     .from("members")
-    .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
+    .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
     .or(filterStr);
 
   if (error) {
     const fallbackResult = await client
       .from("members")
-      .select("id, balance, remaining_times, status, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
+      .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
       .or(filterStr);
     if (!fallbackResult.error && fallbackResult.data) {
       clubMembers = fallbackResult.data;
     }
   } else if (rows) {
     clubMembers = rows;
+  }
+
+  // 取得並顯示會員/球友的最新戰力積分
+  let userRating = null;
+  if (clubMembers && clubMembers.length > 0) {
+    const ratedClub = clubMembers.find(m => m.rating);
+    if (ratedClub) {
+      userRating = ratedClub.rating;
+    }
+  }
+  if (!userRating && cleanPh) {
+    try {
+      const { data: recentSignups } = await client
+        .from("signups")
+        .select("rating")
+        .eq("phone", cleanPh)
+        .not("rating", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (recentSignups && recentSignups.length > 0 && recentSignups[0].rating) {
+        userRating = recentSignups[0].rating;
+      }
+    } catch (e) {
+      console.warn("Failed to fetch signup rating:", e);
+    }
+  }
+
+  if (userRating) {
+    if ($("dashboardRating")) $("dashboardRating").textContent = userRating;
+    if ($("dashboardRatingPill")) $("dashboardRatingPill").style.display = "inline-flex";
+  } else {
+    if ($("dashboardRatingPill")) $("dashboardRatingPill").style.display = "none";
   }
 
   const balancesList = $("balancesList");
