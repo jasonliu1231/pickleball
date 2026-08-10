@@ -1228,9 +1228,15 @@ async function loadMemberDashboard() {
 
   if (userRating) {
     if ($("dashboardRating")) $("dashboardRating").textContent = userRating;
+    if ($("dashboardDupr")) {
+      const computedDupr = Math.max(2.0, 2.0 + (Number(userRating) - 1000) / 400);
+      $("dashboardDupr").textContent = computedDupr.toFixed(2);
+    }
     if ($("dashboardRatingPill")) $("dashboardRatingPill").style.display = "inline-flex";
+    if ($("ratingInfoBanner")) $("ratingInfoBanner").style.display = "flex";
   } else {
     if ($("dashboardRatingPill")) $("dashboardRatingPill").style.display = "none";
+    if ($("ratingInfoBanner")) $("ratingInfoBanner").style.display = "none";
   }
 
   const balancesList = $("balancesList");

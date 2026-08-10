@@ -80,7 +80,7 @@ export default function MemberPage() {
                       📱 <span id="dashboardPhone">未設定</span>
                     </span>
                     <span className="info-pill" id="dashboardRatingPill" style={{ color: "#FEF3C7", background: "rgba(245, 158, 11, 0.22)", borderColor: "rgba(245, 158, 11, 0.35)", borderWidth: "1px", borderStyle: "solid", display: "none" }}>
-                      🏆 戰力: <span id="dashboardRating">1000</span>
+                      🏆 戰力: <span id="dashboardRating">1000</span> (等同 DUPR <span id="dashboardDupr">2.00</span>)
                     </span>
                     <span className="info-pill info-pill-id" style={{ color: "rgba(255, 255, 255, 0.95)" }}>
                       🆔 ID: <span id="dashboardMemberId">--</span>
@@ -99,6 +99,11 @@ export default function MemberPage() {
               <button className="logout-btn-sleek" id="logoutBtn" type="button" style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.3)", backgroundColor: "rgba(255, 255, 255, 0.12)" }}>登出帳號</button>
             </div>
             
+            <div className="profile-tip-banner" id="ratingInfoBanner" style={{ display: "none", background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.18)", color: "#9A3412" }}>
+              <span style={{ fontSize: "16px" }}>🏆</span>
+              <span><strong>戰力評級提示</strong>：戰力分數以 1000 為起步（等同 DUPR 2.0），會依對戰成績與分差自動結算。系統會為您自動對照 DUPR 等級，方便您了解自己的實力！</span>
+            </div>
+
             <div className="profile-tip-banner">
               <span style={{ fontSize: "16px" }}>💡</span>
               <span><strong>系統關聯提示</strong>：將您的「系統 ID」提供給球館或團主，即可在後台進行儲值與卡位扣點！</span>
