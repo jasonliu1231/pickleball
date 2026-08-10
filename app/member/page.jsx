@@ -101,7 +101,7 @@ export default function MemberPage() {
             
             <div className="profile-tip-banner" id="ratingInfoBanner" style={{ display: "none", background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.18)", color: "#9A3412" }}>
               <span style={{ fontSize: "16px" }}>🏆</span>
-              <span><strong>戰力評級提示</strong>：戰力分數以 1000 為起步（等同 DUPR 2.0），會依對戰成績與分差自動結算。系統會為您自動對照 DUPR 等級，方便您了解自己的實力！</span>
+              <span><strong>戰力評級提示</strong>：戰力分數以 1000 為起步（等同 DUPR 2.0），會依對戰成績與分差自動結算。本轉換分數僅供俱樂部內部對戰分場參考，非 DUPR 官方正式認證。</span>
             </div>
 
             <div className="profile-tip-banner">
