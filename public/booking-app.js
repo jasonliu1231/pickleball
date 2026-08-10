@@ -837,7 +837,6 @@ async function handleSignup(e) {
 }
 async function handleQuickSignup(meetup, btn) {
   if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) return;
-  if (!confirm(`確定要以帳號「${currentSystemMember.nickname} (${currentSystemMember.phone})」一鍵快速預約「${meetup.name}」嗎？`)) return;
   
   btn.disabled = true;
   const originalText = btn.innerHTML;
