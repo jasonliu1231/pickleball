@@ -70,7 +70,7 @@ export default function FaqPage() {
 
               <div style={{ marginTop: "20px", display: "flex", justifyContent: "center" }}>
                 <a href="https://line.me/R/ti/p/%40657kasvh" target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "8px", backgroundColor: "#06C755", color: "#fff", padding: "12px 24px", borderRadius: "10px", fontSize: "14px", fontWeight: "800", textDecoration: "none" }}>
-                  ➕ 點我加入官方 LINE 好友（啟用即時推播與查詢）
+                  ➕ 點我加入官方 LINE 好友
                 </a>
               </div>
             </article>
