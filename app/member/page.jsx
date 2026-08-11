@@ -119,7 +119,7 @@ export default function MemberPage() {
 
             <div className="profile-tip-banner" style={{ marginTop: "16px" }}>
               <span style={{ fontSize: "16px" }}>💡</span>
-              <span><strong>系統關聯提示</strong>：將您的「系統 ID」提供給球館或團主，即可在後台進行儲值與卡位扣點！</span>
+              <span><strong>系統關聯提示</strong>：將您的「系統 ID」提供給球館或團主，即可在後台進行儲值與卡位扣點！若需要接收即時通知與遞補提醒，請 <a href="https://line.me/R/ti/p/%40657kasvh" target="_blank" rel="noopener noreferrer" style={{ color: "#06C755", fontWeight: "900", textDecoration: "underline" }}>點此加入 LINE 官方好友</a>。</span>
             </div>
             
             {/* Warning Banner */}
