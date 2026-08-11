@@ -162,6 +162,27 @@ export default function MemberPage() {
                 </div>
               </div>
             </div>
+
+            {/* ELO Rating Chart & Match History Section */}
+            <div id="eloHistorySection" style={{ display: "none", flexDirection: "column", gap: "20px", marginTop: "20px" }}>
+              <div className="dashboard-panel-card" style={{ width: "100%" }}>
+                <h4 className="panel-header-title">
+                  📈 我的戰力積分走勢
+                </h4>
+                <div id="eloChartContainer" style={{ minHeight: "220px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", background: "#f8fafc", borderRadius: "16px", padding: "16px", border: "1px solid #e2e8f0", position: "relative" }}>
+                  <p style={{ color: "var(--muted)", fontStyle: "italic", fontSize: "13.5px" }}>載入對戰數據中...</p>
+                </div>
+              </div>
+
+              <div className="dashboard-panel-card" style={{ width: "100%" }}>
+                <h4 className="panel-header-title">
+                  ⚔️ 近期對戰戰績紀錄
+                </h4>
+                <div id="matchHistoryList" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>目前尚無任何積分對戰紀錄</p>
+                </div>
+              </div>
+            </div>
             
             {/* Update Profile Form */}
             <div className="edit-profile-section">
