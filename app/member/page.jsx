@@ -78,9 +78,6 @@ export default function MemberPage() {
                     <span className="info-pill" style={{ color: "rgba(255, 255, 255, 0.95)" }}>
                       📱 <span id="dashboardPhone">未設定</span>
                     </span>
-                    <span className="info-pill" id="dashboardRatingPill" style={{ color: "#FEF3C7", background: "rgba(245, 158, 11, 0.22)", borderColor: "rgba(245, 158, 11, 0.35)", borderWidth: "1px", borderStyle: "solid", display: "none" }}>
-                      🏆 戰力: <span id="dashboardRating">1000</span> (等同 DUPR <span id="dashboardDupr">2.00</span>)
-                    </span>
                     <span className="info-pill info-pill-id" style={{ color: "rgba(255, 255, 255, 0.95)", display: "inline-flex", alignItems: "center", gap: "6px" }}>
                       🆔 ID: <span id="dashboardMemberId" style={{ maxWidth: "120px", display: "inline-block", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>--</span>
                       <button id="copyIdBtn" type="button" className="copy-btn-sleek">複製 ID</button>
