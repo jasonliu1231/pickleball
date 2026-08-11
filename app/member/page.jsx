@@ -70,7 +70,6 @@ export default function MemberPage() {
             {/* Profile Summary Card */}
             <div className="member-profile-card" style={{ background: "linear-gradient(135deg, #064e3b 0%, #15803d 50%, #166534 100%)", color: "#ffffff" }}>
               <div className="profile-main-info" style={{ flex: 1 }}>
-                <div className="profile-avatar-circle" id="dashboardAvatar" style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.4)", backgroundColor: "rgba(255,255,255,0.15)" }}>球</div>
                 <div className="profile-text-group" style={{ alignItems: "flex-start" }}>
                   <h3 className="profile-welcome" style={{ color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
                     👋 哈囉，<span id="dashboardNickname">球友</span>
@@ -82,8 +81,8 @@ export default function MemberPage() {
                     <span className="info-pill" id="dashboardRatingPill" style={{ color: "#FEF3C7", background: "rgba(245, 158, 11, 0.22)", borderColor: "rgba(245, 158, 11, 0.35)", borderWidth: "1px", borderStyle: "solid", display: "none" }}>
                       🏆 戰力: <span id="dashboardRating">1000</span> (等同 DUPR <span id="dashboardDupr">2.00</span>)
                     </span>
-                    <span className="info-pill info-pill-id" style={{ color: "rgba(255, 255, 255, 0.95)" }}>
-                      🆔 ID: <span id="dashboardMemberId">--</span>
+                    <span className="info-pill info-pill-id" style={{ color: "rgba(255, 255, 255, 0.95)", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                      🆔 ID: <span id="dashboardMemberId" style={{ maxWidth: "120px", display: "inline-block", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>--</span>
                       <button id="copyIdBtn" type="button" className="copy-btn-sleek">複製 ID</button>
                     </span>
                   </div>
