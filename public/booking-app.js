@@ -1396,28 +1396,27 @@ async function loadMemberDashboard() {
         div.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px;">
             <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
-              <span style="font-weight: 800; font-size: 15px; color: ${isActive ? 'var(--text)' : 'var(--muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(clubName)}</span>
+              <span style="font-weight: 800; font-size: 16px; color: ${isActive ? 'var(--text)' : 'var(--muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(clubName)}</span>
               ${isActive ? '' : '<span style="background: #E2E8F0; color: #64748B; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; white-space: nowrap; flex-shrink: 0;">已停用</span>'}
             </div>
-            <div style="flex-shrink: 0; text-align: right; display: flex; flex-direction: column; gap: 4px;">
-              <div>
-                <span style="font-size: 12.5px; color: var(--muted); font-weight: 700;">餘額: </span>
-                <span class="wallet-item-balance ${isLow ? 'insufficient' : ''}" style="font-weight: 850; font-size: 15px;">${balanceVal}</span>
-                <span style="font-size: 12.5px; color: var(--muted); font-weight: 700;"> 點</span>
-              </div>
-              <div>
-                <span style="font-size: 12.5px; color: var(--muted); font-weight: 700;">戰力: </span>
-                <span style="font-weight: 850; font-size: 15px; color: var(--accent);">${m.rating !== null && m.rating !== undefined ? m.rating : 1000}</span>
-                <span style="font-size: 11px; color: var(--muted); font-weight: 600;"> (DUPR ${((m.rating !== null && m.rating !== undefined ? m.rating : 1000) / 500).toFixed(2)})</span>
-              </div>
-            </div>
           </div>
+          
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; width: 100%;">
+            <span style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); color: #065f46; padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
+              🪙 餘額: <strong style="font-weight: 850; font-size: 14px;">${balanceVal}</strong> 點
+            </span>
+            <span style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); color: #9a3412; padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
+              🏆 戰力: <strong style="font-weight: 850; font-size: 14px;">${m.rating !== null && m.rating !== undefined ? m.rating : 1000}</strong> <span style="font-size:11px; opacity:0.85; font-weight:700;">(DUPR ${((m.rating !== null && m.rating !== undefined ? m.rating : 1000) / 500).toFixed(2)})</span>
+            </span>
+          </div>
+
           ${isLow ? `
-            <div style="color: var(--danger); font-size: 12px; font-weight: 700; background: rgba(239, 68, 68, 0.05); padding: 8px; border-radius: 8px; text-align: center; margin-top: 2px;">
+            <div style="color: var(--danger); font-size: 12px; font-weight: 700; background: rgba(239, 68, 68, 0.05); padding: 8px; border-radius: 8px; text-align: center; margin-top: 8px; width: 100%;">
               ⚠️ 餘額不足以支付下週預約，請儘速儲值
             </div>
           ` : ''}
-          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 8px; font-size: 12.5px; border-radius: 10px; height: 38px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; cursor: pointer;" onclick="showTransactions('${m.id}', '${escapeHtml(clubName)}', '${m.payer_member_id || ''}')">
+          
+          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; font-size: 12.5px; border-radius: 10px; height: 38px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; cursor: pointer;" onclick="showTransactions('${m.id}', '${escapeHtml(clubName)}', '${m.payer_member_id || ''}')">
             明細
           </button>
         `;
