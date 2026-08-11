@@ -99,6 +99,25 @@ export default function MemberPage() {
               <button className="logout-btn-sleek" id="logoutBtn" type="button" style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.3)", backgroundColor: "rgba(255, 255, 255, 0.12)" }}>登出帳號</button>
             </div>
             
+            {/* Update Profile Form */}
+            <div className="edit-profile-section" style={{ marginTop: "16px" }}>
+              <h4 style={{ fontSize: "16px", fontWeight: "900", marginBottom: "16px" }}>✏️ 編輯個人資料</h4>
+              <form id="updateProfileForm" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="modern-form-row">
+                  <div className="modern-input-group">
+                    <label htmlFor="profileNickname">修改暱稱 / 姓名</label>
+                    <input id="profileNickname" className="modern-text-input" placeholder="請輸入姓名或暱稱" />
+                  </div>
+                  <div className="modern-input-group">
+                    <label htmlFor="profilePhone">修改手機號碼</label>
+                    <input id="profilePhone" className="modern-text-input" placeholder="0912345678" inputMode="numeric" />
+                  </div>
+                </div>
+                <button className="btn-primary" type="submit" style={{ alignSelf: "flex-start", minWidth: "120px", padding: "10px 24px", borderRadius: "12px" }}>儲存修改</button>
+              </form>
+              <div id="profileMessage" className="message" style={{ marginTop: "8px" }}></div>
+            </div>
+
             <div className="profile-tip-banner" id="ratingInfoBanner" style={{ display: "none", background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.18)", color: "#9A3412" }}>
               <span style={{ fontSize: "16px" }}>🏆</span>
               <span><strong>戰力評級提示</strong>：戰力分數以 1000 為起步（等同 DUPR 2.0），會依對戰成績與分差自動結算。本轉換分數僅供俱樂部內部對戰分場參考，非 DUPR 官方正式認證。</span>
@@ -183,26 +202,7 @@ export default function MemberPage() {
                 </div>
               </div>
             </div>
-            
-            {/* Update Profile Form */}
-            <div className="edit-profile-section">
-              <h4 style={{ fontSize: "16px", fontWeight: "900", marginBottom: "16px" }}>✏️ 編輯個人資料</h4>
-              <form id="updateProfileForm" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div className="modern-form-row">
-                  <div className="modern-input-group">
-                    <label htmlFor="profileNickname">修改暱稱 / 姓名</label>
-                    <input id="profileNickname" className="modern-text-input" placeholder="請輸入姓名或暱稱" />
-                  </div>
-                  <div className="modern-input-group">
-                    <label htmlFor="profilePhone">修改手機號碼</label>
-                    <input id="profilePhone" className="modern-text-input" placeholder="0912345678" inputMode="numeric" />
-                  </div>
-                </div>
-                <button className="btn-primary" type="submit" style={{ alignSelf: "flex-start", minWidth: "120px", padding: "10px 24px", borderRadius: "12px" }}>儲存修改</button>
-              </form>
-              <div id="profileMessage" className="message" style={{ marginTop: "8px" }}></div>
             </div>
-          </div>
 
           <div className="modal" id="transactionModal">
             <div className="modal-card" style={{ maxWidth: "520px" }}>
