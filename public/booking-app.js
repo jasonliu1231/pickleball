@@ -114,7 +114,7 @@ const knowledgeItems = [
   { title: "基本：站位與輪轉", desc: "先把站位與輪轉建立起來，比追求大力更容易快速進步；也更適合團體輪轉上場。", image: { src: "https://i.postimg.cc/5tqYMJhq/s6.jpg", alt: "球場上活動示意" }, tags: [{ k: "觀念", v: "先站位" }, { k: "團體", v: "輪轉順暢" }, { k: "新手", v: "更好上手" }] },
   { title: "得分規則：多數採 11 分制、需領先 2 分", desc: "常見賽制為 11 分（或 15/21 分），且需要領先 2 分才算勝。很多休閒玩法採「只有發球方能得分」。", image: { src: "https://i.postimg.cc/q7XhdrPw/s7.png", alt: "計分與比賽示意" }, tags: [{ k: "常見", v: "11 分制" }, { k: "規則", v: "領先 2 分" }, { k: "玩法", v: "發球方得分" }] },
   { title: "雙落地制：發球後前兩拍必須落地", desc: "發球後，接發球方必須讓球落地再回擊；接著發球方也必須讓回球落地再打。完成這兩次落地後，雙方才可以選擇截擊。", image: { src: "https://i.postimg.cc/yNXgzKMn/s8.png", alt: "對打示意" }, tags: [{ k: "關鍵", v: "前兩拍要落地" }, { k: "之後", v: "才可截擊" }, { k: "目的", v: "回合更公平" }] },
-  { title: "🔔 LINE 實時推播：備取轉正遞補通知", desc: "當您預約熱門場次排在備取（或因戰力積分不足被自動分配為彈性候補）時，一旦有名額釋出、或場主在後台點選「轉正取」，系統會立即向您的 LINE 發送「備取遞補成功！🎉」通知卡片，讓您秒速掌握最新席位，不再錯過任何上場對戰的機會！", image: { src: "/images/line_promote_notice.png", alt: "LINE 備取遞補成功通知" }, tags: [{ k: "功能", v: "LINE 推播" }, { k: "狀態", v: "備取轉正" }, { k: "設定", v: "需設定手機" }] }
+  { title: "🔔 LINE 實時推播：備取轉正遞補通知", desc: "當您預約熱門場次排在備取（或因戰力積分不足被自動分配為彈性候補）時，一旦有名額釋出、或場主在後台點選「轉正取」，系統會立即向您的 LINE 發送「備取遞補成功！🎉」通知卡片，讓您秒速掌握最新席位，不再錯過任何上場對戰的機會！<br/><span style='color:#dc2626; font-weight:800; display:block; margin-top:6px;'>⚠️ 重要提醒：請務必在個人中心「編輯個人資料」填寫並儲存您的手機號碼！若沒有綁定手機號碼，系統將無法配對並發送 LINE 遞補通知到您的裝置上。</span>", image: { src: "/images/line_promote_notice.png", alt: "LINE 備取遞補成功通知" }, tags: [{ k: "功能", v: "LINE 推播" }, { k: "狀態", v: "備取轉正" }, { k: "設定", v: "需設定手機" }] }
 ];
 
 const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
@@ -1008,7 +1008,7 @@ function renderStaticContent() {
         <img class="knowledge-img" src="${escapeHtml(item.image?.src || "")}" alt="${escapeHtml(item.image?.alt || item.title)}" loading="lazy" />
         <div class="knowledge-body">
           <h3>${escapeHtml(item.title)}</h3>
-          <p class="muted">${escapeHtml(item.desc)}</p>
+          <p class="muted">${item.desc}</p>
           <div class="tag-row">${(item.tags || []).map(tag => `<span class="mini-tag">${escapeHtml(tag.k)}｜${escapeHtml(tag.v)}</span>`).join("")}</div>
         </div>
       </article>`).join("");
