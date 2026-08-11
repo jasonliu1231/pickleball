@@ -118,35 +118,9 @@ export default function MemberPage() {
               <div id="profileMessage" className="message" style={{ marginTop: "8px" }}></div>
             </div>
 
-            <div className="profile-tip-banner" id="ratingInfoBanner" style={{ display: "none", background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.18)", color: "#9A3412" }}>
-              <span style={{ fontSize: "16px" }}>🏆</span>
-              <span><strong>戰力評級提示</strong>：戰力分數以 1000 為起步（等同 DUPR 2.0），會依對戰成績與分差自動結算。本轉換分數僅供俱樂部內部對戰分場參考，非 DUPR 官方正式認證。</span>
-            </div>
-
-            <div className="profile-tip-banner">
+            <div className="profile-tip-banner" style={{ marginTop: "16px" }}>
               <span style={{ fontSize: "16px" }}>💡</span>
               <span><strong>系統關聯提示</strong>：將您的「系統 ID」提供給球館或團主，即可在後台進行儲值與卡位扣點！</span>
-            </div>
-            
-            <div className="line-friend-card" style={{ background: "rgba(6, 199, 85, 0.06)", border: "1px solid rgba(6, 199, 85, 0.25)", borderRadius: "16px", padding: "16px", display: "flex", flexDirection: "column", gap: "12px", marginTop: "12px" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
-                <span style={{ fontSize: "20px", marginTop: "2px" }}>💬</span>
-                <div style={{ flex: 1 }}>
-                  <h4 style={{ margin: 0, fontSize: "15px", fontWeight: "900", color: "#047857" }}>加入 LINE 官方好友，啟用即時通知</h4>
-                  <p style={{ margin: "6px 0 0 0", fontSize: "13px", color: "var(--sub)", lineHeight: "1.6" }}>
-                    <strong>加入好友後，您將享有以下專屬服務：</strong><br/>
-                    🔔 <strong>儲值扣點、簽到扣款</strong> 即時收到 LINE 提醒通知<br/>
-                    🎉 <strong>備取排上正取</strong> 時自動發送 LINE 通知<br/>
-                    📊 手機聊天室一鍵 <strong>查詢儲值餘額與使用紀錄</strong>
-                  </p>
-                  <p style={{ margin: "8px 0 0 0", fontSize: "12.5px", color: "#dc2626", fontWeight: "bold" }}>
-                    ⚠️ 提醒：請務必在下方「編輯個人資料」填寫並【 儲存手機號碼 】，否則系統將無法為您發送「備取遞補成功通知」，且預約時無法自動帶入手機號碼喔！
-                  </p>
-                </div>
-              </div>
-              <a href="https://line.me/R/ti/p/%40657kasvh" target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ background: "#06C755", color: "#fff", borderColor: "#06C755", textDecoration: "none", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "10px", borderRadius: "12px", fontSize: "14px", fontWeight: "800", textAlign: "center" }}>
-                ➕ 立即加入 LINE 官方好友
-              </a>
             </div>
             
             {/* Warning Banner */}
@@ -188,6 +162,10 @@ export default function MemberPage() {
                 <h4 className="panel-header-title">
                   📈 我的戰力積分走勢
                 </h4>
+                <div className="profile-tip-banner" id="ratingInfoBanner" style={{ display: "none", background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.18)", color: "#9A3412", marginBottom: "16px" }}>
+                  <span style={{ fontSize: "16px" }}>🏆</span>
+                  <span><strong>戰力評級提示</strong>：戰力分數以 1000 為起步（等同 DUPR 2.0），會依對戰成績與分差自動結算。本轉換分數僅供俱樂部內部對戰分場參考，非 DUPR 官方正式認證。</span>
+                </div>
                 <div id="eloChartContainer" style={{ minHeight: "220px", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", background: "#f8fafc", borderRadius: "16px", padding: "16px", border: "1px solid #e2e8f0", position: "relative" }}>
                   <p style={{ color: "var(--muted)", fontStyle: "italic", fontSize: "13.5px" }}>載入對戰數據中...</p>
                 </div>

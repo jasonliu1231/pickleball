@@ -56,6 +56,13 @@ export default function FaqPage() {
                   <p style={{ fontSize: "12px", color: "var(--sub)", lineHeight: "18px", marginBottom: "12px", minHeight: "54px" }}>點選聊天室選單的「使用紀錄」，秒查最近 10 筆儲值與扣款歷史</p>
                   <img src="/s3.png" alt="使用紀錄調閱" onClick={() => handleImageClick("/s3.png")} style={{ width: "100%", borderRadius: "8px", border: "1px solid var(--line)", cursor: "zoom-in" }} />
                 </div>
+
+                <div className="step-item" style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                  <span style={{ background: "var(--accent)", color: "#fff", padding: "4px 10px", borderRadius: "99px", fontSize: "11px", fontWeight: "800", marginBottom: "8px" }}>功能 4</span>
+                  <h4 style={{ fontSize: "14px", fontWeight: "800", marginBottom: "6px" }}>備取遞補成功通知</h4>
+                  <p style={{ fontSize: "12px", color: "var(--sub)", lineHeight: "18px", marginBottom: "12px", minHeight: "54px" }}>當您排在備取時，一旦有名額釋出或被轉為正取，LINE 將立刻推播通知卡片</p>
+                  <img src="/images/line_promote_notice.png" alt="備取遞補成功通知" onClick={() => handleImageClick("/images/line_promote_notice.png")} style={{ width: "100%", borderRadius: "8px", border: "1px solid var(--line)", cursor: "zoom-in" }} />
+                </div>
               </div>
 
               <div style={{ marginTop: "20px", display: "flex", justifyContent: "center" }}>
