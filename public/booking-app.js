@@ -1326,12 +1326,12 @@ async function loadMemberDashboard() {
     clubMembers = rows;
   }
 
-  // 取得並顯示會員/球友的最新戰力積分
+  // 取得並顯示會員/球友的最新戰力積分 (若有多個團，以最高分數顯示在個人主卡片)
   let userRating = null;
   if (clubMembers && clubMembers.length > 0) {
-    const ratedClub = clubMembers.find(m => m.rating);
-    if (ratedClub) {
-      userRating = ratedClub.rating;
+    const ratings = clubMembers.map(m => m.rating).filter(r => r !== null && r !== undefined);
+    if (ratings.length > 0) {
+      userRating = Math.max(...ratings);
     }
   }
   if (!userRating && cleanPh) {
@@ -1399,10 +1399,17 @@ async function loadMemberDashboard() {
               <span style="font-weight: 800; font-size: 15px; color: ${isActive ? 'var(--text)' : 'var(--muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(clubName)}</span>
               ${isActive ? '' : '<span style="background: #E2E8F0; color: #64748B; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; white-space: nowrap; flex-shrink: 0;">已停用</span>'}
             </div>
-            <div style="flex-shrink: 0; text-align: right;">
-              <span style="font-size: 13px; color: var(--muted); font-weight: 700;">餘額: </span>
-              <span class="wallet-item-balance ${isLow ? 'insufficient' : ''}" style="font-weight: 850; font-size: 15.5px;">${balanceVal}</span>
-              <span style="font-size: 13px; color: var(--muted); font-weight: 700;"> 點</span>
+            <div style="flex-shrink: 0; text-align: right; display: flex; flex-direction: column; gap: 4px;">
+              <div>
+                <span style="font-size: 12.5px; color: var(--muted); font-weight: 700;">餘額: </span>
+                <span class="wallet-item-balance ${isLow ? 'insufficient' : ''}" style="font-weight: 850; font-size: 15px;">${balanceVal}</span>
+                <span style="font-size: 12.5px; color: var(--muted); font-weight: 700;"> 點</span>
+              </div>
+              <div>
+                <span style="font-size: 12.5px; color: var(--muted); font-weight: 700;">戰力: </span>
+                <span style="font-weight: 850; font-size: 15px; color: var(--accent);">${m.rating !== null && m.rating !== undefined ? m.rating : 1000}</span>
+                <span style="font-size: 11px; color: var(--muted); font-weight: 600;"> (DUPR ${((m.rating !== null && m.rating !== undefined ? m.rating : 1000) / 500).toFixed(2)})</span>
+              </div>
             </div>
           </div>
           ${isLow ? `
@@ -1572,7 +1579,7 @@ async function loadMemberDashboard() {
             score_b,
             rating_change,
             created_at,
-            meetups(name)
+            meetups(name, organizers(name))
           `)
           .or(orFilter)
           .order("created_at", { ascending: true });
@@ -1675,6 +1682,7 @@ async function loadMemberDashboard() {
               date: m.reservation_date ? m.reservation_date.slice(5) : ""
             });
 
+            const clubPrefix = m.meetups?.organizers?.name ? `[${m.meetups.organizers.name}] ` : "";
             const formattedDate = m.reservation_date ? m.reservation_date.replace(/-/g, "/") : "";
             const partnerStr = partnerName ? ` + ${partnerName}` : "";
             const opponentsStr = opponent2Name ? `${opponent1Name} + ${opponent2Name}` : opponent1Name;
@@ -1695,7 +1703,7 @@ async function loadMemberDashboard() {
                     <span>${opponentsStr}</span>
                   </div>
                   <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-top:6px">
-                    📅 ${formattedDate} ｜ 🎾 ${escapeHtml(m.meetups?.name || "計分對戰")} (第 ${m.court_number} 場)
+                    📅 ${formattedDate} ｜ 🎾 ${escapeHtml(clubPrefix + (m.meetups?.name || "計分對戰"))} (第 ${m.court_number} 場)
                   </div>
                 </div>
               </div>
