@@ -1160,6 +1160,120 @@ async function ensureSystemMember(user) {
   return data;
 }
 
+function drawEloChart(trend) {
+  const container = $("eloChartContainer");
+  if (!container) return;
+
+  if (trend.length < 2) {
+    container.innerHTML = `<p style="color: var(--muted); font-style: italic; font-size: 13px">需要至少 2 場對戰數據才能顯示積分走勢。</p>`;
+    return;
+  }
+
+  // Calculate width and height based on container width
+  const width = container.clientWidth || 340;
+  const height = 180;
+  const paddingLeft = 40;
+  const paddingRight = 15;
+  const paddingTop = 20;
+  const paddingBottom = 30;
+
+  const chartWidth = width - paddingLeft - paddingRight;
+  const chartHeight = height - paddingTop - paddingBottom;
+
+  // Extract ELO values
+  const elos = trend.map(t => t.elo);
+  const minElo = Math.min(...elos) - 20;
+  const maxElo = Math.max(...elos) + 20;
+  const range = maxElo - minElo || 40;
+
+  const pointsCount = trend.length;
+
+  // Generate SVG coordinates
+  const coords = trend.map((t, idx) => {
+    const x = paddingLeft + (idx / (pointsCount - 1)) * chartWidth;
+    const y = height - paddingBottom - ((t.elo - minElo) / range) * chartHeight;
+    return { x, y, elo: t.elo, date: t.date };
+  });
+
+  // Polyline points
+  const pointsStr = coords.map(c => `${c.x},${c.y}`).join(" ");
+
+  // Grid lines (horizontal)
+  let gridsHtml = "";
+  const gridCount = 4;
+  for (let i = 0; i <= gridCount; i++) {
+    const val = Math.round(minElo + (i / gridCount) * range);
+    const y = height - paddingBottom - (i / gridCount) * chartHeight;
+    gridsHtml += `
+      <line x1="${paddingLeft}" y1="${y}" x2="${width - paddingRight}" y2="${y}" stroke="#e2e8f0" stroke-dasharray="4 4" stroke-width="1"/>
+      <text x="${paddingLeft - 8}" y="${y + 4}" fill="#94a3b8" font-size="10" text-anchor="end" font-weight="bold">${val}</text>
+    `;
+  }
+
+  // Dots for each game
+  let dotsHtml = "";
+  coords.forEach((c, idx) => {
+    let dotColor = "var(--accent)";
+    if (idx > 0) {
+      const prevElo = coords[idx - 1].elo;
+      if (c.elo > prevElo) dotColor = "#10b981"; // Win
+      else if (c.elo < prevElo) dotColor = "#ef4444"; // Loss
+    }
+    
+    dotsHtml += `
+      <circle cx="${c.x}" cy="${c.y}" r="4.5" fill="${dotColor}" stroke="#ffffff" stroke-width="1.5" style="cursor: pointer;">
+        <title>${idx === 0 ? "初始積分" : `第 ${idx} 局`}: ${c.elo} 分${c.date ? ` (${c.date})` : ""}</title>
+      </circle>
+    `;
+  });
+
+  // Draw X axis labels (limited to max 6 labels for clean layout)
+  let xLabelsHtml = "";
+  const labelInterval = Math.max(1, Math.ceil(pointsCount / 6));
+  coords.forEach((c, idx) => {
+    if (idx % labelInterval === 0 || idx === pointsCount - 1) {
+      xLabelsHtml += `
+        <text x="${c.x}" y="${height - 10}" fill="#94a3b8" font-size="9" text-anchor="middle" font-weight="bold">${idx === 0 ? "起點" : `局${idx}`}</text>
+      `;
+    }
+  });
+
+  // Area under line
+  const fillPath = `
+    M ${coords[0].x} ${height - paddingBottom} 
+    L ${coords.map(c => `${c.x} ${c.y}`).join(" L ")} 
+    L ${coords[coords.length - 1].x} ${height - paddingBottom} Z
+  `;
+
+  const svgHtml = `
+    <svg width="${width}" height="${height}" style="overflow:visible">
+      <defs>
+        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      
+      <!-- Grid -->
+      ${gridsHtml}
+      
+      <!-- Area Fill -->
+      <path d="${fillPath}" fill="url(#areaGrad)" />
+      
+      <!-- Line -->
+      <polyline points="${pointsStr}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      
+      <!-- X Labels -->
+      ${xLabelsHtml}
+      
+      <!-- Dots -->
+      ${dotsHtml}
+    </svg>
+  `;
+
+  container.innerHTML = svgHtml;
+}
+
 async function loadMemberDashboard() {
   if (!currentUser || !currentSystemMember) return;
   
@@ -1402,6 +1516,202 @@ async function loadMemberDashboard() {
       }
     } else {
       upcomingList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">請在下方編輯設定手機號碼以讀取您的預約紀錄</p>`;
+    }
+  // 3. 讀取戰力走勢圖與歷史戰績
+  const eloHistorySection = $("eloHistorySection");
+  if (eloHistorySection) {
+    eloHistorySection.style.display = "none"; // Default hidden
+    const eloChartContainer = $("eloChartContainer");
+    const matchHistoryList = $("matchHistoryList");
+
+    const allUserIds = [];
+    if (clubMembers && clubMembers.length > 0) {
+      clubMembers.forEach(m => {
+        if (m.id) allUserIds.push(m.id);
+      });
+    }
+
+    if (cleanPh) {
+      try {
+        const { data: userSignups } = await client
+          .from("signups")
+          .select("id")
+          .eq("phone", cleanPh);
+        if (userSignups && userSignups.length > 0) {
+          userSignups.forEach(s => {
+            allUserIds.push(String(s.id));
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to fetch signup IDs for ELO history:", err);
+      }
+    }
+
+    if (allUserIds.length > 0) {
+      const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
+      const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
+      
+      try {
+        const { data: matches, error: matchesError } = await client
+          .from("session_match_records")
+          .select(`
+            id,
+            meetup_id,
+            reservation_date,
+            court_number,
+            player_a1_id,
+            player_a1_type,
+            player_a2_id,
+            player_a2_type,
+            player_b1_id,
+            player_b1_type,
+            player_b2_id,
+            player_b2_type,
+            score_a,
+            score_b,
+            rating_change,
+            created_at,
+            meetups(name)
+          `)
+          .or(orFilter)
+          .order("created_at", { ascending: true });
+
+        if (matchesError) throw matchesError;
+
+        if (matches && matches.length > 0) {
+          eloHistorySection.style.display = "flex";
+
+          // Process matches to compute ELO trend
+          let currentElo = 1000;
+          const eloTrend = [{ elo: 1000, date: "" }];
+          const renderedMatches = [];
+
+          // Query names mapping
+          const uniquePlayerIds = new Set();
+          matches.forEach(m => {
+            if (m.player_a1_id) uniquePlayerIds.add(m.player_a1_id);
+            if (m.player_a2_id) uniquePlayerIds.add(m.player_a2_id);
+            if (m.player_b1_id) uniquePlayerIds.add(m.player_b1_id);
+            if (m.player_b2_id) uniquePlayerIds.add(m.player_b2_id);
+          });
+
+          const playerNamesMap = new Map();
+          allUserIds.forEach(id => playerNamesMap.set(id, "我"));
+
+          const memberIdsQuery = [...uniquePlayerIds].filter(id => id.length > 10);
+          const signupIdsQuery = [...uniquePlayerIds].filter(id => id.length <= 10).map(id => parseInt(id));
+
+          if (memberIdsQuery.length > 0) {
+            const { data: dbMemNames } = await client
+              .from("members")
+              .select("id, name")
+              .in("id", memberIdsQuery);
+            if (dbMemNames) {
+              dbMemNames.forEach(x => {
+                if (!playerNamesMap.has(x.id)) playerNamesMap.set(x.id, x.name);
+              });
+            }
+          }
+          if (signupIdsQuery.length > 0) {
+            const { data: dbSigNames } = await client
+              .from("signups")
+              .select("id, nickname")
+              .in("id", signupIdsQuery);
+            if (dbSigNames) {
+              dbSigNames.forEach(x => {
+                const key = String(x.id);
+                if (!playerNamesMap.has(key)) playerNamesMap.set(key, x.nickname);
+              });
+            }
+          }
+
+          matches.forEach((m, index) => {
+            const isTeamA = allUserIds.includes(m.player_a1_id) || allUserIds.includes(m.player_a2_id);
+            
+            let partnerName = "";
+            let opponent1Name = "";
+            let opponent2Name = "";
+            let myScore = 0;
+            let oppScore = 0;
+
+            if (isTeamA) {
+              partnerName = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "隊友") : "";
+              opponent1Name = playerNamesMap.get(m.player_b1_id) || "對手A";
+              opponent2Name = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "對手B") : "";
+              myScore = m.score_a;
+              oppScore = m.score_b;
+            } else {
+              partnerName = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "隊友") : "";
+              opponent1Name = playerNamesMap.get(m.player_a1_id) || "對手A";
+              opponent2Name = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "對手B") : "";
+              myScore = m.score_b;
+              oppScore = m.score_a;
+            }
+
+            let outcome = "TIE";
+            let changeSymbol = "";
+            let badgeStyle = "background-color:#e2e8f0; color:#475569; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
+            let changeColor = "#64748b";
+
+            if (myScore > oppScore) {
+              outcome = "WIN";
+              currentElo += m.rating_change;
+              changeSymbol = `+${m.rating_change}`;
+              badgeStyle = "background-color:#dcfce7; color:#166534; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
+              changeColor = "#15803d";
+            } else if (myScore < oppScore) {
+              outcome = "LOSS";
+              currentElo -= m.rating_change;
+              changeSymbol = `-${m.rating_change}`;
+              badgeStyle = "background-color:#fee2e2; color:#991b1b; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
+              changeColor = "#b91c1c";
+            } else {
+              changeSymbol = "±0";
+            }
+
+            eloTrend.push({
+              elo: currentElo,
+              date: m.reservation_date ? m.reservation_date.slice(5) : ""
+            });
+
+            const formattedDate = m.reservation_date ? m.reservation_date.replace(/-/g, "/") : "";
+            const partnerStr = partnerName ? ` + ${partnerName}` : "";
+            const opponentsStr = opponent2Name ? `${opponent1Name} + ${opponent2Name}` : opponent1Name;
+
+            renderedMatches.unshift(`
+              <div class="match-history-row" style="display:flex; flex-direction:row; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:14px; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.01)">
+                <div style="flex:1">
+                  <div style="display:flex; align-items:center; justify-content:space-between">
+                    <div style="display:flex; align-items:center; gap:8px">
+                      <span style="${badgeStyle}">${outcome === "WIN" ? "勝" : (outcome === "LOSS" ? "敗" : "平")}</span>
+                      <span style="font-size:15px; font-weight:800; color:#0f172a">${myScore} : ${oppScore}</span>
+                    </div>
+                    <span style="font-size:14px; font-weight:800; color:${changeColor}">${changeSymbol} 分</span>
+                  </div>
+                  <div style="font-size:13px; color:#475569; font-weight:700; margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+                    <span>我${partnerStr}</span>
+                    <span style="color:#94a3b8">vs</span>
+                    <span>${opponentsStr}</span>
+                  </div>
+                  <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-top:6px">
+                    📅 ${formattedDate} ｜ 🎾 ${escapeHtml(m.meetups?.name || "計分對戰")} (第 ${m.court_number} 場)
+                  </div>
+                </div>
+              </div>
+            `);
+          });
+
+          if (matchHistoryList) {
+            matchHistoryList.innerHTML = renderedMatches.join("");
+          }
+
+          drawEloChart(eloTrend);
+        } else {
+          eloHistorySection.style.display = "none";
+        }
+      } catch (err) {
+        console.error("Failed to query match records:", err);
+      }
     }
   }
 }
