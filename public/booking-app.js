@@ -1517,6 +1517,7 @@ async function loadMemberDashboard() {
     } else {
       upcomingList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">請在下方編輯設定手機號碼以讀取您的預約紀錄</p>`;
     }
+  }
   // 3. 讀取戰力走勢圖與歷史戰績
   const eloHistorySection = $("eloHistorySection");
   if (eloHistorySection) {
