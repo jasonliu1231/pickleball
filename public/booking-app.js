@@ -845,14 +845,33 @@ async function handleQuickSignup(meetup, btn) {
   const originalText = btn.innerHTML;
   btn.innerHTML = "⏳ 傳送中...";
   try {
-    const isBeginnerVal = currentSystemMember.is_beginner || false;
-    const skillLevelVal = currentSystemMember.skill_level || "normal";
+    let isBeginnerVal = currentSystemMember.is_beginner || false;
+    let skillLevelVal = currentSystemMember.skill_level || "normal";
+
+    const phone = cleanPhone(currentSystemMember.phone);
+    if (phone) {
+      try {
+        const { data: lastSignup } = await client
+          .from("signups")
+          .select("skill_level, is_beginner")
+          .eq("phone", phone)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (lastSignup && lastSignup.skill_level) {
+          skillLevelVal = lastSignup.skill_level;
+          isBeginnerVal = !!lastSignup.is_beginner;
+        }
+      } catch (dbErr) {
+        console.warn("Failed to fetch last signup for quick registration:", dbErr);
+      }
+    }
 
     const { data, error } = await client.rpc("signup_basic_date", {
       p_meetup_id: meetup.id,
       p_reservation_date: selectedDate,
       p_nickname: currentSystemMember.nickname,
-      p_phone: cleanPhone(currentSystemMember.phone),
+      p_phone: phone,
       p_is_beginner: isBeginnerVal,
       p_skill_level: skillLevelVal,
       p_note: null,
@@ -2050,28 +2069,6 @@ $("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "t
 $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
 $("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
 $("signupForm")?.addEventListener("submit", handleSignup);
-$("phone")?.addEventListener("input", async (e) => {
-  const rawVal = e.target.value;
-  const cleanPh = cleanPhone(rawVal);
-  if (/^09\d{8}$/.test(cleanPh)) {
-    try {
-      const { data } = await client
-        .from("signups")
-        .select("skill_level")
-        .eq("phone", cleanPh)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        if ($("skillLevel") && data.skill_level) {
-          $("skillLevel").value = data.skill_level;
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to autofill last signup details:", err);
-    }
-  }
-});
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
 $("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
