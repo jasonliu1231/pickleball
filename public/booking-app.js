@@ -849,21 +849,35 @@ async function handleQuickSignup(meetup, btn) {
     let skillLevelVal = currentSystemMember.skill_level || "normal";
 
     const phone = cleanPhone(currentSystemMember.phone);
-    if (phone) {
+    const organizerId = meetup.organizer_id;
+
+    let memberRating = null;
+    if (phone && organizerId) {
       try {
-        const { data: lastSignup } = await client
-          .from("signups")
-          .select("skill_level, is_beginner")
-          .eq("phone", phone)
-          .order("created_at", { ascending: false })
-          .limit(1)
+        const { data: memberRec } = await client
+          .from("members")
+          .select("rating")
+          .eq("system_member_id", currentSystemMember.id)
+          .eq("organizer_id", organizerId)
           .maybeSingle();
-        if (lastSignup && lastSignup.skill_level) {
-          skillLevelVal = lastSignup.skill_level;
-          isBeginnerVal = !!lastSignup.is_beginner;
+        if (memberRec && memberRec.rating !== null && memberRec.rating !== undefined) {
+          memberRating = memberRec.rating;
         }
       } catch (dbErr) {
-        console.warn("Failed to fetch last signup for quick registration:", dbErr);
+        console.warn("Failed to fetch member rating for quick registration:", dbErr);
+      }
+    }
+
+    if (memberRating !== null) {
+      if (memberRating >= 1300) {
+        skillLevelVal = "advanced";
+        isBeginnerVal = false;
+      } else if (memberRating < 1050) {
+        skillLevelVal = "beginner";
+        isBeginnerVal = true;
+      } else {
+        skillLevelVal = "normal";
+        isBeginnerVal = false;
       }
     }
 
@@ -2069,6 +2083,29 @@ $("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "t
 $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
 $("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
 $("signupForm")?.addEventListener("submit", handleSignup);
+$("phone")?.addEventListener("input", async (e) => {
+  if (currentSystemMember) return;
+  const rawVal = e.target.value;
+  const cleanPh = cleanPhone(rawVal);
+  if (/^09\d{8}$/.test(cleanPh)) {
+    try {
+      const { data } = await client
+        .from("signups")
+        .select("skill_level")
+        .eq("phone", cleanPh)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        if ($("skillLevel") && data.skill_level) {
+          $("skillLevel").value = data.skill_level;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to autofill last signup details:", err);
+    }
+  }
+});
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
 $("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
