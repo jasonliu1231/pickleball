@@ -134,10 +134,10 @@ export default function MemberPage() {
               {/* Left: Wallet Balances */}
               <div className="dashboard-panel-card">
                 <h4 className="panel-header-title">
-                  🪙 我的俱樂部儲值餘額
+                  🏢 我的俱樂部
                 </h4>
                 <div id="balancesList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>查無任何球場或俱樂部的儲值資料</p>
+                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>尚未加入任何俱樂部或無成員資料</p>
                 </div>
               </div>
 

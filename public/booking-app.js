@@ -1371,7 +1371,7 @@ async function loadMemberDashboard() {
     let lowBalanceDetected = false;
 
     if (clubMembers.length === 0) {
-      balancesList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">尚未加入任何俱樂部或無儲值資料</p>`;
+      balancesList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">尚未加入任何俱樂部或無成員資料</p>`;
     } else {
       clubMembers.forEach(m => {
         const isActive = m.status === "active";
