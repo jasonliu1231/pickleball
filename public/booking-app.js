@@ -868,7 +868,7 @@ async function handleQuickSignup(meetup, btn) {
       }
     }
 
-    if (memberRating !== null) {
+    if (memberRating !== null && memberRating !== 1000) {
       if (memberRating >= 1300) {
         skillLevelVal = "advanced";
         isBeginnerVal = false;
