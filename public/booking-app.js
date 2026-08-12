@@ -2057,15 +2057,12 @@ $("phone")?.addEventListener("input", async (e) => {
     try {
       const { data } = await client
         .from("signups")
-        .select("nickname, skill_level")
+        .select("skill_level")
         .eq("phone", cleanPh)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (data) {
-        if ($("nickname") && !$("nickname").value.trim()) {
-          $("nickname").value = data.nickname || "";
-        }
         if ($("skillLevel") && data.skill_level) {
           $("skillLevel").value = data.skill_level;
         }
