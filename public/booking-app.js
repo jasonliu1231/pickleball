@@ -1390,34 +1390,63 @@ async function loadMemberDashboard() {
         const isLow = isActive && (balanceVal < feeVal);
         if (isLow) lowBalanceDetected = true;
 
+        const ratingVal = m.rating !== null && m.rating !== undefined ? m.rating : 1000;
+        const duprVal = (ratingVal / 500).toFixed(2);
+
         const div = document.createElement("div");
         div.className = `wallet-item-card ${isActive ? 'active-wallet' : 'inactive-wallet'}`;
+        div.style.background = "#ffffff";
+        div.style.border = "1px solid #f1f5f9";
+        div.style.boxShadow = "0 4px 12px rgba(15,23,42,0.03)";
+        div.style.borderRadius = "18px";
+        div.style.padding = "16px";
+        div.style.display = "flex";
+        div.style.flexDirection = "column";
+        div.style.gap = "14px";
+        div.style.marginTop = "12px";
 
         div.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 12px;">
-            <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
-              <span style="font-weight: 800; font-size: 16px; color: ${isActive ? 'var(--text)' : 'var(--muted)'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(clubName)}</span>
-              ${isActive ? '' : '<span style="background: #E2E8F0; color: #64748B; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; white-space: nowrap; flex-shrink: 0;">已停用</span>'}
+          <!-- Header Row -->
+          <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
+              <!-- Circle Initials Icon -->
+              <div style="width: 38px; height: 38px; border-radius: 50%; background: ${isActive ? 'rgba(16, 185, 129, 0.08)' : '#f1f5f9'}; border: 1px solid ${isActive ? 'rgba(16, 185, 129, 0.2)' : '#e2e8f0'}; display: flex; align-items: center; justify-content: center; color: ${isActive ? '#059669' : '#64748b'}; font-weight: 900; font-size: 15px; flex-shrink: 0;">
+                ${escapeHtml(clubName.charAt(0))}
+              </div>
+              <div style="display: flex; flex-direction: column; min-width: 0;">
+                <span style="font-weight: 900; font-size: 16px; color: ${isActive ? '#0f172a' : '#64748b'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(clubName)}</span>
+                <span style="font-size: 11px; color: ${isActive ? '#10b981' : '#94a3b8'}; font-weight: 700; margin-top: 2px;">${isActive ? '🟢 使用中' : '⚪ 已停用'}</span>
+              </div>
             </div>
           </div>
           
-          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; width: 100%;">
-            <span style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); color: #065f46; padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
-              🪙 餘額: <strong style="font-weight: 850; font-size: 14px;">${balanceVal}</strong> 點
-            </span>
-            <span style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); color: #9a3412; padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
-              🏆 戰力: <strong style="font-weight: 850; font-size: 14px;">${m.rating !== null && m.rating !== undefined ? m.rating : 1000}</strong> <span style="font-size:11px; opacity:0.85; font-weight:700;">(DUPR ${((m.rating !== null && m.rating !== undefined ? m.rating : 1000) / 500).toFixed(2)})</span>
-            </span>
+          <!-- Split Grid (2 columns) -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 12px 0; width: 100%;">
+            <!-- Left: Balance -->
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border-right: 1px solid #f1f5f9; min-width: 0;">
+              <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">儲值餘額</span>
+              <span style="font-size: 17px; font-weight: 900; color: #059669; white-space: nowrap;">
+                ${balanceVal} <span style="font-size: 11.5px; font-weight: 700; color: #94a3b8;">點</span>
+              </span>
+            </div>
+            <!-- Right: Rating -->
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; min-width: 0;">
+              <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">戰力評級</span>
+              <span style="font-size: 17px; font-weight: 900; color: #d97706; display: flex; align-items: baseline; gap: 2px; white-space: nowrap;">
+                ${ratingVal}
+                <span style="font-size: 10px; font-weight: 700; color: #94a3b8;">(D:${duprVal})</span>
+              </span>
+            </div>
           </div>
 
           ${isLow ? `
-            <div style="color: var(--danger); font-size: 12px; font-weight: 700; background: rgba(239, 68, 68, 0.05); padding: 8px; border-radius: 8px; text-align: center; margin-top: 8px; width: 100%;">
+            <div style="color: var(--danger); font-size: 12px; font-weight: 700; background: rgba(239, 68, 68, 0.05); padding: 8px; border-radius: 8px; text-align: center; width: 100%;">
               ⚠️ 餘額不足以支付下週預約，請儘速儲值
             </div>
           ` : ''}
           
-          <button type="button" class="btn-secondary" style="width: 100%; margin-top: 12px; font-size: 12.5px; border-radius: 10px; height: 38px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; cursor: pointer;" onclick="showTransactions('${m.id}', '${escapeHtml(clubName)}', '${m.payer_member_id || ''}')">
-            明細
+          <button type="button" class="btn-secondary" style="width: 100%; font-size: 13px; border-radius: 10px; height: 36px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; cursor: pointer; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; transition: all 0.2s;" onclick="showTransactions('${m.id}', '${escapeHtml(clubName)}', '${m.payer_member_id || ''}')">
+            🔍 交易明細
           </button>
         `;
         balancesList.appendChild(div);
