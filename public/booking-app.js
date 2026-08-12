@@ -659,6 +659,9 @@ function openSignup(meetup) {
   if (currentSystemMember) {
     $("nickname").value = currentSystemMember.nickname || "";
     $("phone").value = currentSystemMember.phone || "";
+    if ($("skillLevel")) {
+      $("skillLevel").value = currentSystemMember.skill_level || "normal";
+    }
   }
   $("nickname").readOnly = false;
   $("phone").readOnly = false;
@@ -2047,6 +2050,31 @@ $("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "t
 $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
 $("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
 $("signupForm")?.addEventListener("submit", handleSignup);
+$("phone")?.addEventListener("input", async (e) => {
+  const rawVal = e.target.value;
+  const cleanPh = cleanPhone(rawVal);
+  if (/^09\d{8}$/.test(cleanPh)) {
+    try {
+      const { data } = await client
+        .from("signups")
+        .select("nickname, skill_level")
+        .eq("phone", cleanPh)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        if ($("nickname") && !$("nickname").value.trim()) {
+          $("nickname").value = data.nickname || "";
+        }
+        if ($("skillLevel") && data.skill_level) {
+          $("skillLevel").value = data.skill_level;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to autofill last signup details:", err);
+    }
+  }
+});
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
 $("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
