@@ -99,7 +99,7 @@ export default function MemberPage() {
             <div className="edit-profile-section" style={{ marginTop: "16px" }}>
               <h4 style={{ fontSize: "16px", fontWeight: "900", marginBottom: "16px" }}>✏️ 編輯個人資料</h4>
               <form id="updateProfileForm" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div className="modern-form-row">
+                <div className="modern-form-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
                   <div className="modern-input-group">
                     <label htmlFor="profileNickname">修改暱稱 / 姓名</label>
                     <input id="profileNickname" className="modern-text-input" placeholder="請輸入姓名或暱稱" />
@@ -107,6 +107,15 @@ export default function MemberPage() {
                   <div className="modern-input-group">
                     <label htmlFor="profilePhone">修改手機號碼</label>
                     <input id="profilePhone" className="modern-text-input" placeholder="0912345678" inputMode="numeric" />
+                  </div>
+                  <div className="modern-input-group">
+                    <label htmlFor="profileSkillLevel">預設程度等級</label>
+                    <select id="profileSkillLevel" className="modern-text-input" style={{ appearance: "auto", height: "42px", padding: "0 12px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "10px" }}>
+                      <option value="first_time">第一次 (需要教學)</option>
+                      <option value="beginner">初學 (已會基本規則)</option>
+                      <option value="normal">一般 (能流暢來回對打)</option>
+                      <option value="advanced">進階 (有戰術強攻能力)</option>
+                    </select>
                   </div>
                 </div>
                 <button className="btn-primary" type="submit" style={{ alignSelf: "flex-start", minWidth: "120px", padding: "10px 24px", borderRadius: "12px" }}>儲存修改</button>

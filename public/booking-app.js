@@ -841,15 +841,17 @@ async function handleQuickSignup(meetup, btn) {
   btn.disabled = true;
   const originalText = btn.innerHTML;
   btn.innerHTML = "⏳ 傳送中...";
-  
   try {
+    const isBeginnerVal = currentSystemMember.is_beginner || false;
+    const skillLevelVal = currentSystemMember.skill_level || "normal";
+
     const { data, error } = await client.rpc("signup_basic_date", {
       p_meetup_id: meetup.id,
       p_reservation_date: selectedDate,
       p_nickname: currentSystemMember.nickname,
       p_phone: cleanPhone(currentSystemMember.phone),
-      p_is_beginner: false,
-      p_skill_level: "normal",
+      p_is_beginner: isBeginnerVal,
+      p_skill_level: skillLevelVal,
       p_note: null,
       p_people_count: 1,
       p_is_tentative: false
@@ -862,7 +864,7 @@ async function handleQuickSignup(meetup, btn) {
       const status = result?.signup_status || result?.status;
       const msg = status === "waitlist" ? "正取已滿，已幫您排入備取！" : "恭喜！您已成功預約正取！";
       alert(msg);
-      notifyNewSignup({ meetup, meetupId: meetup.id, reservationDate: selectedDate, nickname: currentSystemMember.nickname, skillLevel: "normal" });
+      notifyNewSignup({ meetup, meetupId: meetup.id, reservationDate: selectedDate, nickname: currentSystemMember.nickname, skillLevel: skillLevelVal });
       clearRosterCache();
       await refreshMeetupListOnly();
     }
@@ -1100,7 +1102,7 @@ function initAuthTabs() {
 async function ensureSystemMember(user) {
   const { data, error } = await client
     .from("system_members")
-    .select("id, nickname, phone, line_user_id")
+    .select("id, nickname, phone, line_user_id, skill_level, is_beginner")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -1299,6 +1301,7 @@ async function loadMemberDashboard() {
   
   if ($("profileNickname")) $("profileNickname").value = currentSystemMember.nickname || "";
   if ($("profilePhone")) $("profilePhone").value = currentSystemMember.phone || "";
+  if ($("profileSkillLevel")) $("profileSkillLevel").value = currentSystemMember.skill_level || "normal";
 
   const cleanPh = cleanPhone(currentSystemMember.phone);
   let clubMembers = [];
@@ -1889,6 +1892,8 @@ async function handleUpdateProfile(e) {
   if (!currentUser || !currentSystemMember) return;
   const nickname = $("profileNickname").value.trim();
   const phone = cleanPhone($("profilePhone").value);
+  const skill_level = $("profileSkillLevel")?.value || "normal";
+  const is_beginner = (skill_level === "first_time" || skill_level === "beginner");
   const msgEl = $("profileMessage");
   if (!nickname) return setMessage(msgEl, "請填寫姓名或暱稱", false);
   if (phone && !validatePhone(phone)) return setMessage(msgEl, "手機格式不正確", false);
@@ -1897,7 +1902,7 @@ async function handleUpdateProfile(e) {
     setMessage(msgEl, "更新中...", true);
     const { data, error } = await client
       .from("system_members")
-      .update({ nickname, phone, created_at: new Date().toISOString() })
+      .update({ nickname, phone, skill_level, is_beginner, created_at: new Date().toISOString() })
       .eq("id", currentUser.id)
       .select()
       .single();
