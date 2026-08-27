@@ -325,18 +325,33 @@ async function loadMeetupsByDate(dateStr) {
     .eq("exclude_date", dateStr);
   const excludedIds = new Set((exclRows || []).map(x => String(x.meetup_id)));
 
+  const { data: sessionRows } = await client
+    .from("sessions")
+    .select("meetup_id, capacity_override, session_notes, status")
+    .eq("session_date", dateStr);
+  const sessionMap = (sessionRows || []).reduce((acc, row) => {
+    acc[String(row.meetup_id)] = row;
+    return acc;
+  }, {});
+
   const rows = (data || [])
     .filter(m => {
       if (excludedIds.has(String(m.id))) return false;
       if (m.is_one_off && m.one_off_date !== dateStr) return false;
+      const sess = sessionMap[String(m.id)];
+      if (sess && sess.status === 'cancelled') return false;
       return true;
     })
-    .map((m) => ({
-      ...m,
-      push_tokens: normalizePushTokens(m.push_tokens),
-      capacity_override: m.capacity_override ?? null,
-      weekday_notes: m.weekday_notes ?? null,
-    }));
+    .map((m) => {
+      const sess = sessionMap[String(m.id)];
+      return {
+        ...m,
+        push_tokens: normalizePushTokens(m.push_tokens),
+        capacity_override: sess ? (sess.capacity_override ?? m.capacity_override ?? null) : (m.capacity_override ?? null),
+        weekday_notes: m.weekday_notes ?? null,
+        session_notes: sess ? (sess.session_notes ?? null) : null,
+      };
+    });
 
   const ids = rows.map((x) => x.id);
   let counts = {};
@@ -591,6 +606,7 @@ function renderMeetups(meetups) {
         ${m.rating_min > 0 ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${m.rating_min} 以上 (等同 DUPR ${Math.max(2.0, 2.0 + (m.rating_min - 1000) / 400).toFixed(2)})</div>` : ""}
       </div>
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
+      ${m.session_notes ? `<p class="note" style="border-left: 4px solid var(--accent); background: #f0fdf4; color: #15803d; font-weight: 800; padding: 10px; border-radius: 8px; margin-top: 8px;">📢 當日公告：${escapeHtml(m.session_notes)}</p>` : ""}
       <div class="actions">
         <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
         ${quickSignupBtnHtml}
