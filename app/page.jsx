@@ -46,19 +46,6 @@ export default function Page() {
                   <div className="week-row" id="weekRow"></div>
                   <div className="days-grid" id="daysGrid"></div>
                   <div className="hint"><span className="dot"></span><span>有小點的日期可以報名</span></div>
-                  
-                  <div className="points-card" style={{ display: "none" }}>
-                    <h3 className="points-title">
-                      <svg viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
-                      會員點數/額度查詢
-                    </h3>
-                    <p className="points-desc">輸入註冊手機號碼，即可查詢剩餘可用次數與期限。</p>
-                    <div className="points-row">
-                      <input id="queryPointsPhone" placeholder="例如：0912345678" inputMode="numeric" maxLength={12} />
-                      <button id="queryPointsBtn">查詢</button>
-                    </div>
-                    <p id="queryPointsResult"></p>
-                  </div>
                 </div>
 
                 <div className="list-card">

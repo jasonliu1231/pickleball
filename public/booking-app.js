@@ -1059,52 +1059,6 @@ function openTab(tabId) {
   document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.toggle("active", panel.id === tabId));
 }
 
-async function handleQueryPoints() {
-  const phInput = $("queryPointsPhone");
-  const resultP = $("queryPointsResult");
-  if (!phInput || !resultP) return;
-
-  const phoneVal = phInput.value.trim().replace(/\D/g, "");
-  if (!phoneVal) {
-    alert("請輸入手機號碼");
-    return;
-  }
-  if (!/^09\d{8}$/.test(phoneVal)) {
-    alert("手機號碼格式不正確，例：0912345678");
-    return;
-  }
-
-  try {
-    resultP.style.display = "block";
-    resultP.style.color = "#475569";
-    resultP.textContent = "查詢中...";
-
-    const { data, error } = await client
-      .from("members")
-      .select("name, remaining_times, end_date, status")
-      .eq("status", "active")
-      .eq("phone", phoneVal);
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      resultP.style.color = "#dc2626";
-      resultP.textContent = "查無此會員或該會員已停用。";
-      return;
-    }
-
-    const resultsText = data.map(m => {
-      const expText = m.end_date ? m.end_date : "無期限";
-      return `${m.name}：剩餘 ${m.remaining_times} 次 (期限: ${expText})`;
-    }).join(" ｜ ");
-    resultP.style.color = "#15803d";
-    resultP.textContent = `查得餘額 ➔ ${resultsText}`;
-  } catch (e) {
-    resultP.style.color = "#dc2626";
-    resultP.textContent = `查詢失敗：${e.message || String(e)}`;
-  }
-}
-
 let currentUser = null;
 let currentSystemMember = null;
 
@@ -2108,7 +2062,6 @@ $("phone")?.addEventListener("input", async (e) => {
 });
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
-$("queryPointsBtn")?.addEventListener("click", handleQueryPoints);
 $("logoutBtn")?.addEventListener("click", async () => { sessionStorage.setItem("user_logged_out", "true"); await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
 $("lineLoginBtn")?.addEventListener("click", handleLineLogin);
 $("authForm")?.addEventListener("submit", handleAuthSubmit);
