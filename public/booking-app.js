@@ -350,6 +350,7 @@ async function loadMeetupsByDate(dateStr) {
         capacity_override: sess ? (sess.capacity_override ?? m.capacity_override ?? null) : (m.capacity_override ?? null),
         weekday_notes: m.weekday_notes ?? null,
         session_notes: sess ? (sess.session_notes ?? null) : null,
+        status: sess ? (sess.status ?? 'open') : 'open',
         match_schedule: sess ? (sess.match_schedule ?? null) : null,
       };
     });
@@ -546,7 +547,7 @@ function renderMeetups(meetups) {
     const now = new Date();
     
     let isBookingNotOpen = openDateTime && now < openDateTime;
-    let isBookingClosed = closeDateTime && now > closeDateTime;
+    let isBookingClosed = (closeDateTime && now > closeDateTime) || m.status === 'closed';
     
     let badgeText = "";
     let badgeClass = "";
