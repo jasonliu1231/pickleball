@@ -327,7 +327,7 @@ async function loadMeetupsByDate(dateStr) {
 
   const { data: sessionRows } = await client
     .from("sessions")
-    .select("meetup_id, capacity_override, session_notes, status")
+    .select("meetup_id, capacity_override, session_notes, status, match_schedule")
     .eq("session_date", dateStr);
   const sessionMap = (sessionRows || []).reduce((acc, row) => {
     acc[String(row.meetup_id)] = row;
@@ -350,6 +350,7 @@ async function loadMeetupsByDate(dateStr) {
         capacity_override: sess ? (sess.capacity_override ?? m.capacity_override ?? null) : (m.capacity_override ?? null),
         weekday_notes: m.weekday_notes ?? null,
         session_notes: sess ? (sess.session_notes ?? null) : null,
+        match_schedule: sess ? (sess.match_schedule ?? null) : null,
       };
     });
 
@@ -611,9 +612,11 @@ function renderMeetups(meetups) {
         <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
         ${quickSignupBtnHtml}
         <button class="btn-secondary roster-btn">查看名單</button>
+        ${m.match_schedule ? `<button class="btn-secondary schedule-btn" style="background:#f0fdf4; border-color:var(--accent); color:var(--accent); font-weight:800;">📅 查看賽程</button>` : ""}
         <button class="btn-ghost cancel-btn">預約管理</button>
       </div>
       <div class="roster" id="roster-${m.id}"></div>
+      <div class="schedule" id="schedule-${m.id}"></div>
     </article>`;
   }).join("");
 
@@ -623,12 +626,97 @@ function renderMeetups(meetups) {
     card.querySelector(".signup-btn")?.addEventListener("click", () => openSignup(meetup));
     card.querySelector(".cancel-btn")?.addEventListener("click", () => openCancel(meetup));
     card.querySelector(".roster-btn")?.addEventListener("click", () => toggleRoster(meetup));
+    card.querySelector(".schedule-btn")?.addEventListener("click", () => toggleSchedule(meetup));
     card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
   });
 
   if (document.querySelector(".meetup-card[data-open-time]")) {
     startCountdownTicker();
   }
+}
+
+async function toggleSchedule(meetup) {
+  const el = $(`schedule-${meetup.id}`);
+  if (!el) return;
+  if (el.classList.contains("show")) {
+    el.classList.remove("show");
+    return;
+  }
+  
+  // Close roster if open
+  const rosterEl = $(`roster-${meetup.id}`);
+  if (rosterEl) rosterEl.classList.remove("show");
+
+  el.classList.add("show");
+  
+  const schedule = meetup.match_schedule;
+  if (!schedule || !schedule.courts || schedule.courts.length === 0) {
+    el.innerHTML = `<p class="muted">目前尚未排定賽程。</p>`;
+    return;
+  }
+
+  // Render the schedule grouped by court
+  el.innerHTML = `
+    <div class="schedule-container" style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 14px; border-radius: 12px; margin-top: 12px; display: flex; flex-direction: column; gap: 14px;">
+      <h4 style="margin: 0; font-size: 15px; font-weight: 800; color: var(--text); border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+        📅 今日預排賽程對戰表
+        <span style="font-size: 10px; background: #E2E8F0; color: #475569; padding: 2px 6px; border-radius: 6px; font-weight: 800;">
+          ${schedule.mode === 'casual' ? '🍀 球敘模式' : '🏆 DUPR 模式'}
+        </span>
+      </h4>
+      ${schedule.courts.map(court => {
+        return `
+          <div class="court-schedule" style="margin-bottom: 6px;">
+            <div style="background: #E2E8F0; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 12px; margin-bottom: 8px; color: #475569; display: flex; justify-content: space-between;">
+              <span>第 ${court.courtNumber} 球場</span>
+              <span style="font-size: 11px; color: #64748B;">共 ${court.rounds.length} 輪</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              ${court.rounds.map(round => {
+                const ta = round.teamA.map(p => p.nickname).join(' + ');
+                const tb = round.teamB.map(p => p.nickname).join(' + ');
+                const rest = round.resting.map(p => p.nickname).join(', ');
+                
+                let scoreText = `<span style="background: #E2E8F0; color: #64748B; padding: 2px 6px; border-radius: 6px; font-size: 11px; font-weight: bold;">未開賽</span>`;
+                if (round.scoreA !== null && round.scoreB !== null) {
+                  const scoreA = round.scoreA;
+                  const scoreB = round.scoreB;
+                  const winA = scoreA > scoreB;
+                  const winB = scoreB > scoreA;
+                  scoreText = `
+                    <div style="display: flex; align-items: center; gap: 4px; font-weight: bold; font-size: 13.5px;">
+                      <span style="color: ${winA ? 'var(--accent)' : '#64748B'};">${scoreA}</span>
+                      <span style="color: #94A3B8;">:</span>
+                      <span style="color: ${winB ? 'var(--accent)' : '#64748B'};">${scoreB}</span>
+                    </div>
+                  `;
+                }
+
+                return `
+                  <div style="background: #fff; border: 1px solid #F1F5F9; padding: 8px 10px; border-radius: 8px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.01);">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                      <span style="font-size: 11px; font-weight: 800; color: #94A3B8;">第 ${round.roundNumber} 輪</span>
+                      ${scoreText}
+                    </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--text);">
+                      <span style="flex: 1; text-align: left; font-weight: 700;">${ta}</span>
+                      <span style="color: #CBD5E1; margin: 0 6px; font-size: 10px; font-weight: bold;">VS</span>
+                      <span style="flex: 1; text-align: right; font-weight: 700;">${tb}</span>
+                    </div>
+                    ${rest ? `
+                      <div style="font-size: 10.5px; color: #94A3B8; border-top: 1px dashed #F1F5F9; padding-top: 3px; margin-top: 1px;">
+                        💤 休息：${rest}
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
 }
 
 async function toggleRoster(meetup) {
