@@ -16,7 +16,7 @@ export default function SchedulePage() {
 
   // Generate schedule algorithm
   const generateSchedule = () => {
-    const N = Math.max(4, Math.min(16, Number(playersCount) || 6));
+    const N = Math.max(5, Math.min(8, Number(playersCount) || 6));
     const T = Math.max(10, Number(totalMinutes) || 120);
     const M = Math.max(5, Number(matchMinutes) || 12);
     const B = Math.max(0, Number(bufferMinutes) || 0);
@@ -227,7 +227,7 @@ export default function SchedulePage() {
               <span className="label-badge">{playersCount} 人</span>
             </label>
             <div className="quick-tags">
-              {[4, 5, 6, 7, 8, 9, 10, 12].map(n => (
+              {[5, 6, 7, 8].map(n => (
                 <button
                   key={n}
                   type="button"
@@ -240,11 +240,11 @@ export default function SchedulePage() {
             </div>
             <input
               type="number"
-              min="4"
-              max="16"
+              min="5"
+              max="8"
               className="number-input"
               value={playersCount}
-              onChange={e => setPlayersCount(Math.max(4, Math.min(16, Number(e.target.value))))}
+              onChange={e => setPlayersCount(Math.max(5, Math.min(8, Number(e.target.value))))}
             />
           </div>
 
@@ -255,7 +255,7 @@ export default function SchedulePage() {
               <span className="label-badge">{totalMinutes} 分鐘</span>
             </label>
             <div className="quick-tags">
-              {[60, 90, 120, 150, 180].map(m => (
+              {[60, 120, 180].map(m => (
                 <button
                   key={m}
                   type="button"
