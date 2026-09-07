@@ -192,9 +192,7 @@ export default function SchedulePage() {
     txt += `👥 人數：${scheduleData.playersCount} 人 ｜ 每人出賽：${scheduleData.isTotallyEqual ? `${scheduleData.minPlayed} 場` : `${scheduleData.minPlayed}～${scheduleData.maxPlayed} 場`}\n`;
     txt += `----------------------------------------\n`;
     scheduleData.rounds.forEach(r => {
-      txt += `第 ${r.roundNum} 輪 (${r.timeRange})：\n`;
-      txt += `  ⚔️ ${r.teamA}  vs  ${r.teamB}\n`;
-      txt += `  ☕ 輪空休息：${r.resting}\n`;
+      txt += `第 ${r.roundNum} 輪：${r.teamA}  vs  ${r.teamB}\n`;
     });
     txt += `----------------------------------------\n`;
     txt += `匹克球同樂會・賽程排班產生器`;
@@ -457,21 +455,18 @@ export default function SchedulePage() {
           <div className="sheet-sub-title">
             <span>📋 球員簽到與個人戰績統計表</span>
             <span className="sub-note">
-              ★ {scheduleData.isTotallyEqual ? `每人恰好出賽 ${scheduleData.minPlayed} 場` : `每人出賽 ${scheduleData.minPlayed}～${scheduleData.maxPlayed} 場`}，請於賽後統計勝敗與小分
+              ★ {scheduleData.isTotallyEqual ? `每人恰好出賽 ${scheduleData.minPlayed} 場` : `每人出賽 ${scheduleData.minPlayed}～${scheduleData.maxPlayed} 場`}，請於賽後統計勝負場
             </span>
           </div>
           <table className="print-roster-table">
             <thead>
               <tr>
-                <th style={{ width: "40px" }}>編號</th>
-                <th style={{ width: "150px" }}>球員姓名 / 暱稱</th>
-                <th style={{ width: "55px" }}>應出賽</th>
-                <th style={{ width: "50px" }}>勝 (W)</th>
-                <th style={{ width: "50px" }}>敗 (L)</th>
-                <th style={{ width: "50px" }}>總得分</th>
-                <th style={{ width: "50px" }}>總失分</th>
-                <th style={{ width: "50px" }}>淨勝分</th>
-                <th>名次</th>
+                <th style={{ width: "55px" }}>編號</th>
+                <th style={{ width: "220px" }}>球員姓名 / 暱稱</th>
+                <th style={{ width: "80px" }}>應出賽</th>
+                <th style={{ width: "80px" }}>勝 (W)</th>
+                <th style={{ width: "80px" }}>敗 (L)</th>
+                <th>名次 / 備註</th>
               </tr>
             </thead>
             <tbody>
@@ -483,41 +478,34 @@ export default function SchedulePage() {
                   <td></td>
                   <td></td>
                   <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
                 </tr>
               ))}
             </tbody>
           </table>
 
           {/* Match Rounds */}
-          <div className="sheet-sub-title" style={{ marginTop: "12px" }}>
+          <div className="sheet-sub-title" style={{ marginTop: "14px" }}>
             <span>🏓 循環賽程對戰與計分記錄表 (共 {scheduleData.totalRounds} 輪)</span>
             <span className="sub-note">★ 依序喊號碼上場，填入比分並圈選勝方</span>
           </div>
           <table className="print-match-table">
             <thead>
               <tr>
-                <th style={{ width: "55px" }}>輪次</th>
-                <th style={{ width: "85px" }}>預估時間</th>
-                <th style={{ width: "160px" }}>隊伍 A (Team A)</th>
-                <th style={{ width: "80px" }}>比分記錄</th>
-                <th style={{ width: "160px" }}>隊伍 B (Team B)</th>
-                <th>本輪輪空 (休息球員)</th>
+                <th style={{ width: "70px" }}>輪次</th>
+                <th style={{ width: "260px" }}>隊伍 A (Team A)</th>
+                <th style={{ width: "100px" }}>比分記錄</th>
+                <th style={{ width: "260px" }}>隊伍 B (Team B)</th>
               </tr>
             </thead>
             <tbody>
               {scheduleData.rounds.map(r => (
                 <tr key={r.roundNum}>
                   <td className="r-num">第 {r.roundNum} 輪</td>
-                  <td className="r-time">{r.timeRange}</td>
                   <td className="r-teama">{r.teamA}</td>
                   <td className="r-score">
                     <span className="score-box-print">：</span>
                   </td>
                   <td className="r-teamb">{r.teamB}</td>
-                  <td className="r-rest">{r.resting}</td>
                 </tr>
               ))}
             </tbody>
@@ -874,21 +862,20 @@ export default function SchedulePage() {
         .p-num { font-weight: 800; color: #0284c7; }
         .p-name { font-weight: 700; color: #0f172a; }
 
-        .r-num { font-weight: 800; color: #334155; }
-        .r-time { font-size: 10.5px; color: #64748b; }
-        .r-teama { font-size: 12px; font-weight: 800; color: #047857; }
-        .r-teamb { font-size: 12px; font-weight: 800; color: #1d4ed8; }
-        .r-rest { font-size: 10.5px; font-weight: 800; color: #dc2626; background: #fff1f2; }
+        .r-num { font-weight: 800; color: #334155; font-size: 12px; }
+        .r-teama { font-size: 13.5px; font-weight: 800; color: #047857; }
+        .r-teamb { font-size: 13.5px; font-weight: 800; color: #1d4ed8; }
         .score-box-print {
           display: inline-block;
-          width: 55px;
-          height: 20px;
-          line-height: 20px;
+          width: 65px;
+          height: 22px;
+          line-height: 22px;
           border: 1px solid #94a3b8;
           border-radius: 4px;
           background: #ffffff;
           color: #94a3b8;
           font-weight: 800;
+          font-size: 12px;
         }
 
         .print-footer {
