@@ -46,7 +46,7 @@ export default function SchedulePage() {
       .filter(Boolean);
 
     const players = Array.from({ length: N }, (_, i) => {
-      const defaultName = `${i + 1}號`;
+      const defaultName = `${i + 1}`;
       const name = customNames[i] ? `${customNames[i]}` : defaultName;
       return { id: i + 1, name };
     });
@@ -335,7 +335,7 @@ export default function SchedulePage() {
         <div className="advanced-grid">
           <div className="input-group" style={{ flex: 2 }}>
             <label className="input-label">
-              📝 球員姓名/暱稱（選填，以逗號或空格分隔；若留空自動以 1號、2號... 命名）
+              📝 球員姓名/暱稱（選填，以逗號或空格分隔；若留空自動以 1, 2, 3... 數字代表）
             </label>
             <input
               type="text"
@@ -464,16 +464,16 @@ export default function SchedulePage() {
                 <th style={{ width: "55px" }}>編號</th>
                 <th style={{ width: "220px" }}>球員姓名 / 暱稱</th>
                 <th style={{ width: "80px" }}>應出賽</th>
-                <th style={{ width: "80px" }}>勝 (W)</th>
-                <th style={{ width: "80px" }}>敗 (L)</th>
+                <th style={{ width: "80px" }}>勝</th>
+                <th style={{ width: "80px" }}>敗</th>
                 <th>名次 / 備註</th>
               </tr>
             </thead>
             <tbody>
               {scheduleData.playerList.map(p => (
                 <tr key={p.id}>
-                  <td className="p-num">{p.id} 號</td>
-                  <td className="p-name">{p.name !== `${p.id}號` ? p.name : ""}</td>
+                  <td className="p-num">{p.id}</td>
+                  <td className="p-name">{p.name !== `${p.id}` ? p.name : ""}</td>
                   <td>{p.playedCount} 場</td>
                   <td></td>
                   <td></td>
@@ -491,16 +491,16 @@ export default function SchedulePage() {
           <table className="print-match-table">
             <thead>
               <tr>
-                <th style={{ width: "70px" }}>輪次</th>
-                <th style={{ width: "260px" }}>隊伍 A (Team A)</th>
+                <th style={{ width: "60px" }}>輪次</th>
+                <th style={{ width: "265px" }}>隊伍一</th>
                 <th style={{ width: "100px" }}>比分記錄</th>
-                <th style={{ width: "260px" }}>隊伍 B (Team B)</th>
+                <th style={{ width: "265px" }}>隊伍二</th>
               </tr>
             </thead>
             <tbody>
               {scheduleData.rounds.map(r => (
                 <tr key={r.roundNum}>
-                  <td className="r-num">第 {r.roundNum} 輪</td>
+                  <td className="r-num">{r.roundNum}</td>
                   <td className="r-teama">{r.teamA}</td>
                   <td className="r-score">
                     <span className="score-box-print">：</span>
