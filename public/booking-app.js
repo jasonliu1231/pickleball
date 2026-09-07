@@ -1957,13 +1957,13 @@ async function loadMemberDashboard() {
           let rosterText = `【${m.name}】${m.start_date} 名單：\n`;
           rosterText += `--- 正取 (${confirmedCount}/${m.capacity}人) ---\n`;
           if (confirmedSignups.length) {
-            rosterText += confirmedSignups.map((s, idx) => `${idx + 1}. ${s.nickname || "球友"} (${s.phone || "無電話"})`).join("\n");
+            rosterText += confirmedSignups.map((s, idx) => `${idx + 1}. ${s.nickname || "球友"}${s.people_count > 1 ? ` (+${s.people_count - 1}人)` : ""}`).join("\n");
           } else {
             rosterText += "(無)";
           }
           if (waitlistSignups.length) {
             rosterText += `\n--- 備取 (${waitlistSignups.length}人) ---\n`;
-            rosterText += waitlistSignups.map((s, idx) => `備${idx + 1}. ${s.nickname || "球友"} (${s.phone || "無電話"})`).join("\n");
+            rosterText += waitlistSignups.map((s, idx) => `備${idx + 1}. ${s.nickname || "球友"}${s.people_count > 1 ? ` (+${s.people_count - 1}人)` : ""}`).join("\n");
           }
 
           let statusBadge = "";
