@@ -133,6 +133,50 @@ export default function FaqPage() {
               </div>
             </article>
 
+            {/* 球友自主開團功能指南 */}
+            <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
+              <h3 style={{ fontSize: "18px", fontWeight: "800", marginBottom: "16px", borderBottom: "2px solid var(--accent)", paddingBottom: "8px", display: "inline-block" }}>
+                🏓 我想自己找人打球，如何使用「自主開團」功能？
+              </h3>
+              
+              <p style={{ fontSize: "13.5px", color: "var(--sub)", lineHeight: "22px", marginBottom: "16px" }}>
+                除了球隊或教練固定開團外，任何登入會員都能在前台發起<strong>「單日臨時自揪團」</strong>（例如：假日湊 4 人暢打、平日下班切磋、新手友善交流）。發起後系統會自動將您加入為<strong>正取第 1 位</strong>，活動會即時刊登在首頁，並掛上天藍色 <span className="badge pickup-badge" style={{ display: "inline-block", fontSize: "11px", padding: "2px 6px", verticalAlign: "middle" }}>球友自發</span> 標籤供全站球友報名！
+              </p>
+
+              <div className="guide-steps" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px", marginBottom: "18px" }}>
+                <div className="step-item" style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column" }}>
+                  <span style={{ background: "var(--primary)", color: "#fff", padding: "3px 8px", borderRadius: "99px", fontSize: "11px", fontWeight: "800", alignSelf: "flex-start", marginBottom: "8px" }}>步驟 1</span>
+                  <h4 style={{ fontSize: "14px", fontWeight: "800", marginBottom: "4px" }}>點擊「我要自揪」</h4>
+                  <p style={{ fontSize: "12.5px", color: "var(--sub)", lineHeight: "19px" }}>在首頁頂部動態條點選<strong>「➕ 我要自揪」</strong>，或在月曆點選任一日期後點擊「立即發起這天自揪」。</p>
+                </div>
+
+                <div className="step-item" style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column" }}>
+                  <span style={{ background: "var(--primary)", color: "#fff", padding: "3px 8px", borderRadius: "99px", fontSize: "11px", fontWeight: "800", alignSelf: "flex-start", marginBottom: "8px" }}>步驟 2</span>
+                  <h4 style={{ fontSize: "14px", fontWeight: "800", marginBottom: "4px" }}>填寫活動詳情</h4>
+                  <p style={{ fontSize: "12.5px", color: "var(--sub)", lineHeight: "19px" }}>填寫主題、日期、活動縣市、起訖時間、球場名稱、人數上限、每人費用（如場租平分）與備註。</p>
+                </div>
+
+                <div className="step-item" style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "12px", padding: "14px", display: "flex", flexDirection: "column" }}>
+                  <span style={{ background: "var(--primary)", color: "#fff", padding: "3px 8px", borderRadius: "99px", fontSize: "11px", fontWeight: "800", alignSelf: "flex-start", marginBottom: "8px" }}>步驟 3</span>
+                  <h4 style={{ fontSize: "14px", fontWeight: "800", marginBottom: "4px" }}>一鍵上線免重報</h4>
+                  <p style={{ fontSize: "12.5px", color: "var(--sub)", lineHeight: "19px" }}>點選「確認發起揪團」即發布成功！系統已直接將您排在<strong>正取第 1 位</strong>，無需重複報名。</p>
+                </div>
+              </div>
+
+              <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "12px", padding: "14px 16px", color: "#166534", fontSize: "13px", lineHeight: "22px" }}>
+                <h4 style={{ fontSize: "14px", fontWeight: "900", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  ⚙️ 發起人如何管理、修改或取消活動？
+                </h4>
+                <p style={{ margin: 0 }}>
+                  前往<strong>「個人中心」➜「我發起的自揪團」</strong>專區，您可隨時進行完整活動管理：<br/>
+                  * <strong>📋 一鍵複製名單</strong>：自動產出標準格式的正取與備取名單（含球友暱稱與手機），方便直接貼到 LINE 社群/聊天室報到點名。<br/>
+                  * <strong>✏️ 編輯活動</strong>：若球場場地、開始時間、人數上限或備註需要微調，可隨時點擊「編輯」更新（系統具備人數防呆，不可低於已報名正取人數）。<br/>
+                  * <strong>❌ 取消活動</strong>：若遇到天候不佳或臨時有要事，可一鍵取消該場自揪活動，保障球友免於白跑。<br/>
+                  <span style={{ color: "#b91c1c", fontWeight: "700" }}>⚠️ 提醒：發起揪團前請確認已於個人中心填寫手機號碼，以便同行球友聯絡！</span>
+                </p>
+              </div>
+            </article>
+
             <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", marginBottom: "8px" }}>
                 📱 報名時「手機號碼」無法輸入 / 怎麼讓系統自動帶入電話？
