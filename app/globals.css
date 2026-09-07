@@ -586,6 +586,47 @@ a {
   animation: fadeIn 0.3s ease-out;
 }
 
+/* Skeleton Loading Cards */
+.skeleton-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.skeleton-shimmer::after {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0,
+    rgba(255, 255, 255, 0.75) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: shimmerAnim 1.6s infinite ease-in-out;
+  content: '';
+}
+
+@keyframes shimmerAnim {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 .meetup-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
@@ -679,6 +720,91 @@ a {
   padding: 8px 12px;
   border-radius: 0 8px 8px 0;
   margin-bottom: 16px;
+}
+
+/* Capacity Progress Bar */
+.capacity-bar-wrap {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.capacity-bar-track {
+  width: 100%;
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 99px;
+  overflow: hidden;
+  position: relative;
+}
+
+.capacity-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 99px;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.capacity-bar-fill.urgent {
+  background: #ea580c; /* High urgency orange */
+}
+
+.capacity-bar-fill.full {
+  background: #cbd5e1; /* Waitlist gray */
+}
+
+/* Session Announcement Banner */
+.session-note-banner {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #166534;
+  margin-bottom: 14px;
+  line-height: 1.45;
+}
+
+.session-note-banner strong {
+  color: var(--bg-court);
+}
+
+/* Friendly Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px dashed var(--line);
+}
+
+.empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  animation: bounce 2s infinite ease-in-out;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.empty-sub {
+  font-size: 13px;
+  color: var(--muted);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 .actions {
@@ -1121,7 +1247,7 @@ a {
   }
   
   .hero-main {
-    padding: 32px;
+    padding: 28px 20px;
   }
   
   .tabs {
@@ -1148,35 +1274,117 @@ a {
   .city-filter-label {
     flex: 1;
   }
+
+  /* 去容器化：消滅手機端外層大白框，徹底釋放 48px 水平寬度 */
+  .list-card {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .list-head {
+    padding: 4px 4px 10px;
+  }
+
+  .calendar-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+
+  /* 球團卡片內距微調，字不再被擠扁 */
+  .meetup-card,
+  .skeleton-card {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+
+  .info-grid {
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .info {
+    padding: 5px 8px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
   
+  /* 卡片按鈕重整：主動作全寬，次要動作雙欄並排，垂直高度減半 */
   .actions {
-    grid-template-columns: 1fr;
     display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
     width: 100%;
   }
   
-  .btn-primary, .btn-secondary, .btn-danger, .btn-ghost {
+  .actions .signup-btn,
+  .actions .quick-signup-btn {
+    grid-column: 1 / -1;
+    height: 44px;
+    font-size: 14.5px;
     width: 100%;
+  }
+
+  .actions .roster-btn,
+  .actions .schedule-btn,
+  .actions .cancel-btn {
+    height: 38px;
+    font-size: 13px;
+    padding: 0 6px;
+    width: 100%;
+  }
+
+  .actions .cancel-btn:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 480px) {
   .page {
-    padding: 12px 14px 32px;
+    padding: 10px 12px 32px;
+  }
+
+  .topbar {
+    padding: 8px 0;
+    margin-bottom: 16px;
+  }
+
+  .nav {
+    padding: 4px 2px;
+    gap: 2px;
+  }
+
+  .nav a {
+    padding: 6px 2px;
+    font-size: 11px;
+  }
+
+  .nav-icon {
+    font-size: 13px;
+  }
+
+  .meetup-title {
+    font-size: 17px;
+  }
+
+  .badge {
+    font-size: 11px;
+    padding: 4px 8px;
   }
   
   .hero-main {
-    padding: 24px;
+    padding: 20px 16px;
     border-radius: var(--radius);
   }
   
   .hero h1 {
-    font-size: 28px;
+    font-size: 24px;
   }
   
   .hero p {
-    font-size: 13.5px;
-    margin-bottom: 20px;
+    font-size: 13px;
+    margin-bottom: 16px;
   }
   
   .days-grid, .week-row {

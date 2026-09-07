@@ -251,29 +251,33 @@ function applyCityFilter(query) {
   return query;
 }
 
-async function loadAvailableWeekdays() {
+async function loadAvailableWeekdays(forceRefresh = false) {
+  if (availableRules && availableRules.length > 0 && exclusions && exclusions.length > 0 && !forceRefresh) {
+    return; // Fast path: return cached rules without network request
+  }
   let query = client
     .from("booking_meetup_weekdays_view")
     .select("id,weekday,start_date,is_active,weekday_is_active,city,is_one_off,one_off_date")
     .eq("is_active", true)
     .eq("weekday_is_active", true);
   query = applyCityFilter(query);
-  const { data, error } = await query;
-  if (error) throw error;
-
-  availableRules = (data || []).map((x) => ({
-    id: x.id,
-    weekday: x.weekday,
-    start_date: x.start_date || null,
-    is_one_off: !!x.is_one_off,
-    one_off_date: x.one_off_date || null,
-  }));
 
   try {
-    const { data: exclData } = await client.from("meetup_exclusions").select("meetup_id, exclude_date");
-    exclusions = exclData || [];
+    const [rulesRes, exclRes] = await Promise.all([
+      query,
+      client.from("meetup_exclusions").select("meetup_id, exclude_date")
+    ]);
+    if (rulesRes.error) throw rulesRes.error;
+    availableRules = (rulesRes.data || []).map((x) => ({
+      id: x.id,
+      weekday: x.weekday,
+      start_date: x.start_date || null,
+      is_one_off: !!x.is_one_off,
+      one_off_date: x.one_off_date || null,
+    }));
+    exclusions = exclRes.data || [];
   } catch (err) {
-    console.error("載入停開日期失敗", err);
+    console.error("載入開團規則或停開日期失敗", err);
   }
 }
 
@@ -316,20 +320,18 @@ async function loadMeetupsByDate(dateStr) {
     .eq("weekday", weekday)
     .lte("start_date", dateStr);
   query = applyCityFilter(query);
-  const { data, error } = await query.order("id", { ascending: false });
-  if (error) throw error;
 
-  const { data: exclRows } = await client
-    .from("meetup_exclusions")
-    .select("meetup_id")
-    .eq("exclude_date", dateStr);
-  const excludedIds = new Set((exclRows || []).map(x => String(x.meetup_id)));
+  // Run all independent queries in parallel to drastically reduce network latency
+  const [meetupsRes, exclRes, sessionRes] = await Promise.all([
+    query.order("id", { ascending: false }),
+    client.from("meetup_exclusions").select("meetup_id").eq("exclude_date", dateStr),
+    client.from("sessions").select("meetup_id, capacity_override, session_notes, status, match_schedule").eq("session_date", dateStr)
+  ]);
 
-  const { data: sessionRows } = await client
-    .from("sessions")
-    .select("meetup_id, capacity_override, session_notes, status, match_schedule")
-    .eq("session_date", dateStr);
-  const sessionMap = (sessionRows || []).reduce((acc, row) => {
+  if (meetupsRes.error) throw meetupsRes.error;
+  const data = meetupsRes.data;
+  const excludedIds = new Set((exclRes.data || []).map(x => String(x.meetup_id)));
+  const sessionMap = (sessionRes.data || []).reduce((acc, row) => {
     acc[String(row.meetup_id)] = row;
     return acc;
   }, {});
@@ -528,7 +530,13 @@ function renderMeetups(meetups) {
   if (dateEl) dateEl.textContent = formatDate(selectedDate);
 
   if (!meetups.length) {
-    listEl.innerHTML = `<p class="empty">這天目前沒有開放報名，請換一天看看。</p>`;
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🏓</div>
+        <div class="empty-title">這天目前沒有開放報名</div>
+        <p class="empty-sub">在上方月曆點選有小綠點的日期，即可查看當天可報名的球團！</p>
+      </div>
+    `;
     return;
   }
   listEl.innerHTML = meetups.map((m) => {
@@ -580,6 +588,16 @@ function renderMeetups(meetups) {
       ? `<button class="btn-secondary quick-signup-btn" style="background:#f0fdf4;border:1px solid #15803d;color:#15803d;font-weight:900" title="使用您的個人資料快速報名">⚡ 快速報名</button>`
       : "";
 
+    const fillPct = cap > 0 ? Math.min(100, Math.round((displayConfirmed / cap) * 100)) : 100;
+    const isUrgent = cap > 0 && left <= 2 && left > 0;
+    const capBarHtml = cap > 0 ? `
+      <div class="capacity-bar-wrap" title="目前進度：${displayConfirmed}/${cap} 人">
+        <div class="capacity-bar-track">
+          <div class="capacity-bar-fill ${full ? 'full' : isUrgent ? 'urgent' : ''}" style="width: ${fillPct}%"></div>
+        </div>
+      </div>
+    ` : "";
+
     return `<article class="meetup-card" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
       data-is-full="${full}"
@@ -607,8 +625,9 @@ function renderMeetups(meetups) {
         ${m.coach ? `<div class="info"><strong>教練</strong>${escapeHtml(m.coach)}</div>` : ""}
         ${m.rating_min > 0 ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${m.rating_min} 以上 (等同 DUPR ${Math.max(2.0, 2.0 + (m.rating_min - 1000) / 400).toFixed(2)})</div>` : ""}
       </div>
+      ${capBarHtml}
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
-      ${m.session_notes ? `<p class="note" style="border-left: 4px solid var(--accent); background: #f0fdf4; color: #15803d; font-weight: 800; padding: 10px; border-radius: 8px; margin-top: 8px;">📢 當日公告：${escapeHtml(m.session_notes)}</p>` : ""}
+      ${m.session_notes ? `<div class="session-note-banner">📢 <strong>當日公告：</strong>${escapeHtml(m.session_notes)}</div>` : ""}
       <div class="actions">
         <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
         ${quickSignupBtnHtml}
@@ -1069,27 +1088,35 @@ async function refreshAll(showLoading = true) {
   const meetupEl = $("meetupList");
   if (meetupEl && showLoading) {
     meetupEl.innerHTML = `
-      <style>
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
-        }
-      </style>
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; gap: 16px; width: 100%; min-height: 200px;">
-        <svg viewBox="0 0 50 50" style="width: 40px; height: 40px; animation: spin 1s linear infinite;">
-          <circle cx="25" cy="25" r="20" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round" stroke-dasharray="80, 200" stroke-dashoffset="0"></circle>
-        </svg>
-        <span style="font-size: 14px; color: var(--sub); font-weight: 700; animation: pulse 1.5s ease-in-out infinite; letter-spacing: 0.5px;">正在讀取預約場次資料...</span>
+      <div class="skeleton-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="skeleton-shimmer" style="width: 140px; height: 22px; border-radius: 6px;"></div>
+          <div class="skeleton-shimmer" style="width: 60px; height: 20px; border-radius: 99px;"></div>
+        </div>
+        <div class="skeleton-shimmer" style="width: 180px; height: 14px; border-radius: 4px; margin-top: 6px;"></div>
+        <div style="display:flex; gap: 8px; margin-top: 10px;">
+          <div class="skeleton-shimmer" style="width: 70px; height: 26px; border-radius: 6px;"></div>
+          <div class="skeleton-shimmer" style="width: 90px; height: 26px; border-radius: 6px;"></div>
+          <div class="skeleton-shimmer" style="width: 60px; height: 26px; border-radius: 6px;"></div>
+        </div>
+        <div class="skeleton-shimmer" style="width: 100%; height: 44px; border-radius: 10px; margin-top: 14px;"></div>
+      </div>
+      <div class="skeleton-card" style="opacity: 0.65;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="skeleton-shimmer" style="width: 120px; height: 22px; border-radius: 6px;"></div>
+          <div class="skeleton-shimmer" style="width: 60px; height: 20px; border-radius: 99px;"></div>
+        </div>
+        <div class="skeleton-shimmer" style="width: 160px; height: 14px; border-radius: 4px; margin-top: 6px;"></div>
+        <div style="display:flex; gap: 8px; margin-top: 10px;">
+          <div class="skeleton-shimmer" style="width: 80px; height: 26px; border-radius: 6px;"></div>
+          <div class="skeleton-shimmer" style="width: 70px; height: 26px; border-radius: 6px;"></div>
+        </div>
+        <div class="skeleton-shimmer" style="width: 100%; height: 44px; border-radius: 10px; margin-top: 14px;"></div>
       </div>
     `;
   }
   try {
     const meetups = await loadMeetupsByDate(selectedDate);
-    renderCalendar();
     renderMeetups(meetups);
   } catch (e) {
     if (meetupEl) {
@@ -2185,9 +2212,15 @@ if ($("cityFilter")) renderCityFilter();
 if ($("knowledgeList")) renderStaticContent();
 
 (async function init() {
-  if ($("announcementList")) await loadAnnouncements();
-  try { if ($("daysGrid")) await loadAvailableWeekdays(); } catch (e) { console.error(e); }
+  if ($("announcementList")) loadAnnouncements().catch(console.error);
 
+  // Load weekdays and immediately render calendar & meetup cards
+  const weekdaysPromise = $("daysGrid") ? loadAvailableWeekdays().catch(console.error) : Promise.resolve();
+  weekdaysPromise.then(() => {
+    refreshAll();
+  });
+
+  // Auth session check runs concurrently in the background without blocking card rendering
   client.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
       sessionStorage.removeItem("user_logged_out");
@@ -2202,28 +2235,30 @@ if ($("knowledgeList")) renderStaticContent();
     }
   });
 
-  const { data: { session } } = await client.auth.getSession();
-  if (session?.user) {
-    sessionStorage.removeItem("user_logged_out");
-    currentUser = session.user;
-    currentSystemMember = await ensureSystemMember(currentUser);
-    toggleAuthView(true);
-    if ($("memberDashboard")) loadMemberDashboard();
-  } else {
-    // If inside LINE in-app browser, not logged out manually, and not currently returning from auth redirect
-    const isLineBrowser = /Line/i.test(navigator.userAgent);
-    const hasAuthParams = window.location.hash.includes("access_token") || 
-                          window.location.hash.includes("error") || 
-                          window.location.search.includes("error");
-    const userLoggedOut = sessionStorage.getItem("user_logged_out") === "true";
-    
-    if (isLineBrowser && !hasAuthParams && !userLoggedOut) {
-      console.log("LINE in-app browser detected, performing seamless auto-login...");
-      await handleLineLogin();
-      return;
+  try {
+    const { data: { session } } = await client.auth.getSession();
+    if (session?.user) {
+      sessionStorage.removeItem("user_logged_out");
+      currentUser = session.user;
+      currentSystemMember = await ensureSystemMember(currentUser);
+      toggleAuthView(true);
+      if ($("memberDashboard")) loadMemberDashboard();
+    } else {
+      const isLineBrowser = /Line/i.test(navigator.userAgent);
+      const hasAuthParams = window.location.hash.includes("access_token") || 
+                            window.location.hash.includes("error") || 
+                            window.location.search.includes("error");
+      const userLoggedOut = sessionStorage.getItem("user_logged_out") === "true";
+      
+      if (isLineBrowser && !hasAuthParams && !userLoggedOut) {
+        console.log("LINE in-app browser detected, performing seamless auto-login...");
+        await handleLineLogin();
+        return;
+      }
     }
+  } catch (err) {
+    console.error("Auth init error:", err);
   }
 
   if ($("authTabLogin")) initAuthTabs();
-  refreshAll();
 })();
