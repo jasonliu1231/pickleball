@@ -52,7 +52,6 @@ export default function Page() {
                       <h2 className="section-title" style={{ fontSize: "24px" }}>當天可報名</h2>
                       <p className="muted"><span id="selectedDateText" className="selected-date">--</span></p>
                     </div>
-                    <button className="btn-secondary create-pickup-inline-btn" id="openCreatePickupInlineBtn">➕ 我要自揪</button>
                   </div>
                   <div className="cards" id="meetupList"></div>
                 </div>
