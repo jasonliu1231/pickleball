@@ -850,6 +850,97 @@ function initPickupModal() {
       citySelect.value = "台中市";
     }
   }
+  const editCitySelect = $("editPickupCity");
+  if (editCitySelect && editCitySelect.options.length <= 1) {
+    editCitySelect.innerHTML = taiwanCities.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  }
+}
+
+function openEditPickupModal(m) {
+  if (!m) return;
+  initPickupModal();
+  if ($("editPickupId")) $("editPickupId").value = m.id;
+  if ($("editPickupName")) $("editPickupName").value = m.name || "";
+  if ($("editPickupDate")) $("editPickupDate").value = m.start_date || "";
+  if ($("editPickupCity")) $("editPickupCity").value = m.city || "台中市";
+  if ($("editPickupStartTime")) $("editPickupStartTime").value = m.start_time ? m.start_time.slice(0, 5) : "14:00";
+  if ($("editPickupEndTime")) $("editPickupEndTime").value = m.end_time ? m.end_time.slice(0, 5) : "16:00";
+  if ($("editPickupAddress")) $("editPickupAddress").value = m.address || "";
+  if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = m.street_address || "";
+  if ($("editPickupCapacity")) $("editPickupCapacity").value = m.capacity || 4;
+  if ($("editPickupFee")) $("editPickupFee").value = m.fee || "場租平分";
+  if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
+  clearMessage($("editPickupMessage"));
+  $("editPickupModal")?.classList.add("show");
+}
+
+function closeEditPickupModal() {
+  $("editPickupModal")?.classList.remove("show");
+}
+
+async function handleUpdatePickup(e) {
+  e.preventDefault();
+  if (!currentUser || !currentSystemMember) {
+    return setMessage($("editPickupMessage"), "請先登入會員", false);
+  }
+  const meetupId = $("editPickupId")?.value;
+  const name = $("editPickupName")?.value?.trim();
+  const city = $("editPickupCity")?.value;
+  const startTime = $("editPickupStartTime")?.value;
+  const endTime = $("editPickupEndTime")?.value;
+  const address = $("editPickupAddress")?.value?.trim();
+  const streetAddress = $("editPickupStreetAddress")?.value?.trim() || "";
+  const capacity = parseInt($("editPickupCapacity")?.value || "4", 10);
+  const fee = $("editPickupFee")?.value?.trim() || "場租平分";
+  const notes = $("editPickupNotes")?.value?.trim() || "";
+
+  if (!meetupId || !name || !city || !startTime || !endTime || !address || !capacity) {
+    return setMessage($("editPickupMessage"), "請填寫所有必填欄位", false);
+  }
+
+  const saveBtn = $("savePickupBtn");
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = "儲存中...";
+  }
+  clearMessage($("editPickupMessage"));
+
+  try {
+    const { data, error } = await client.rpc("update_member_pickup", {
+      p_creator_member_id: currentSystemMember.id,
+      p_meetup_id: Number(meetupId),
+      p_name: name,
+      p_city: city,
+      p_address: address,
+      p_street_address: streetAddress,
+      p_start_time: startTime,
+      p_end_time: endTime,
+      p_capacity: capacity,
+      p_fee: fee,
+      p_notes: notes
+    });
+
+    if (error) throw error;
+    if (data && !data.ok) {
+      throw new Error(data.error || "儲存修改失敗");
+    }
+
+    setMessage($("editPickupMessage"), "✅ 自揪活動修改成功！", true);
+    setTimeout(async () => {
+      closeEditPickupModal();
+      clearRosterCache();
+      await loadAvailableWeekdays(true);
+      if ($("memberDashboard")) loadMemberDashboard();
+    }, 1000);
+  } catch (err) {
+    console.error("修改自揪失敗:", err);
+    setMessage($("editPickupMessage"), err.message || "修改失敗，請稍候重試", false);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "儲存修改";
+    }
+  }
 }
 
 function openCreatePickupModal(presetDate) {
@@ -1833,7 +1924,7 @@ async function loadMemberDashboard() {
     try {
       const { data: myMeetups, error: myMeetupsErr } = await client
         .from("meetups")
-        .select("id, name, city, address, start_date, start_time, end_time, capacity, fee, is_active")
+        .select("id, name, city, address, street_address, start_date, start_time, end_time, capacity, fee, notes, is_active")
         .eq("creator_member_id", currentSystemMember.id)
         .order("start_date", { ascending: false });
 
@@ -1903,6 +1994,9 @@ async function loadMemberDashboard() {
                   📋 複製名單
                 </button>
                 ${m.is_active && !isEnded ? `
+                  <button type="button" class="btn-secondary edit-pickup-btn" data-id="${m.id}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
+                    ✏️ 編輯
+                  </button>
                   <button type="button" class="btn-ghost cancel-pickup-btn" data-id="${m.id}" data-name="${escapeHtml(m.name)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; color: var(--red); border: 1px solid var(--red);">
                     ❌ 取消活動
                   </button>
@@ -1917,6 +2011,14 @@ async function loadMemberDashboard() {
             const roster = btn.dataset.roster;
             navigator.clipboard.writeText(roster);
             alert("已複製活動名單到剪貼簿！");
+          });
+        });
+
+        myPickupsList.querySelectorAll(".edit-pickup-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const mId = btn.dataset.id;
+            const meetup = myMeetups.find(x => String(x.id) === String(mId));
+            if (meetup) openEditPickupModal(meetup);
           });
         });
 
@@ -2438,6 +2540,7 @@ $("cityFilter")?.addEventListener("change", async (e) => {
 $("closeModal")?.addEventListener("click", closeSignup);
 $("closeCancelModal")?.addEventListener("click", closeCancel);
 $("closeCreatePickupModal")?.addEventListener("click", closeCreatePickupModal);
+$("closeEditPickupModal")?.addEventListener("click", closeEditPickupModal);
 $("openCreatePickupBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
 $("openCreatePickupInlineBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
 $("closeTransactionModal")?.addEventListener("click", () => $("transactionModal")?.classList.remove("show"));
@@ -2445,7 +2548,9 @@ $("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "t
 $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
 $("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
 $("createPickupModal")?.addEventListener("click", (e) => { if (e.target.id === "createPickupModal") closeCreatePickupModal(); });
+$("editPickupModal")?.addEventListener("click", (e) => { if (e.target.id === "editPickupModal") closeEditPickupModal(); });
 $("createPickupForm")?.addEventListener("submit", handleCreatePickup);
+$("editPickupForm")?.addEventListener("submit", handleUpdatePickup);
 $("signupForm")?.addEventListener("submit", handleSignup);
 $("phone")?.addEventListener("input", async (e) => {
   if (currentSystemMember) return;
@@ -2487,7 +2592,7 @@ document.querySelectorAll("[data-open-tab]").forEach(link => {
   link.addEventListener("click", () => openTab(link.dataset.openTab));
 });
 if ($("cityFilter")) renderCityFilter();
-if ($("pickupCity")) initPickupModal();
+if ($("pickupCity") || $("editPickupCity")) initPickupModal();
 if ($("knowledgeList")) renderStaticContent();
 
 (async function init() {

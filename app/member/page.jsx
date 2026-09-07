@@ -216,6 +216,62 @@ export default function MemberPage() {
               </div>
             </div>
           </div>
+
+          {/* Edit Member Pickup Modal */}
+          <div className="modal" id="editPickupModal">
+            <div className="modal-card" style={{ maxWidth: "520px" }}>
+              <div className="modal-head">
+                <div>
+                  <h2 className="section-title" style={{ fontSize: "22px" }}>✏️ 編輯自揪活動</h2>
+                  <p className="muted">修改此場自揪活動的時間、地點或名額設定。</p>
+                </div>
+                <button className="close-btn" id="closeEditPickupModal">×</button>
+              </div>
+              <form className="form" id="editPickupForm">
+                <input type="hidden" id="editPickupId" />
+                <label>活動主題
+                  <input id="editPickupName" placeholder="例如：週六下午暢打、新手交流" required />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <label>活動日期
+                    <input id="editPickupDate" type="date" disabled style={{ background: "#f1f5f9", cursor: "not-allowed" }} />
+                  </label>
+                  <label>活動縣市
+                    <select id="editPickupCity" required></select>
+                  </label>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <label>開始時間
+                    <input id="editPickupStartTime" type="time" required />
+                  </label>
+                  <label>結束時間
+                    <input id="editPickupEndTime" type="time" required />
+                  </label>
+                </div>
+                <label>球場地點
+                  <input id="editPickupAddress" placeholder="例如：南屯匹克球場 2 號場" required />
+                </label>
+                <label>詳細地址（選填，供導航）
+                  <input id="editPickupStreetAddress" placeholder="例如：文心南七路" />
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <label>人數上限
+                    <input id="editPickupCapacity" type="number" min="2" max="32" required />
+                  </label>
+                  <label>每人費用
+                    <input id="editPickupFee" placeholder="例如：場租平分、免費" required />
+                  </label>
+                </div>
+                <label>備註說明（選填）
+                  <textarea id="editPickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球"></textarea>
+                </label>
+                <button className="btn-primary" id="savePickupBtn" type="submit" style={{ height: "46px", fontSize: "15px", marginTop: "8px" }}>
+                  儲存修改
+                </button>
+              </form>
+              <div className="message" id="editPickupMessage"></div>
+            </div>
+          </div>
         </section>
       </div>
     </div>
