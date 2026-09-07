@@ -174,6 +174,15 @@ export default function FaqPage() {
                   * <strong>❌ 取消活動</strong>：若遇到天候不佳或臨時有要事，可一鍵取消該場自揪活動，保障球友免於白跑。<br/>
                   <span style={{ color: "#b91c1c", fontWeight: "700" }}>⚠️ 提醒：發起揪團前請確認已於個人中心填寫手機號碼，以便同行球友聯絡！</span>
                 </p>
+
+                <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap", borderTop: "1px dashed #bbf7d0", paddingTop: "10px" }}>
+                  <a href="/pickleball_2h_rules_a4.html" target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#ffffff", border: "1px solid #16a34a", color: "#166534", padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: "800", textDecoration: "none" }}>
+                    🖨️ 線上開啟 / 列印「2 小時賽程排序與輪替規則 (A4 夾板手冊)」
+                  </a>
+                  <a href="/pickleball_2h_rotation_rules_a4.pdf" target="_blank" download rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#ffffff", border: "1px solid #d97706", color: "#b45309", padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: "800", textDecoration: "none" }}>
+                    📥 下載 A4 PDF 檔案
+                  </a>
+                </div>
               </div>
             </article>
 

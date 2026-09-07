@@ -683,11 +683,16 @@ async function toggleSchedule(meetup) {
   // Render the schedule grouped by court
   el.innerHTML = `
     <div class="schedule-container" style="background: #F8FAFC; border: 1px solid #E2E8F0; padding: 14px; border-radius: 12px; margin-top: 12px; display: flex; flex-direction: column; gap: 14px;">
-      <h4 style="margin: 0; font-size: 15px; font-weight: 800; color: var(--text); border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; display: flex; align-items: center; gap: 6px;">
-        📅 今日預排賽程對戰表
-        <span style="font-size: 10px; background: #E2E8F0; color: #475569; padding: 2px 6px; border-radius: 6px; font-weight: 800;">
-          ${schedule.mode === 'casual' ? '🍀 球敘模式' : '🏆 DUPR 模式'}
-        </span>
+      <h4 style="margin: 0; font-size: 15px; font-weight: 800; color: var(--text); border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          📅 今日預排賽程對戰表
+          <span style="font-size: 10px; background: #E2E8F0; color: #475569; padding: 2px 6px; border-radius: 6px; font-weight: 800;">
+            ${schedule.mode === 'casual' ? '🍀 球敘模式' : '🏆 DUPR 模式'}
+          </span>
+        </div>
+        <a href="/pickleball_2h_rules_a4.html" target="_blank" rel="noopener noreferrer" style="font-size: 11px; color: var(--accent); text-decoration: none; font-weight: 800; display: inline-flex; align-items: center; gap: 4px; background: #f0fdf4; border: 1px solid var(--accent); padding: 2px 8px; border-radius: 6px;">
+          🖨️ A4 輪替規則與計分表
+        </a>
       </h4>
       ${schedule.courts.map(court => {
         return `
