@@ -304,7 +304,13 @@ export async function POST(request) {
       }
     };
     
-    // 4. Deduct LINE push quota from organizer balance
+    // 4. If this is a member pickup game (no organizerId), skip LINE Push to prevent incurring cost!
+    if (!organizerId) {
+      console.log(`[Member Pickup] Skipped LINE push notification for meetup ${meetupId} (no organizer)`);
+      return Response.json({ ok: true, skipped: "會員自揪團不發送 LINE 官方推播以節省費用。" });
+    }
+
+    // Deduct LINE push quota from organizer balance
     if (organizerId) {
       try {
         const deductResult = await callSupabaseRpc("deduct_organizer_message_quota", {

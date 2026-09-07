@@ -161,6 +161,21 @@ export default function MemberPage() {
               </div>
             </div>
 
+            {/* My Initiated Pickups */}
+            <div className="dashboard-panel-card" style={{ width: "100%", marginTop: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                <h4 className="panel-header-title" style={{ margin: 0 }}>
+                  🏓 我發起的自揪團
+                </h4>
+                <a href="/#createPickupModal" id="memberCenterCreatePickupBtn" className="btn-secondary" style={{ fontSize: "12.5px", padding: "6px 12px", textDecoration: "none", borderRadius: "8px", fontWeight: "800", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d" }}>
+                  ➕ 發起新揪團
+                </a>
+              </div>
+              <div id="myPickupsList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>目前尚無自揪活動</p>
+              </div>
+            </div>
+
             {/* ELO Rating Chart & Match History Section */}
             <div id="eloHistorySection" style={{ display: "none", flexDirection: "column", gap: "20px", marginTop: "20px" }}>
               <div className="dashboard-panel-card" style={{ width: "100%" }}>

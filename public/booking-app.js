@@ -535,8 +535,10 @@ function renderMeetups(meetups) {
         <div class="empty-icon">🏓</div>
         <div class="empty-title">這天目前沒有開放報名</div>
         <p class="empty-sub">在上方月曆點選有小綠點的日期，即可查看當天可報名的球團！</p>
+        <button class="btn-secondary" id="emptyStatePickupBtn" style="margin-top: 14px; font-weight: 800;">➕ 立即發起這天自揪</button>
       </div>
     `;
+    $("emptyStatePickupBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
     return;
   }
   listEl.innerHTML = meetups.map((m) => {
@@ -605,7 +607,10 @@ function renderMeetups(meetups) {
       data-slots-left="${left}">
       <div class="meetup-top">
         <div>
-          <h3 class="meetup-title">${escapeHtml(m.name || "未命名活動")}</h3>
+          <h3 class="meetup-title">
+            ${m.creator_member_id ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
+            ${escapeHtml(m.name || "未命名活動")}
+          </h3>
           <p class="muted">
             ${m.address && m.address !== "地點另行公告" ? `
               <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryStr)}" target="_blank" rel="noopener noreferrer" class="map-link" title="在地圖中搜尋">
@@ -617,7 +622,7 @@ function renderMeetups(meetups) {
         <span class="badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="info-grid">
-        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}</div>
+        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}${m.creator_member_id && currentSystemMember && String(m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(m.fee || "現場公告")}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
@@ -834,6 +839,116 @@ function openCancel(meetup) {
   $("cancelModal").classList.add("show");
 }
 function closeCancel() { $("cancelModal").classList.remove("show"); currentMeetup = null; }
+
+function initPickupModal() {
+  const citySelect = $("pickupCity");
+  if (citySelect && citySelect.options.length <= 1) {
+    citySelect.innerHTML = taiwanCities.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    if (selectedCity && selectedCity !== "all") {
+      citySelect.value = selectedCity;
+    } else {
+      citySelect.value = "台中市";
+    }
+  }
+}
+
+function openCreatePickupModal(presetDate) {
+  if (!currentUser || !currentSystemMember) {
+    if (confirm("發起自揪活動需要登入會員帳號，是否前往會員登入？")) {
+      window.location.href = "/member";
+    }
+    return;
+  }
+  if (!currentSystemMember.phone) {
+    alert("發起揪團前請先於個人中心設定手機號碼，以供球友聯絡。");
+    window.location.href = "/member";
+    return;
+  }
+
+  initPickupModal();
+  const targetDate = presetDate || selectedDate || toISODate(new Date());
+  if ($("pickupDate")) $("pickupDate").value = targetDate;
+  if ($("pickupCity") && selectedCity && selectedCity !== "all") {
+    $("pickupCity").value = selectedCity;
+  }
+  clearMessage($("pickupFormMessage"));
+  $("createPickupModal")?.classList.add("show");
+}
+
+function closeCreatePickupModal() {
+  $("createPickupModal")?.classList.remove("show");
+}
+
+async function handleCreatePickup(e) {
+  e.preventDefault();
+  if (!currentUser || !currentSystemMember) {
+    return setMessage($("pickupFormMessage"), "請先登入會員", false);
+  }
+  const name = $("pickupName")?.value?.trim();
+  const date = $("pickupDate")?.value;
+  const city = $("pickupCity")?.value;
+  const startTime = $("pickupStartTime")?.value;
+  const endTime = $("pickupEndTime")?.value;
+  const address = $("pickupAddress")?.value?.trim();
+  const streetAddress = $("pickupStreetAddress")?.value?.trim() || "";
+  const capacity = parseInt($("pickupCapacity")?.value || "4", 10);
+  const fee = $("pickupFee")?.value?.trim() || "場租平分";
+  const notes = $("pickupNotes")?.value?.trim() || "";
+
+  if (!name || !date || !city || !startTime || !endTime || !address || !capacity) {
+    return setMessage($("pickupFormMessage"), "請填寫所有必填欄位", false);
+  }
+
+  const submitBtn = $("submitPickupBtn");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "發起揪團中...";
+  }
+  clearMessage($("pickupFormMessage"));
+
+  try {
+    const { data, error } = await client.rpc("create_member_pickup", {
+      p_creator_member_id: currentSystemMember.id,
+      p_name: name,
+      p_city: city,
+      p_address: address,
+      p_street_address: streetAddress,
+      p_date: date,
+      p_start_time: startTime,
+      p_end_time: endTime,
+      p_capacity: capacity,
+      p_fee: fee,
+      p_notes: notes
+    });
+
+    if (error) throw error;
+    if (data && !data.ok) {
+      throw new Error(data.error || "發起揪團失敗");
+    }
+
+    setMessage($("pickupFormMessage"), "🎉 自揪團發起成功！已自動將您加入正取第 1 位。", true);
+    setTimeout(async () => {
+      closeCreatePickupModal();
+      $("createPickupForm")?.reset();
+      selectedDate = date;
+      if (selectedCity !== "all" && selectedCity !== city) {
+        selectedCity = "all";
+        if ($("cityFilter")) $("cityFilter").value = "all";
+      }
+      clearRosterCache();
+      await loadAvailableWeekdays(true);
+      await refreshAll();
+    }, 1200);
+  } catch (err) {
+    console.error("發起自揪失敗:", err);
+    setMessage($("pickupFormMessage"), err.message || "發起失敗，請稍候重試", false);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "確認發起揪團";
+    }
+  }
+}
 
 async function handleQueryCancel() {
   if (!currentMeetup) return;
@@ -1118,11 +1233,44 @@ async function refreshAll(showLoading = true) {
   try {
     const meetups = await loadMeetupsByDate(selectedDate);
     renderMeetups(meetups);
+    updateDailyPulse(meetups);
   } catch (e) {
     if (meetupEl) {
       meetupEl.innerHTML = `<p class="empty">資料讀取失敗，請稍後再試。</p>`;
     }
     console.error(e);
+  }
+}
+
+function updateDailyPulse(meetups) {
+  const banner = $("dailyPulseBanner");
+  const textEl = $("pulseText");
+  const iconEl = $("pulseIcon");
+  if (!banner || !textEl || !iconEl) return;
+
+  const currentList = Array.isArray(meetups) ? meetups : [];
+  const dateFormatted = formatDate(selectedDate);
+
+  if (currentList.length === 0) {
+    iconEl.textContent = "💡";
+    textEl.innerHTML = `<b>${escapeHtml(dateFormatted)}</b> 目前尚無開團，歡迎發起今日自揪或點選月曆探索！`;
+    return;
+  }
+
+  let totalSlotsLeft = 0;
+  currentList.forEach((m) => {
+    const cap = m.capacity_override ?? m.capacity ?? 0;
+    const confirmed = Number(m.confirmed_count || 0);
+    const left = Math.max(0, cap - confirmed);
+    totalSlotsLeft += left;
+  });
+
+  if (totalSlotsLeft > 0) {
+    iconEl.textContent = "🔥";
+    textEl.innerHTML = `<b>${escapeHtml(dateFormatted)}</b> 共有 <b>${currentList.length}</b> 場球聚，尚餘 <b>${totalSlotsLeft}</b> 席熱烈報名中！`;
+  } else {
+    iconEl.textContent = "🎉";
+    textEl.innerHTML = `<b>${escapeHtml(dateFormatted)}</b> 共有 <b>${currentList.length}</b> 場球聚，目前全部額滿（可排備取），或發起自揪！`;
   }
 }
 function escapeHtml(text) {
@@ -1678,6 +1826,131 @@ async function loadMemberDashboard() {
       upcomingList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">請在下方編輯設定手機號碼以讀取您的預約紀錄</p>`;
     }
   }
+
+  // 讀取我發起的自揪團
+  const myPickupsList = $("myPickupsList");
+  if (myPickupsList && currentSystemMember?.id) {
+    try {
+      const { data: myMeetups, error: myMeetupsErr } = await client
+        .from("meetups")
+        .select("id, name, city, address, start_date, start_time, end_time, capacity, fee, is_active")
+        .eq("creator_member_id", currentSystemMember.id)
+        .order("start_date", { ascending: false });
+
+      if (myMeetupsErr) throw myMeetupsErr;
+
+      if (!myMeetups || myMeetups.length === 0) {
+        myPickupsList.innerHTML = `<p style="color: var(--muted); font-size: 13px; font-style: italic;">目前尚無自揪活動。歡迎至首頁發起！</p>`;
+      } else {
+        const mIds = myMeetups.map(m => m.id);
+        const { data: allSignups } = await client
+          .from("signups")
+          .select("id, meetup_id, nickname, phone, status, people_count")
+          .in("meetup_id", mIds)
+          .in("status", ["confirmed", "waitlist"]);
+
+        const signupsByMeetup = (allSignups || []).reduce((acc, s) => {
+          const mid = String(s.meetup_id);
+          acc[mid] = acc[mid] || [];
+          acc[mid].push(s);
+          return acc;
+        }, {});
+
+        myPickupsList.innerHTML = myMeetups.map((m) => {
+          const isEnded = m.start_date < toISODate(new Date());
+          const mSignups = signupsByMeetup[String(m.id)] || [];
+          const confirmedSignups = mSignups.filter(s => s.status === 'confirmed');
+          const waitlistSignups = mSignups.filter(s => s.status === 'waitlist');
+          const confirmedCount = confirmedSignups.reduce((sum, s) => sum + (s.people_count || 1), 0);
+          
+          let rosterText = `【${m.name}】${m.start_date} 名單：\n`;
+          rosterText += `--- 正取 (${confirmedCount}/${m.capacity}人) ---\n`;
+          if (confirmedSignups.length) {
+            rosterText += confirmedSignups.map((s, idx) => `${idx + 1}. ${s.nickname || "球友"} (${s.phone || "無電話"})`).join("\n");
+          } else {
+            rosterText += "(無)";
+          }
+          if (waitlistSignups.length) {
+            rosterText += `\n--- 備取 (${waitlistSignups.length}人) ---\n`;
+            rosterText += waitlistSignups.map((s, idx) => `備${idx + 1}. ${s.nickname || "球友"} (${s.phone || "無電話"})`).join("\n");
+          }
+
+          let statusBadge = "";
+          if (!m.is_active) {
+            statusBadge = `<span class="status-badge" style="background:#fee2e2;color:#b91c1c;">已取消</span>`;
+          } else if (isEnded) {
+            statusBadge = `<span class="status-badge" style="background:#f1f5f9;color:#64748b;">已結束</span>`;
+          } else {
+            statusBadge = `<span class="status-badge confirmed">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
+          }
+
+          return `
+            <div class="booking-item-card" style="flex-direction: column; align-items: stretch; gap: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="badge pickup-badge" style="font-size: 11px; padding: 2px 6px;">我的自揪</span>
+                    <strong style="font-size: 15px; color: var(--text);">${escapeHtml(m.name)}</strong>
+                  </div>
+                  <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">
+                    📅 ${escapeHtml(m.start_date)} ${m.start_time?.slice(0, 5)} ~ ${m.end_time?.slice(0, 5)} ｜ 📍 ${escapeHtml(m.city || "")} ${escapeHtml(m.address || "")}
+                  </div>
+                </div>
+                ${statusBadge}
+              </div>
+              <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px;">
+                <button type="button" class="btn-secondary copy-roster-btn" data-roster="${escapeHtml(rosterText)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800;">
+                  📋 複製名單
+                </button>
+                ${m.is_active && !isEnded ? `
+                  <button type="button" class="btn-ghost cancel-pickup-btn" data-id="${m.id}" data-name="${escapeHtml(m.name)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; color: var(--red); border: 1px solid var(--red);">
+                    ❌ 取消活動
+                  </button>
+                ` : ""}
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        myPickupsList.querySelectorAll(".copy-roster-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const roster = btn.dataset.roster;
+            navigator.clipboard.writeText(roster);
+            alert("已複製活動名單到剪貼簿！");
+          });
+        });
+
+        myPickupsList.querySelectorAll(".cancel-pickup-btn").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            const meetupId = btn.dataset.id;
+            const name = btn.dataset.name;
+            if (!confirm(`確定要取消自揪活動「${name}」嗎？取消後球友將無法再預約。`)) return;
+            try {
+              btn.disabled = true;
+              btn.textContent = "取消中...";
+              const { data, error } = await client.rpc("cancel_member_pickup", {
+                p_creator_member_id: currentSystemMember.id,
+                p_meetup_id: Number(meetupId)
+              });
+              if (error) throw error;
+              if (data && !data.ok) throw new Error(data.error || "取消失敗");
+              alert("自揪活動已成功取消！");
+              loadMemberDashboard();
+            } catch (err) {
+              console.error("取消自揪活動失敗:", err);
+              alert(err.message || "取消失敗，請稍候重試");
+              btn.disabled = false;
+              btn.textContent = "❌ 取消活動";
+            }
+          });
+        });
+      }
+    } catch (err) {
+      console.warn("載入我的自揪團失敗:", err);
+      myPickupsList.innerHTML = `<p style="color: var(--muted); font-size: 13px;">載入自揪團失敗，請稍候重試。</p>`;
+    }
+  }
+
   // 3. 讀取戰力走勢圖與歷史戰績
   const eloHistorySection = $("eloHistorySection");
   if (eloHistorySection) {
@@ -2164,10 +2437,15 @@ $("cityFilter")?.addEventListener("change", async (e) => {
 });
 $("closeModal")?.addEventListener("click", closeSignup);
 $("closeCancelModal")?.addEventListener("click", closeCancel);
+$("closeCreatePickupModal")?.addEventListener("click", closeCreatePickupModal);
+$("openCreatePickupBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
+$("openCreatePickupInlineBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
 $("closeTransactionModal")?.addEventListener("click", () => $("transactionModal")?.classList.remove("show"));
 $("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "transactionModal") $("transactionModal")?.classList.remove("show"); });
 $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
 $("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
+$("createPickupModal")?.addEventListener("click", (e) => { if (e.target.id === "createPickupModal") closeCreatePickupModal(); });
+$("createPickupForm")?.addEventListener("submit", handleCreatePickup);
 $("signupForm")?.addEventListener("submit", handleSignup);
 $("phone")?.addEventListener("input", async (e) => {
   if (currentSystemMember) return;
@@ -2209,6 +2487,7 @@ document.querySelectorAll("[data-open-tab]").forEach(link => {
   link.addEventListener("click", () => openTab(link.dataset.openTab));
 });
 if ($("cityFilter")) renderCityFilter();
+if ($("pickupCity")) initPickupModal();
 if ($("knowledgeList")) renderStaticContent();
 
 (async function init() {
@@ -2261,4 +2540,11 @@ if ($("knowledgeList")) renderStaticContent();
   }
 
   if ($("authTabLogin")) initAuthTabs();
+
+  if (window.location.hash === "#createPickupModal") {
+    setTimeout(() => {
+      openCreatePickupModal(selectedDate);
+      history.replaceState(null, null, " ");
+    }, 400);
+  }
 })();

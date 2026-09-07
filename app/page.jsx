@@ -3,18 +3,16 @@
 export default function Page() {
   return (
     <>
-      <section id="top" className="hero">
-        <div className="hero-main">
-          <div className="hero-content">
-            <div className="eyebrow">🏓 PICKLEBALL BOOKING</div>
-            <h1>想打球，選一天就好。</h1>
-            <p>歡迎來到匹克球同樂會！在下方月曆點選有標示小點的日期，即可一覽當天所有球團、時間與場地。填寫暱稱與手機即可迅速完成預約，無需繁瑣註冊。</p>
-            <div className="hero-actions">
-              <a className="hero-btn main" href="#booking">查看可報名日期 ➔</a>
-            </div>
-          </div>
+      {/* Slim Daily Pulse Banner (Replaces bulky Hero) */}
+      <div className="daily-pulse-banner" id="dailyPulseBanner">
+        <div className="pulse-content">
+          <span className="pulse-icon" id="pulseIcon">🎾</span>
+          <span className="pulse-text" id="pulseText">正在載入今日球團概況...</span>
         </div>
-      </section>
+        <button className="btn-pickup-trigger" id="openCreatePickupBtn">
+          <span>➕</span> 我要自揪
+        </button>
+      </div>
 
       <div className="tab-shell">
         <div className="tab-panel active">
@@ -54,6 +52,7 @@ export default function Page() {
                       <h2 className="section-title" style={{ fontSize: "24px" }}>當天可報名</h2>
                       <p className="muted"><span id="selectedDateText" className="selected-date">--</span></p>
                     </div>
+                    <button className="btn-secondary create-pickup-inline-btn" id="openCreatePickupInlineBtn">➕ 我要自揪</button>
                   </div>
                   <div className="cards" id="meetupList"></div>
                 </div>
@@ -135,6 +134,61 @@ export default function Page() {
             </div>
           </form>
           <div className="message" id="cancelMessage"></div>
+        </div>
+      </div>
+
+      {/* Create Member Pickup Modal */}
+      <div className="modal" id="createPickupModal">
+        <div className="modal-card">
+          <div className="modal-head">
+            <div>
+              <h2 className="section-title" style={{ fontSize: "24px" }}>發起單日自揪</h2>
+              <p className="muted">自發臨時揪團，發起後系統會自動將您加入正取第 1 位！</p>
+            </div>
+            <button className="close-btn" id="closeCreatePickupModal">×</button>
+          </div>
+          <form className="form" id="createPickupForm">
+            <label>活動主題
+              <input id="pickupName" placeholder="例如：週六下午暢打、新手交流" required />
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <label>活動日期
+                <input id="pickupDate" type="date" required />
+              </label>
+              <label>活動縣市
+                <select id="pickupCity" required></select>
+              </label>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <label>開始時間
+                <input id="pickupStartTime" type="time" defaultValue="14:00" required />
+              </label>
+              <label>結束時間
+                <input id="pickupEndTime" type="time" defaultValue="16:00" required />
+              </label>
+            </div>
+            <label>球場地點
+              <input id="pickupAddress" placeholder="例如：南屯匹克球場 2 號場" required />
+            </label>
+            <label>詳細地址（選填，供導航）
+              <input id="pickupStreetAddress" placeholder="例如：文心南七路 (填寫後可直接在地圖導航)" />
+            </label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              <label>人數上限
+                <input id="pickupCapacity" type="number" min="2" max="32" defaultValue="4" required />
+              </label>
+              <label>每人費用
+                <input id="pickupFee" placeholder="例如：平分80元、免費" defaultValue="場租平分" required />
+              </label>
+            </div>
+            <label>備註說明（選填）
+              <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
+            </label>
+            <button className="btn-primary" id="submitPickupBtn" type="submit" style={{ height: "46px", fontSize: "15px", marginTop: "8px" }}>
+              確認發起揪團
+            </button>
+          </form>
+          <div className="message" id="pickupFormMessage"></div>
         </div>
       </div>
     </>
