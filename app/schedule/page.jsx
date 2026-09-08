@@ -46,7 +46,7 @@ export default function SchedulePage() {
       .filter(Boolean);
 
     const players = Array.from({ length: N }, (_, i) => {
-      const defaultName = `${i + 1}`;
+      const defaultName = `${i + 1}號`;
       const name = customNames[i] ? `${customNames[i]}` : defaultName;
       return { id: i + 1, name };
     });
@@ -472,8 +472,8 @@ export default function SchedulePage() {
             <tbody>
               {scheduleData.playerList.map(p => (
                 <tr key={p.id}>
-                  <td className="p-num">{p.id}</td>
-                  <td className="p-name">{p.name !== `${p.id}` ? p.name : ""}</td>
+                  <td className="p-num">{p.id}號</td>
+                  <td className="p-name">{p.name !== `${p.id}號` ? p.name : ""}</td>
                   <td>{p.playedCount} 場</td>
                   <td></td>
                   <td></td>
