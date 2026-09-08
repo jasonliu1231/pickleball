@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>匹克球單場 2 小時對戰輪替紀錄表（5/6/7/8 人 獨立單頁版）</title>
+  <title>匹克球單場 2 小時對戰輪替紀錄表（5/6/7/8 人 極簡對戰版）</title>
   <style>
     @page {
       size: A4 portrait;
-      margin: 10mm 12mm;
+      margin: 12mm 14mm;
     }
     * {
       box-sizing: border-box;
@@ -18,8 +18,8 @@
     body {
       background-color: #f1f5f9;
       color: #1e293b;
-      font-size: 12px;
-      line-height: 1.35;
+      font-size: 13px;
+      line-height: 1.4;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -79,13 +79,13 @@
     .a4-page {
       width: 210mm;
       min-height: 297mm;
-      padding: 10mm 12mm;
+      padding: 12mm 14mm;
       margin: 20px auto;
       background: #ffffff;
       box-shadow: 0 4px 20px rgba(0,0,0,0.08);
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: flex-start;
       box-sizing: border-box;
     }
 
@@ -103,7 +103,6 @@
       .a4-page:last-child {
         page-break-after: auto !important;
       }
-      /* If a tab is selected when printing, print only that one */
       .a4-page.print-hidden {
         display: none !important;
       }
@@ -112,27 +111,22 @@
     /* Page Header */
     .sheet-header {
       border-radius: 8px;
-      padding: 10px 14px;
+      padding: 10px 16px;
       color: #ffffff;
-      margin-bottom: 8px;
+      margin-bottom: 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     .sheet-title {
-      font-size: 17px;
+      font-size: 19px;
       font-weight: 900;
       letter-spacing: -0.3px;
-    }
-    .sheet-sub {
-      font-size: 11px;
-      opacity: 0.95;
-      margin-top: 2px;
     }
     .sheet-page-badge {
       font-size: 12px;
       font-weight: 800;
-      background: rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.25);
       padding: 4px 10px;
       border-radius: 6px;
     }
@@ -142,102 +136,117 @@
     .bg-7 { background: linear-gradient(135deg, #d97706, #b45309); }
     .bg-8 { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
 
-    /* Session Info */
-    .session-info-bar {
-      background: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      padding: 6px 12px;
-      font-size: 11px;
-      color: #334155;
-      font-weight: 600;
-      margin-bottom: 10px;
-      display: flex;
-      justify-content: space-between;
-    }
-
-    /* Table Styles */
+    /* Section Header */
     .section-title {
-      font-size: 12.5px;
-      font-weight: 800;
+      font-size: 14px;
+      font-weight: 900;
       color: #0f172a;
-      margin-bottom: 5px;
+      margin-bottom: 6px;
       display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-    }
-    .section-note {
-      font-size: 10.5px;
-      color: #64748b;
-      font-weight: normal;
+      align-items: center;
+      gap: 6px;
     }
 
+    /* Tables */
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 11.5px;
       text-align: center;
-      margin-bottom: 12px;
+      margin-bottom: 16px;
     }
     th {
       background: #f1f5f9;
       color: #334155;
       font-weight: 800;
-      padding: 6px 4px;
-      border-top: 1px solid #cbd5e1;
-      border-bottom: 1px solid #cbd5e1;
-      font-size: 11.5px;
+      padding: 7px 6px;
+      border: 1px solid #cbd5e1;
+      font-size: 12.5px;
     }
     td {
-      padding: 6px 4px;
-      border-bottom: 1px solid #e2e8f0;
+      padding: 6px;
+      border: 1px solid #cbd5e1;
       color: #1e293b;
-    }
-    tr:nth-child(even) td {
-      background: #fafafa;
     }
 
     /* Roster Table Specific */
-    .roster-table th { background: #e2e8f0; }
-    .roster-table td { height: 25px; }
-    .col-pnum { width: 55px; font-weight: 800; color: #0284c7; font-size: 13px; }
-    .col-pname { width: 220px; }
-    .col-pstat { width: 80px; }
+    .roster-table {
+      margin-bottom: 20px;
+    }
+    .roster-table th {
+      background: #f1f5f9;
+      color: #334155;
+    }
+    .roster-table td {
+      height: 32px;
+      font-size: 13.5px;
+    }
+    .col-pnum {
+      width: 60px;
+      font-weight: 900;
+      color: #0284c7;
+      background: #f8fafc;
+      font-size: 14px;
+    }
+    .col-pname {
+      text-align: left;
+      padding-left: 12px;
+      font-weight: 600;
+    }
 
     /* Match Schedule Specific */
-    .sched-table th { color: #fff; padding: 6px 4px; font-size: 12px; }
+    .sched-table th {
+      color: #ffffff;
+      padding: 8px 6px;
+      font-size: 13.5px;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
     .sched-5 th { background: #059669; }
     .sched-6 th { background: #0284c7; }
     .sched-7 th { background: #d97706; }
     .sched-8 th { background: #7c3aed; }
 
-    .col-round { width: 60px; font-weight: 800; color: #475569; font-size: 13px; }
-    .col-teama { width: 265px; font-size: 13.5px; font-weight: 800; color: #065f46; }
-    .col-score { width: 100px; }
-    .col-teamb { width: 265px; font-size: 13.5px; font-weight: 800; color: #1e40af; }
+    .sched-table tr:nth-child(even) td {
+      background: #fafbfc;
+    }
+
+    .col-round {
+      width: 60px;
+      font-weight: 900;
+      color: #475569;
+      font-size: 14px;
+      background: #f8fafc;
+    }
+    .col-teama {
+      width: 250px;
+      font-size: 15px;
+      font-weight: 900;
+      color: #065f46;
+    }
+    .col-score {
+      width: 95px;
+    }
+    .col-teamb {
+      width: 250px;
+      font-size: 15px;
+      font-weight: 900;
+      color: #1e40af;
+    }
+
+    .sched-table td {
+      height: 38px;
+    }
 
     .score-box {
       display: inline-block;
-      width: 65px;
-      height: 22px;
-      line-height: 22px;
+      width: 68px;
+      height: 24px;
+      line-height: 24px;
       border: 1px solid #94a3b8;
       border-radius: 4px;
       background: #ffffff;
       color: #94a3b8;
       font-weight: 800;
-      font-size: 12px;
-    }
-
-    /* Footer */
-    .sheet-footer {
-      border-top: 1px solid #cbd5e1;
-      padding-top: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 10.5px;
-      color: #64748b;
+      font-size: 13px;
     }
   </style>
 </head>
@@ -246,14 +255,17 @@
   <!-- Top Controller Bar -->
   <div class="no-print-bar">
     <div style="display: flex; align-items: center; gap: 15px;">
-      <strong style="font-size: 14px;">🏓 匹克球單場 2 小時對戰輪替紀錄表（獨立單頁版）</strong>
+      <strong style="font-size: 14px;">🏓 匹克球單場 2 小時對戰輪替紀錄表（極簡對戰版）</strong>
       <div class="tabs-group">
         <button class="tab-btn active" onclick="showPage('all')">📄 全部顯示 (共 4 頁)</button>
-        <button class="tab-btn" onclick="showPage('p5')">🟢 5 人制專用頁</button>
-        <button class="tab-btn" onclick="showPage('p6')">🔵 6 人制專用頁</button>
-        <button class="tab-btn" onclick="showPage('p7')">🟠 7 人制專用頁</button>
-        <button class="tab-btn" onclick="showPage('p8')">🟣 8 人制專用頁</button>
+        <button class="tab-btn" onclick="showPage('p5')">🟢 5 人制</button>
+        <button class="tab-btn" onclick="showPage('p6')">🔵 6 人制</button>
+        <button class="tab-btn" onclick="showPage('p7')">🟠 7 人制</button>
+        <button class="tab-btn" onclick="showPage('p8')">🟣 8 人制</button>
       </div>
+      <a href="/pickleball_2h_rotation_rules_a4.pdf" target="_blank" style="background: #e11d48; color: #fff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
+        📑 下載 A4 PDF
+      </a>
       <a href="/schedule" style="background: #0284c7; color: #fff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
         ⏱️ 自訂排班產生器 ↗
       </a>
@@ -265,56 +277,49 @@
   <div class="a4-page" id="page-p5">
     <div>
       <div class="sheet-header bg-5">
-        <div>
-          <div class="sheet-title">🟢 5 人制對戰輪替手冊（單場 2 小時）</div>
-          <div class="sheet-sub">每人打滿 8 場・僅休 2 場・出賽率 80%・100% 絕對均等公平循環</div>
-        </div>
+        <div class="sheet-title">🟢 5 人制對戰輪替表（10 輪）</div>
         <div class="sheet-page-badge">第 1 頁 / 共 4 頁</div>
-      </div>
-
-      <div class="session-info-bar">
-        <span>活動日期：______年____月____日</span>
-        <span>球場：__________</span>
-        <span>主辦場主：__________</span>
-        <span>賽制：11分制 / 2小時</span>
       </div>
 
       <!-- Roster -->
       <div class="section-title">
-        <span>📋 球員簽到與戰績統計表</span>
-        <span class="section-note">★ 5 人制每人應出賽 8 場、輪空 2 場（100% 均等）</span>
+        <span>📋 球員名單</span>
       </div>
       <table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
-            <th class="col-pname">球員姓名 / 暱稱</th>
-            <th class="col-pstat">應出賽</th>
-            <th class="col-pstat">勝</th>
-            <th class="col-pstat">敗</th>
-            <th>名次 / 備註</th>
+            <th class="col-pname">姓名</th>
+            <th class="col-pnum">編號</th>
+            <th class="col-pname">姓名</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-pnum">1</td><td></td><td>8 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">2</td><td></td><td>8 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">3</td><td></td><td>8 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">4</td><td></td><td>8 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">5</td><td></td><td>8 場</td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-pnum">1</td><td class="col-pname"></td>
+            <td class="col-pnum">2</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">3</td><td class="col-pname"></td>
+            <td class="col-pnum">4</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">5</td><td class="col-pname"></td>
+            <td class="col-pnum" style="color: #cbd5e1;">-</td><td class="col-pname" style="background: #f8fafc;"></td>
+          </tr>
         </tbody>
       </table>
 
       <!-- Schedule -->
-      <div class="section-title" style="margin-top: 10px;">
-        <span>🏓 10 輪對戰與計分記錄表</span>
-        <span class="section-note">★ 依序喊號碼上場，填寫實際比分並勾選勝方</span>
+      <div class="section-title">
+        <span>🏓 對戰表</span>
       </div>
       <table class="sched-table sched-5">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
             <th class="col-teama">隊伍一</th>
-            <th class="col-score">比分記錄</th>
+            <th class="col-score">比分</th>
             <th class="col-teamb">隊伍二</th>
           </tr>
         </thead>
@@ -332,68 +337,55 @@
         </tbody>
       </table>
     </div>
-
-    <div class="sheet-footer">
-      <span>● 核心演算法：零連續輪空 ｜ 100% 出賽場次絕對均等 ｜ 隊友全覆蓋</span>
-      <span>場主簽署確認：________________</span>
-    </div>
   </div>
 
   <!-- PAGE 2: 6 PLAYERS -->
   <div class="a4-page" id="page-p6">
     <div>
       <div class="sheet-header bg-6">
-        <div>
-          <div class="sheet-title">🔵 6 人制對戰輪替手冊（單場 2 小時）</div>
-          <div class="sheet-sub">每人打滿 6 場・休 3 場・出賽率 67%・100% 絕對均等公平循環</div>
-        </div>
+        <div class="sheet-title">🔵 6 人制對戰輪替表（9 輪）</div>
         <div class="sheet-page-badge">第 2 頁 / 共 4 頁</div>
-      </div>
-
-      <div class="session-info-bar">
-        <span>活動日期：______年____月____日</span>
-        <span>球場：__________</span>
-        <span>主辦場主：__________</span>
-        <span>賽制：11分制 / 2小時</span>
       </div>
 
       <!-- Roster -->
       <div class="section-title">
-        <span>📋 球員簽到與戰績統計表</span>
-        <span class="section-note">★ 6 人制每人應出賽 6 場、輪空 3 場（100% 均等）</span>
+        <span>📋 球員名單</span>
       </div>
       <table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
-            <th class="col-pname">球員姓名 / 暱稱</th>
-            <th class="col-pstat">應出賽</th>
-            <th class="col-pstat">勝</th>
-            <th class="col-pstat">敗</th>
-            <th>名次 / 備註</th>
+            <th class="col-pname">姓名</th>
+            <th class="col-pnum">編號</th>
+            <th class="col-pname">姓名</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-pnum">1</td><td></td><td>6 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">2</td><td></td><td>6 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">3</td><td></td><td>6 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">4</td><td></td><td>6 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">5</td><td></td><td>6 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">6</td><td></td><td>6 場</td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-pnum">1</td><td class="col-pname"></td>
+            <td class="col-pnum">2</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">3</td><td class="col-pname"></td>
+            <td class="col-pnum">4</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">5</td><td class="col-pname"></td>
+            <td class="col-pnum">6</td><td class="col-pname"></td>
+          </tr>
         </tbody>
       </table>
 
       <!-- Schedule -->
-      <div class="section-title" style="margin-top: 10px;">
-        <span>🏓 9 輪對戰與計分記錄表</span>
-        <span class="section-note">★ 依序喊號碼上場，填寫實際比分並勾選勝方</span>
+      <div class="section-title">
+        <span>🏓 對戰表</span>
       </div>
       <table class="sched-table sched-6">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
             <th class="col-teama">隊伍一</th>
-            <th class="col-score">比分記錄</th>
+            <th class="col-score">比分</th>
             <th class="col-teamb">隊伍二</th>
           </tr>
         </thead>
@@ -410,69 +402,59 @@
         </tbody>
       </table>
     </div>
-
-    <div class="sheet-footer">
-      <span>● 核心演算法：零連續輪空 ｜ 100% 出賽場次絕對均等 ｜ 隊友全覆蓋</span>
-      <span>場主簽署確認：________________</span>
-    </div>
   </div>
 
   <!-- PAGE 3: 7 PLAYERS -->
   <div class="a4-page" id="page-p7">
     <div>
       <div class="sheet-header bg-7">
-        <div>
-          <div class="sheet-title">🟠 7 人制對戰輪替手冊（單場 2 小時）</div>
-          <div class="sheet-sub">每人打滿 4 場・休 3 場・出賽率 57%・100% 絕對均等公平循環</div>
-        </div>
+        <div class="sheet-title">🟠 7 人制對戰輪替表（7 輪）</div>
         <div class="sheet-page-badge">第 3 頁 / 共 4 頁</div>
-      </div>
-
-      <div class="session-info-bar">
-        <span>活動日期：______年____月____日</span>
-        <span>球場：__________</span>
-        <span>主辦場主：__________</span>
-        <span>賽制：11分制 / 2小時</span>
       </div>
 
       <!-- Roster -->
       <div class="section-title">
-        <span>📋 球員簽到與戰績統計表</span>
-        <span class="section-note">★ 7 人制每人應出賽 4 場、輪空 3 場（100% 均等）</span>
+        <span>📋 球員名單</span>
       </div>
       <table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
-            <th class="col-pname">球員姓名 / 暱稱</th>
-            <th class="col-pstat">應出賽</th>
-            <th class="col-pstat">勝</th>
-            <th class="col-pstat">敗</th>
-            <th>名次 / 備註</th>
+            <th class="col-pname">姓名</th>
+            <th class="col-pnum">編號</th>
+            <th class="col-pname">姓名</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-pnum">1</td><td></td><td>4 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">2</td><td></td><td>4 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">3</td><td></td><td>4 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">4</td><td></td><td>4 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">5</td><td></td><td>4 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">6</td><td></td><td>4 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">7</td><td></td><td>4 場</td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-pnum">1</td><td class="col-pname"></td>
+            <td class="col-pnum">2</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">3</td><td class="col-pname"></td>
+            <td class="col-pnum">4</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">5</td><td class="col-pname"></td>
+            <td class="col-pnum">6</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">7</td><td class="col-pname"></td>
+            <td class="col-pnum" style="color: #cbd5e1;">-</td><td class="col-pname" style="background: #f8fafc;"></td>
+          </tr>
         </tbody>
       </table>
 
       <!-- Schedule -->
-      <div class="section-title" style="margin-top: 10px;">
-        <span>🏓 7 輪對戰與計分記錄表</span>
-        <span class="section-note">★ 依序喊號碼上場，填寫實際比分並勾選勝方</span>
+      <div class="section-title">
+        <span>🏓 對戰表</span>
       </div>
       <table class="sched-table sched-7">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
             <th class="col-teama">隊伍一</th>
-            <th class="col-score">比分記錄</th>
+            <th class="col-score">比分</th>
             <th class="col-teamb">隊伍二</th>
           </tr>
         </thead>
@@ -487,70 +469,59 @@
         </tbody>
       </table>
     </div>
-
-    <div class="sheet-footer">
-      <span>● 核心演算法：零連續輪空 ｜ 100% 出賽場次絕對均等 ｜ 隊友全覆蓋</span>
-      <span>場主簽署確認：________________</span>
-    </div>
   </div>
 
   <!-- PAGE 4: 8 PLAYERS -->
   <div class="a4-page" id="page-p8">
     <div>
       <div class="sheet-header bg-8">
-        <div>
-          <div class="sheet-title">🟣 8 人制對戰輪替手冊（單場 2 小時）</div>
-          <div class="sheet-sub">每人打滿 5 場・休 5 場・出賽率 50%・嚴格一打一休・100% 絕對均等公平</div>
-        </div>
+        <div class="sheet-title">🟣 8 人制對戰輪替表（10 輪）</div>
         <div class="sheet-page-badge">第 4 頁 / 共 4 頁</div>
-      </div>
-
-      <div class="session-info-bar">
-        <span>活動日期：______年____月____日</span>
-        <span>球場：__________</span>
-        <span>主辦場主：__________</span>
-        <span>賽制：11分制 / 2小時</span>
       </div>
 
       <!-- Roster -->
       <div class="section-title">
-        <span>📋 球員簽到與戰績統計表</span>
-        <span class="section-note">★ 8 人制每人應出賽 5 場、輪空 5 場（嚴格一打一休，100% 均等）</span>
+        <span>📋 球員名單</span>
       </div>
       <table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
-            <th class="col-pname">球員姓名 / 暱稱</th>
-            <th class="col-pstat">應出賽</th>
-            <th class="col-pstat">勝</th>
-            <th class="col-pstat">敗</th>
-            <th>名次 / 備註</th>
+            <th class="col-pname">姓名</th>
+            <th class="col-pnum">編號</th>
+            <th class="col-pname">姓名</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-pnum">1</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">2</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">3</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">4</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">5</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">6</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">7</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
-          <tr><td class="col-pnum">8</td><td></td><td>5 場</td><td></td><td></td><td></td></tr>
+          <tr>
+            <td class="col-pnum">1</td><td class="col-pname"></td>
+            <td class="col-pnum">2</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">3</td><td class="col-pname"></td>
+            <td class="col-pnum">4</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">5</td><td class="col-pname"></td>
+            <td class="col-pnum">6</td><td class="col-pname"></td>
+          </tr>
+          <tr>
+            <td class="col-pnum">7</td><td class="col-pname"></td>
+            <td class="col-pnum">8</td><td class="col-pname"></td>
+          </tr>
         </tbody>
       </table>
 
       <!-- Schedule -->
-      <div class="section-title" style="margin-top: 10px;">
-        <span>🏓 10 輪對戰與計分記錄表</span>
-        <span class="section-note">★ 依序喊號碼上場，填寫實際比分並勾選勝方</span>
+      <div class="section-title">
+        <span>🏓 對戰表</span>
       </div>
       <table class="sched-table sched-8">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
             <th class="col-teama">隊伍一</th>
-            <th class="col-score">比分記錄</th>
+            <th class="col-score">比分</th>
             <th class="col-teamb">隊伍二</th>
           </tr>
         </thead>
@@ -567,11 +538,6 @@
           <tr><td class="col-round">10</td><td class="col-teama">2 + 5</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3 + 4</td></tr>
         </tbody>
       </table>
-    </div>
-
-    <div class="sheet-footer">
-      <span>● 核心演算法：零連續輪空 ｜ 100% 出賽場次絕對均等 ｜ 隊友全覆蓋</span>
-      <span>場主簽署確認：________________</span>
     </div>
   </div>
 
