@@ -120,12 +120,13 @@ export default function SchedulePage() {
         const counts = Object.values(played);
         const maxP = Math.max(...counts);
         const minP = Math.min(...counts);
-        const penalty = (maxP - minP) * 5000;
+        const partnerRepeats = Object.values(partner).filter(c => c > 1).reduce((s, c) => s + (c - 1) * 2000, 0);
+        const penalty = (maxP - minP) * 10000 + partnerRepeats;
 
         if (penalty < bestPenalty) {
           bestPenalty = penalty;
           bestSched = sched;
-          if (maxP - minP <= (mode === "fair" ? 0 : 1)) break;
+          if (maxP - minP <= (mode === "fair" ? 0 : 1) && (N < 7 || partnerRepeats === 0)) break;
         }
       }
 
