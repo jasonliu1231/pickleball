@@ -488,39 +488,6 @@ function renderCalendar() {
       refreshAll(true);
     });
   });
-
-  const mobileBarEl = $("mobileDateBar");
-  if (mobileBarEl) {
-    const mobileWeekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    const validDates = cells.filter(Boolean);
-    mobileBarEl.innerHTML = validDates.map((dateStr) => {
-      const d = dateFromISO(dateStr);
-      const isPast = dateStr < today;
-      const has = hasAvailableMeetupOnDate(dateStr);
-      const selected = dateStr === selectedDate;
-      const wkName = mobileWeekdays[d.getDay()];
-      return `<button class="mobile-date-item ${selected ? "active" : ""}" data-date="${dateStr}">
-        <span class="wk">週${wkName}</span>
-        <span class="mday">${d.getDate()}</span>
-        ${has && !isPast ? `<span class="indicator-dot"></span>` : ""}
-      </button>`;
-    }).join("");
-    
-    setTimeout(() => {
-      const activeItem = mobileBarEl.querySelector(".mobile-date-item.active");
-      if (activeItem) {
-        activeItem.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-      }
-    }, 80);
-
-    mobileBarEl.querySelectorAll(".mobile-date-item").forEach(btn => {
-      btn.addEventListener("click", () => {
-        selectedDate = btn.dataset.date;
-        visibleMonth = selectedDate.slice(0, 7) + "-01";
-        refreshAll(true);
-      });
-    });
-  }
 }
 
 function renderMeetups(meetups) {
