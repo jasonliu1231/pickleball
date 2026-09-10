@@ -252,7 +252,7 @@ function applyCityFilter(query) {
 }
 
 async function loadAvailableWeekdays(forceRefresh = false) {
-  if (availableRules && availableRules.length > 0 && exclusions && exclusions.length > 0 && !forceRefresh) {
+  if (availableRules && availableRules.length > 0 && Array.isArray(exclusions) && !forceRefresh) {
     return; // Fast path: return cached rules without network request
   }
   let query = client
@@ -1833,7 +1833,7 @@ async function loadMemberDashboard() {
     if (cleanPh) {
       const { data: signups, error: signupsError } = await client
         .from("signups")
-        .select("id, status, reservation_date, arrived_count, meetup_id, is_tentative, meetups(id, name, start_time, end_time, address)")
+        .select("id, status, reservation_date, arrived_count, meetup_id, is_tentative, meetups(id, name, start_time, end_time, address, cancel_deadline_hours)")
         .eq("phone", currentSystemMember.phone)
         .gte("reservation_date", toISODate(new Date()))
         .neq("status", "cancelled")
