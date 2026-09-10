@@ -7,7 +7,7 @@
   <style>
     @page {
       size: A4 portrait;
-      margin: 12mm 14mm;
+      margin: 10mm 12mm;
     }
     * {
       box-sizing: border-box;
@@ -31,26 +31,49 @@
       z-index: 1000;
       background: #0f172a;
       color: #ffffff;
-      padding: 10px 20px;
+      padding: 10px 16px;
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
+      gap: 12px;
       box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+    }
+    .bar-left {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .bar-title {
+      font-size: 14px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
     .tabs-group {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 0;
+    }
+    .tabs-group::-webkit-scrollbar {
+      display: none;
     }
     .tab-btn {
       background: #334155;
       color: #cbd5e1;
       border: 1px solid #475569;
-      padding: 6px 14px;
-      border-radius: 6px;
-      font-size: 12px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12.5px;
       font-weight: 700;
       cursor: pointer;
+      white-space: nowrap;
       transition: all 0.2s;
     }
     .tab-btn:hover { background: #475569; color: #fff; }
@@ -58,19 +81,43 @@
       background: #38bdf8;
       color: #0f172a;
       border-color: #38bdf8;
+      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.35);
     }
+    .bar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .btn-pdf { background: #e11d48; color: #fff; }
+    .btn-pdf:hover { background: #be123c; }
+    .btn-sched { background: #0284c7; color: #fff; }
+    .btn-sched:hover { background: #0369a1; }
     .print-btn {
       background: #16a34a;
       color: #fff;
       border: none;
-      padding: 8px 20px;
-      border-radius: 6px;
+      padding: 7px 16px;
+      border-radius: 8px;
       font-weight: 800;
-      font-size: 13px;
+      font-size: 12.5px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
+      white-space: nowrap;
       transition: all 0.2s;
     }
     .print-btn:hover { background: #15803d; }
@@ -87,36 +134,19 @@
       flex-direction: column;
       justify-content: flex-start;
       box-sizing: border-box;
-    }
-
-    @media print {
-      body { background: transparent; }
-      .no-print-bar { display: none !important; }
-      .a4-page {
-        width: 100% !important;
-        min-height: 100% !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        box-shadow: none !important;
-        page-break-after: always !important;
-      }
-      .a4-page:last-child {
-        page-break-after: auto !important;
-      }
-      .a4-page.print-hidden {
-        display: none !important;
-      }
+      border-radius: 4px;
     }
 
     /* Page Header */
     .sheet-header {
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 10px 16px;
       color: #ffffff;
       margin-bottom: 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
     .sheet-title {
       font-size: 19px;
@@ -138,13 +168,21 @@
 
     /* Section Header */
     .section-title {
-      font-size: 14px;
+      font-size: 14.5px;
       font-weight: 900;
       color: #0f172a;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
       gap: 6px;
+    }
+
+    /* Responsive Table Container */
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-bottom: 18px;
     }
 
     /* Tables */
@@ -152,52 +190,54 @@
       width: 100%;
       border-collapse: collapse;
       text-align: center;
-      margin-bottom: 16px;
     }
     th {
       background: #f1f5f9;
       color: #334155;
       font-weight: 800;
-      padding: 7px 6px;
+      padding: 8px 6px;
       border: 1px solid #cbd5e1;
-      font-size: 12.5px;
+      font-size: 13px;
     }
     td {
-      padding: 6px;
+      padding: 7px 6px;
       border: 1px solid #cbd5e1;
       color: #1e293b;
+      vertical-align: middle;
     }
 
     /* Roster Table Specific */
     .roster-table {
-      margin-bottom: 20px;
+      margin-bottom: 0;
     }
     .roster-table th {
       background: #f1f5f9;
       color: #334155;
     }
     .roster-table td {
-      height: 32px;
-      font-size: 13.5px;
+      height: 36px;
+      font-size: 14px;
     }
     .col-pnum {
-      width: 65px;
+      width: 70px;
       font-weight: 900;
-      color: #0284c7;
-      background: #f8fafc;
-      font-size: 14px;
+      color: #0369a1;
+      background: #f0f9ff;
+      font-size: 16px;
+      border-right: 1.5px solid #bae6fd;
     }
     .col-pname {
       text-align: left;
-      padding-left: 12px;
+      padding-left: 14px;
       font-weight: 600;
     }
 
     /* Match Schedule Specific */
     .sched-table th {
       color: #ffffff;
-      padding: 8px 6px;
-      font-size: 13.5px;
+      padding: 9px 6px;
+      font-size: 14px;
+      font-weight: 900;
       border: 1px solid rgba(0,0,0,0.1);
     }
     .sched-5 th { background: #059669; }
@@ -206,47 +246,221 @@
     .sched-8 th { background: #7c3aed; }
 
     .sched-table tr:nth-child(even) td {
-      background: #fafbfc;
+      background: #f8fafc;
     }
 
     .col-round {
-      width: 60px;
+      width: 58px;
       font-weight: 900;
-      color: #475569;
-      font-size: 14px;
-      background: #f8fafc;
+      color: #1e293b;
+      font-size: 16px;
+      background: #f1f5f9;
     }
     .col-teama {
       width: 250px;
-      font-size: 15px;
-      font-weight: 900;
-      color: #065f46;
+      white-space: nowrap;
     }
     .col-score {
-      width: 95px;
+      width: 90px;
+      white-space: nowrap;
     }
     .col-teamb {
       width: 250px;
-      font-size: 15px;
-      font-weight: 900;
-      color: #1e40af;
+      white-space: nowrap;
     }
 
     .sched-table td {
-      height: 38px;
+      height: 42px;
+    }
+
+    /* 放大對戰編號 Badges */
+    .p-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 19px;
+      font-weight: 900;
+      padding: 3px 10px;
+      border-radius: 6px;
+      line-height: 1.2;
+      letter-spacing: -0.3px;
+    }
+    .p-tag-a {
+      background: #ecfdf5;
+      color: #047857;
+      border: 1.5px solid #a7f3d0;
+      box-shadow: 0 1px 2px rgba(4, 120, 87, 0.08);
+    }
+    .p-tag-b {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1.5px solid #bfdbfe;
+      box-shadow: 0 1px 2px rgba(29, 78, 216, 0.08);
+    }
+    .p-op {
+      display: inline-block;
+      color: #64748b;
+      font-size: 16px;
+      font-weight: 900;
+      margin: 0 6px;
+      vertical-align: middle;
     }
 
     .score-box {
-      display: inline-block;
-      width: 68px;
-      height: 24px;
-      line-height: 24px;
-      border: 1px solid #94a3b8;
-      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 66px;
+      height: 26px;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 6px;
       background: #ffffff;
       color: #94a3b8;
       font-weight: 800;
-      font-size: 13px;
+      font-size: 14px;
+    }
+
+    /* ==========================================================================
+       📱 RWD (Responsive Design for Mobile & Tablets)
+       ========================================================================== */
+    @media screen and (max-width: 860px) {
+      body {
+        background-color: #f8fafc;
+      }
+      .no-print-bar {
+        position: sticky;
+        top: 0;
+        padding: 8px 12px;
+        gap: 8px;
+      }
+      .bar-left {
+        width: 100%;
+        justify-content: space-between;
+        gap: 6px;
+      }
+      .bar-title {
+        font-size: 13.5px;
+      }
+      .tabs-group {
+        width: 100%;
+        order: 3;
+        margin-top: 4px;
+      }
+      .tab-btn {
+        padding: 5px 10px;
+        font-size: 12px;
+      }
+      .bar-right {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 6px;
+        order: 2;
+      }
+      .action-btn, .print-btn {
+        padding: 5px 10px;
+        font-size: 11.5px;
+      }
+
+      .a4-page {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: auto !important;
+        margin: 8px 0 16px 0 !important;
+        padding: 14px 10px !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        border-top: 1px solid #e2e8f0;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .sheet-header {
+        padding: 8px 12px;
+        margin-bottom: 10px;
+      }
+      .sheet-title {
+        font-size: 16px;
+      }
+      .sheet-page-badge {
+        font-size: 11px;
+        padding: 2px 7px;
+      }
+      .section-title {
+        font-size: 13.5px;
+        margin-bottom: 6px;
+      }
+
+      /* Schedule Table Mobile Sizing */
+      .col-round {
+        width: 40px !important;
+        font-size: 14px !important;
+        padding: 6px 2px !important;
+      }
+      .col-score {
+        width: 54px !important;
+        padding: 6px 2px !important;
+      }
+      .score-box {
+        width: 46px;
+        height: 24px;
+        font-size: 12px;
+      }
+      .col-teama, .col-teamb {
+        width: auto !important;
+        padding: 6px 2px !important;
+      }
+      .sched-table td {
+        height: 38px;
+      }
+      .p-badge {
+        font-size: 16px;
+        padding: 2px 6px;
+        border-radius: 5px;
+      }
+      .p-op {
+        font-size: 13px;
+        margin: 0 2px;
+      }
+
+      /* Roster Table Mobile Sizing */
+      .col-pnum {
+        width: 54px !important;
+        font-size: 14.5px !important;
+        padding: 6px 2px !important;
+      }
+      .col-pname {
+        padding-left: 8px !important;
+        font-size: 13px !important;
+      }
+    }
+
+    /* Print Styles */
+    @media print {
+      body { background: transparent !important; }
+      .no-print-bar { display: none !important; }
+      .a4-page {
+        width: 100% !important;
+        min-height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        page-break-after: always !important;
+      }
+      .a4-page:last-child {
+        page-break-after: auto !important;
+      }
+      .a4-page.print-hidden {
+        display: none !important;
+      }
+      .table-responsive {
+        overflow: visible !important;
+      }
+      .p-badge {
+        font-size: 18px !important;
+        padding: 3px 8px !important;
+      }
+      .p-op {
+        font-size: 15px !important;
+      }
     }
   </style>
 </head>
@@ -254,23 +468,25 @@
 
   <!-- Top Controller Bar -->
   <div class="no-print-bar">
-    <div style="display: flex; align-items: center; gap: 15px;">
-      <strong style="font-size: 14px;">🏓 匹克球單場 2 小時對戰輪替紀錄表（極簡對戰版）</strong>
+    <div class="bar-left">
+      <strong class="bar-title">🏓 匹克球 2 小時對戰輪替紀錄表（極簡對戰版）</strong>
       <div class="tabs-group">
-        <button class="tab-btn active" onclick="showPage('all')">📄 全部顯示 (共 4 頁)</button>
-        <button class="tab-btn" onclick="showPage('p5')">🟢 5 人制</button>
-        <button class="tab-btn" onclick="showPage('p6')">🔵 6 人制</button>
-        <button class="tab-btn" onclick="showPage('p7')">🟠 7 人制</button>
-        <button class="tab-btn" onclick="showPage('p8')">🟣 8 人制</button>
+        <button class="tab-btn active" onclick="showPage(this, 'all')">📄 全部顯示 (4 頁)</button>
+        <button class="tab-btn" onclick="showPage(this, 'p5')">🟢 5 人制</button>
+        <button class="tab-btn" onclick="showPage(this, 'p6')">🔵 6 人制</button>
+        <button class="tab-btn" onclick="showPage(this, 'p7')">🟠 7 人制</button>
+        <button class="tab-btn" onclick="showPage(this, 'p8')">🟣 8 人制</button>
       </div>
-      <a href="/pickleball_2h_rotation_rules_a4.pdf" target="_blank" style="background: #e11d48; color: #fff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
+    </div>
+    <div class="bar-right">
+      <a href="/pickleball_2h_rotation_rules_a4.pdf" target="_blank" class="action-btn btn-pdf">
         📑 下載 A4 PDF
       </a>
-      <a href="/schedule" style="background: #0284c7; color: #fff; text-decoration: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
-        ⏱️ 自訂排班產生器 ↗
+      <a href="/schedule" class="action-btn btn-sched">
+        ⏱️ 自訂排班 ↗
       </a>
+      <button class="print-btn" onclick="window.print()">🖨️ 列印此頁</button>
     </div>
-    <button class="print-btn" onclick="window.print()">🖨️ 列印此頁 (Print to A4 / PDF)</button>
   </div>
 
   <!-- PAGE 1: 5 PLAYERS -->
@@ -285,7 +501,7 @@
       <div class="section-title">
         <span>📋 球員名單</span>
       </div>
-      <table class="roster-table">
+      <div class="table-responsive"><table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
@@ -308,13 +524,13 @@
             <td class="col-pnum" style="color: #cbd5e1;">-</td><td class="col-pname" style="background: #f8fafc;"></td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
 
       <!-- Schedule -->
       <div class="section-title">
         <span>🏓 對戰表</span>
       </div>
-      <table class="sched-table sched-5">
+      <div class="table-responsive"><table class="sched-table sched-5">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
@@ -324,18 +540,18 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-round">1</td><td class="col-teama">1號 + 5號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 4號</td></tr>
-          <tr><td class="col-round">2</td><td class="col-teama">1號 + 2號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 5號</td></tr>
-          <tr><td class="col-round">3</td><td class="col-teama">1號 + 3號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 4號</td></tr>
-          <tr><td class="col-round">4</td><td class="col-teama">1號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 5號</td></tr>
-          <tr><td class="col-round">5</td><td class="col-teama">1號 + 5號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 3號</td></tr>
-          <tr><td class="col-round">6</td><td class="col-teama">2號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 5號</td></tr>
-          <tr><td class="col-round">7</td><td class="col-teama">1號 + 3號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 5號</td></tr>
-          <tr><td class="col-round">8</td><td class="col-teama">1號 + 2號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 4號</td></tr>
-          <tr><td class="col-round">9</td><td class="col-teama">2號 + 3號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 5號</td></tr>
-          <tr><td class="col-round">10</td><td class="col-teama">1號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 5號</td></tr>
+          <tr><td class="col-round">1</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">5號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">4號</span></td></tr>
+          <tr><td class="col-round">2</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">2號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">3</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">3號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">4號</span></td></tr>
+          <tr><td class="col-round">4</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">5</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">5號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">3號</span></td></tr>
+          <tr><td class="col-round">6</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">7</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">3號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">8</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">2號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">4號</span></td></tr>
+          <tr><td class="col-round">9</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">3號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">10</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
   </div>
 
@@ -351,7 +567,7 @@
       <div class="section-title">
         <span>📋 球員名單</span>
       </div>
-      <table class="roster-table">
+      <div class="table-responsive"><table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
@@ -374,13 +590,13 @@
             <td class="col-pnum">6號</td><td class="col-pname"></td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
 
       <!-- Schedule -->
       <div class="section-title">
         <span>🏓 對戰表</span>
       </div>
-      <table class="sched-table sched-6">
+      <div class="table-responsive"><table class="sched-table sched-6">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
@@ -390,17 +606,17 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-round">1</td><td class="col-teama">1號 + 5號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 6號</td></tr>
-          <tr><td class="col-round">2</td><td class="col-teama">1號 + 3號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 6號</td></tr>
-          <tr><td class="col-round">3</td><td class="col-teama">1號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 5號</td></tr>
-          <tr><td class="col-round">4</td><td class="col-teama">3號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">5號 + 6號</td></tr>
-          <tr><td class="col-round">5</td><td class="col-teama">1號 + 2號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 6號</td></tr>
-          <tr><td class="col-round">6</td><td class="col-teama">2號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 5號</td></tr>
-          <tr><td class="col-round">7</td><td class="col-teama">1號 + 6號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 5號</td></tr>
-          <tr><td class="col-round">8</td><td class="col-teama">1號 + 2號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 5號</td></tr>
-          <tr><td class="col-round">9</td><td class="col-teama">2號 + 3號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 6號</td></tr>
+          <tr><td class="col-round">1</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">5號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">2</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">3號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">3</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">4</td><td class="col-teama"><span class="p-badge p-tag-a">3號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">5號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">5</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">2號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">6</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">7</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">6號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">8</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">2號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">9</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">3號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
   </div>
 
@@ -416,7 +632,7 @@
       <div class="section-title">
         <span>📋 球員名單</span>
       </div>
-      <table class="roster-table">
+      <div class="table-responsive"><table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
@@ -443,13 +659,13 @@
             <td class="col-pnum" style="color: #cbd5e1;">-</td><td class="col-pname" style="background: #f8fafc;"></td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
 
       <!-- Schedule -->
       <div class="section-title">
         <span>🏓 對戰表</span>
       </div>
-      <table class="sched-table sched-7">
+      <div class="table-responsive"><table class="sched-table sched-7">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
@@ -459,15 +675,15 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-round">1</td><td class="col-teama">1號 + 2號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 5號</td></tr>
-          <tr><td class="col-round">2</td><td class="col-teama">3號 + 7號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">5號 + 6號</td></tr>
-          <tr><td class="col-round">3</td><td class="col-teama">1號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 7號</td></tr>
-          <tr><td class="col-round">4</td><td class="col-teama">2號 + 5號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 6號</td></tr>
-          <tr><td class="col-round">5</td><td class="col-teama">1號 + 7號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 6號</td></tr>
-          <tr><td class="col-round">6</td><td class="col-teama">2號 + 3號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">1號 + 5號</td></tr>
-          <tr><td class="col-round">7</td><td class="col-teama">3號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">6號 + 7號</td></tr>
+          <tr><td class="col-round">1</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">2號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">2</td><td class="col-teama"><span class="p-badge p-tag-a">3號</span><span class="p-op">+</span><span class="p-badge p-tag-a">7號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">5號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">3</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">7號</span></td></tr>
+          <tr><td class="col-round">4</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">5號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">5</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">7號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">6</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">3號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">1號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">7</td><td class="col-teama"><span class="p-badge p-tag-a">3號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">6號</span><span class="p-op">+</span><span class="p-badge p-tag-b">7號</span></td></tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
   </div>
 
@@ -483,7 +699,7 @@
       <div class="section-title">
         <span>📋 球員名單</span>
       </div>
-      <table class="roster-table">
+      <div class="table-responsive"><table class="roster-table">
         <thead>
           <tr>
             <th class="col-pnum">編號</th>
@@ -510,13 +726,13 @@
             <td class="col-pnum">8號</td><td class="col-pname"></td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
 
       <!-- Schedule -->
       <div class="section-title">
         <span>🏓 對戰表</span>
       </div>
-      <table class="sched-table sched-8">
+      <div class="table-responsive"><table class="sched-table sched-8">
         <thead>
           <tr>
             <th class="col-round">輪次</th>
@@ -526,35 +742,39 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td class="col-round">1</td><td class="col-teama">1號 + 8號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">5號 + 7號</td></tr>
-          <tr><td class="col-round">2</td><td class="col-teama">2號 + 3號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 6號</td></tr>
-          <tr><td class="col-round">3</td><td class="col-teama">1號 + 5號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">7號 + 8號</td></tr>
-          <tr><td class="col-round">4</td><td class="col-teama">2號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 6號</td></tr>
-          <tr><td class="col-round">5</td><td class="col-teama">1號 + 7號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">5號 + 8號</td></tr>
-          <tr><td class="col-round">6</td><td class="col-teama">2號 + 6號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">3號 + 4號</td></tr>
-          <tr><td class="col-round">7</td><td class="col-teama">3號 + 8號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">6號 + 7號</td></tr>
-          <tr><td class="col-round">8</td><td class="col-teama">1號 + 2號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">4號 + 5號</td></tr>
-          <tr><td class="col-round">9</td><td class="col-teama">3號 + 7號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">6號 + 8號</td></tr>
-          <tr><td class="col-round">10</td><td class="col-teama">1號 + 4號</td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb">2號 + 5號</td></tr>
+          <tr><td class="col-round">1</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">8號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">5號</span><span class="p-op">+</span><span class="p-badge p-tag-b">7號</span></td></tr>
+          <tr><td class="col-round">2</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">3號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">3</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">5號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">7號</span><span class="p-op">+</span><span class="p-badge p-tag-b">8號</span></td></tr>
+          <tr><td class="col-round">4</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">6號</span></td></tr>
+          <tr><td class="col-round">5</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">7號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">5號</span><span class="p-op">+</span><span class="p-badge p-tag-b">8號</span></td></tr>
+          <tr><td class="col-round">6</td><td class="col-teama"><span class="p-badge p-tag-a">2號</span><span class="p-op">+</span><span class="p-badge p-tag-a">6號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">3號</span><span class="p-op">+</span><span class="p-badge p-tag-b">4號</span></td></tr>
+          <tr><td class="col-round">7</td><td class="col-teama"><span class="p-badge p-tag-a">3號</span><span class="p-op">+</span><span class="p-badge p-tag-a">8號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">6號</span><span class="p-op">+</span><span class="p-badge p-tag-b">7號</span></td></tr>
+          <tr><td class="col-round">8</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">2號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">4號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
+          <tr><td class="col-round">9</td><td class="col-teama"><span class="p-badge p-tag-a">3號</span><span class="p-op">+</span><span class="p-badge p-tag-a">7號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">6號</span><span class="p-op">+</span><span class="p-badge p-tag-b">8號</span></td></tr>
+          <tr><td class="col-round">10</td><td class="col-teama"><span class="p-badge p-tag-a">1號</span><span class="p-op">+</span><span class="p-badge p-tag-a">4號</span></td><td class="col-score"><span class="score-box">：</span></td><td class="col-teamb"><span class="p-badge p-tag-b">2號</span><span class="p-op">+</span><span class="p-badge p-tag-b">5號</span></td></tr>
         </tbody>
-      </table>
+      </table></div>
     </div>
   </div>
 
   <script>
-    function showPage(mode) {
+    function showPage(btn, mode) {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+      if (btn) {
+        btn.classList.add('active');
+      }
 
       const pages = ['p5', 'p6', 'p7', 'p8'];
       pages.forEach(p => {
         const el = document.getElementById('page-' + p);
-        if (mode === 'all' || mode === p) {
-          el.style.display = 'flex';
-          el.classList.remove('print-hidden');
-        } else {
-          el.style.display = 'none';
-          el.classList.add('print-hidden');
+        if (el) {
+          if (mode === 'all' || mode === p) {
+            el.style.display = 'flex';
+            el.classList.remove('print-hidden');
+          } else {
+            el.style.display = 'none';
+            el.classList.add('print-hidden');
+          }
         }
       });
     }
