@@ -339,16 +339,19 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         .lte("start_date", dateStr);
       query = applyCityFilter(query);
 
-      // 並行執行開團資料、停開排除與特別場次查詢，大幅縮短網路延遲
-      const [meetupsRes, exclRes, sessionRes] = await Promise.all([
+      // 並行執行開團資料與特別場次查詢，大幅縮短網路延遲
+      const [meetupsRes, sessionRes] = await Promise.all([
         query.order("id", { ascending: false }),
-        client.from("meetup_exclusions").select("meetup_id").eq("exclude_date", dateStr),
         client.from("sessions").select("meetup_id, capacity_override, session_notes, status, match_schedule").eq("session_date", dateStr)
       ]);
 
       if (meetupsRes.error) throw meetupsRes.error;
       const data = meetupsRes.data;
-      const excludedIds = new Set((exclRes.data || []).map(x => String(x.meetup_id)));
+      const excludedIds = new Set(
+        (exclusions || [])
+          .filter(x => x.exclude_date === dateStr)
+          .map(x => String(x.meetup_id))
+      );
       const sessionMap = (sessionRes.data || []).reduce((acc, row) => {
         acc[String(row.meetup_id)] = row;
         return acc;
@@ -483,31 +486,6 @@ function clearRosterCache() {
   MEETUP_CACHE.clear();
 }
 
-function prefetchMonthMeetups() {
-  if (!availableRules || !availableRules.length) return;
-  const today = toISODate(new Date());
-  const base = dateFromISO(visibleMonth);
-  const year = base.getFullYear();
-  const month = base.getMonth();
-  const last = new Date(year, month + 1, 0);
-  const dates = [];
-  for (let d = 1; d <= last.getDate(); d++) {
-    const ds = toISODate(new Date(year, month, d));
-    if (ds >= today && hasAvailableMeetupOnDate(ds) && !MEETUP_CACHE.has(ds)) {
-      dates.push(ds);
-    }
-  }
-
-  // 背景非同步預載近期的開團資料 (每次最多預載 5 個有效開團日)
-  dates.slice(0, 5).forEach((ds, i) => {
-    setTimeout(() => {
-      if (!MEETUP_CACHE.has(ds)) {
-        loadMeetupsByDate(ds, false).catch(() => {});
-      }
-    }, 180 * (i + 1));
-  });
-}
-
 function renderCalendar() {
   const monthTitleEl = $("monthTitle");
   const weekRowEl = $("weekRow");
@@ -545,7 +523,6 @@ function renderCalendar() {
       refreshAll(false);
     });
   });
-  prefetchMonthMeetups();
 }
 
 function renderMeetups(meetups) {
