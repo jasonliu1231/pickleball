@@ -265,7 +265,16 @@ export default function MemberPage() {
                 <label>備註說明（選填）
                   <textarea id="editPickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球"></textarea>
                 </label>
-                <button className="btn-primary" id="savePickupBtn" type="submit" style={{ height: "46px", fontSize: "15px", marginTop: "8px" }}>
+                <div style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
+                  <label style={{ margin: 0, fontWeight: "800", color: "#0f172a" }}>
+                    🔒 私人團報名密碼設定
+                    <input id="editPickupJoinPassword" placeholder="留空即為完全公開團；輸入密碼則為私人團" style={{ marginTop: "6px" }} />
+                  </label>
+                  <p className="muted" style={{ fontSize: "12px", margin: "6px 0 0 0", color: "#64748b", lineHeight: "18px" }}>
+                    💡 <strong>好友都報名完了？</strong> 只要將上方密碼<strong>全部清空</strong>並點擊儲存，活動便會立即開放給所有球友自由報名！
+                  </p>
+                </div>
+                <button className="btn-primary" id="savePickupBtn" type="submit" style={{ height: "46px", fontSize: "15px", marginTop: "12px" }}>
                   儲存修改
                 </button>
               </form>

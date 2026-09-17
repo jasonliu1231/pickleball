@@ -97,6 +97,12 @@ export default function Page() {
               <input type="checkbox" id="isTentative" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
               <span style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text)" }}>排彈性候補 (直接排備取，不佔正取名額)</span>
             </label>
+            <div id="signupPasswordRow" style={{ display: "none", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: "10px", padding: "12px", margin: "10px 0" }}>
+              <label style={{ margin: 0, color: "#92400e", fontWeight: "800", fontSize: "13.5px" }}>
+                🔒 報名通關密碼 (本場次為私人密碼團)
+                <input id="signupPassword" placeholder="請輸入發起人提供的通關密碼" style={{ marginTop: "6px", borderColor: "#f59e0b", background: "#ffffff" }} />
+              </label>
+            </div>
             <label>備註，可不填
               <textarea id="note" placeholder="有想先告知的事可以寫在這裡"></textarea>
             </label>
@@ -182,7 +188,21 @@ export default function Page() {
             <label>備註說明（選填）
               <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
             </label>
-            <button className="btn-primary" id="submitPickupBtn" type="submit" style={{ height: "46px", fontSize: "15px", marginTop: "8px" }}>
+            <div style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: 0, userSelect: "none" }}>
+                <input type="checkbox" id="pickupIsPrivate" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
+                <span style={{ fontSize: "14px", fontWeight: "800", color: "#0f172a" }}>🔒 設為私人密碼團（先讓朋友報名）</span>
+              </label>
+              <div id="pickupPasswordWrap" style={{ display: "none", marginTop: "10px" }}>
+                <label style={{ margin: 0, fontSize: "13px" }}>設定通關密碼 (例如：1234 或通關暗號)
+                  <input id="pickupJoinPassword" placeholder="輸入通關密碼，朋友憑此密碼報名" style={{ marginTop: "4px" }} />
+                </label>
+                <p className="muted" style={{ fontSize: "12px", margin: "4px 0 0 0", color: "#64748b" }}>
+                  💡 好友報名確認後，發起人可隨時在「預約管理」將密碼清空，直接轉為公開團開放大眾！
+                </p>
+              </div>
+            </div>
+            <button className="btn-primary" id="submitPickupBtn" type="submit" style={{ height: "46px", fontSize: "15px", marginTop: "12px" }}>
               確認發起揪團
             </button>
           </form>

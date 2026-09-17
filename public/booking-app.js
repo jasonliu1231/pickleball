@@ -576,6 +576,7 @@ function renderMeetups(meetups) {
         <div>
           <h3 class="meetup-title">
             ${m.creator_member_id ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
+            ${(m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
             ${escapeHtml(m.name || "未命名活動")}
           </h3>
           <p class="muted">
@@ -783,6 +784,17 @@ function openSignup(meetup) {
     }
   }
 
+  const pwdRow = $("signupPasswordRow");
+  if (pwdRow) {
+    if (meetup.has_password || meetup.is_private) {
+      pwdRow.style.display = "block";
+      if ($("signupPassword")) $("signupPassword").value = "";
+    } else {
+      pwdRow.style.display = "none";
+      if ($("signupPassword")) $("signupPassword").value = "";
+    }
+  }
+
   $("signupModal").classList.add("show");
 }
 function closeSignup() { $("signupModal").classList.remove("show"); currentMeetup = null; }
@@ -842,6 +854,7 @@ function openEditPickupModal(m) {
   if ($("editPickupCapacity")) $("editPickupCapacity").value = m.capacity || 4;
   if ($("editPickupFee")) $("editPickupFee").value = m.fee || "場租平分";
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
+  if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
   $("editPickupModal")?.classList.add("show");
 }
@@ -865,6 +878,7 @@ async function handleUpdatePickup(e) {
   const capacity = parseInt($("editPickupCapacity")?.value || "4", 10);
   const fee = $("editPickupFee")?.value?.trim() || "場租平分";
   const notes = $("editPickupNotes")?.value?.trim() || "";
+  const joinPassword = $("editPickupJoinPassword")?.value?.trim() || null;
 
   if (!meetupId || !name || !city || !startTime || !endTime || !address || !capacity) {
     return setMessage($("editPickupMessage"), "請填寫所有必填欄位", false);
@@ -889,7 +903,8 @@ async function handleUpdatePickup(e) {
       p_end_time: endTime,
       p_capacity: capacity,
       p_fee: fee,
-      p_notes: notes
+      p_notes: notes,
+      p_join_password: joinPassword
     });
 
     if (error) throw error;
@@ -935,6 +950,17 @@ function openCreatePickupModal(presetDate) {
     $("pickupCity").value = selectedCity;
   }
   clearMessage($("pickupFormMessage"));
+  const privateCheckbox = $("pickupIsPrivate");
+  const pwdWrap = $("pickupPasswordWrap");
+  if (privateCheckbox && pwdWrap) {
+    privateCheckbox.checked = false;
+    pwdWrap.style.display = "none";
+    if ($("pickupJoinPassword")) $("pickupJoinPassword").value = "";
+    privateCheckbox.onchange = () => {
+      pwdWrap.style.display = privateCheckbox.checked ? "block" : "none";
+      if (privateCheckbox.checked) $("pickupJoinPassword")?.focus();
+    };
+  }
   $("createPickupModal")?.classList.add("show");
 }
 
@@ -957,6 +983,12 @@ async function handleCreatePickup(e) {
   const capacity = parseInt($("pickupCapacity")?.value || "4", 10);
   const fee = $("pickupFee")?.value?.trim() || "場租平分";
   const notes = $("pickupNotes")?.value?.trim() || "";
+
+  const isPrivate = $("pickupIsPrivate")?.checked;
+  const joinPassword = isPrivate ? ($("pickupJoinPassword")?.value?.trim() || null) : null;
+  if (isPrivate && !joinPassword) {
+    return setMessage($("pickupFormMessage"), "請為私人團設定通關密碼，或取消勾選私人團。", false);
+  }
 
   if (!name || !date || !city || !startTime || !endTime || !address || !capacity) {
     return setMessage($("pickupFormMessage"), "請填寫所有必填欄位", false);
@@ -981,7 +1013,8 @@ async function handleCreatePickup(e) {
       p_end_time: endTime,
       p_capacity: capacity,
       p_fee: fee,
-      p_notes: notes
+      p_notes: notes,
+      p_join_password: joinPassword
     });
 
     if (error) throw error;
@@ -1089,6 +1122,11 @@ async function handleSignup(e) {
   const isBeginner = isBeginnerSkill(skillLevel);
   const peopleCount = parseInt($("peopleCount")?.value || "1") || 1;
   const isTentative = $("isTentative") ? $("isTentative").checked : false;
+  const password = $("signupPassword")?.value?.trim() || null;
+
+  if ((currentMeetup.has_password || currentMeetup.is_private) && !password) {
+    return setMessage($("formMessage"), "此活動為私人密碼團，請輸入報名通關密碼。", false);
+  }
   if (!nickname) return setMessage($("formMessage"), "請填寫暱稱。", false);
   if (!validatePhone(phone)) return setMessage($("formMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
   $("submitBtn").disabled = true;
@@ -1103,7 +1141,8 @@ async function handleSignup(e) {
       p_skill_level: skillLevel,
       p_note: note || null,
       p_people_count: peopleCount,
-      p_is_tentative: isTentative
+      p_is_tentative: isTentative,
+      p_password: password
     });
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
@@ -1142,6 +1181,17 @@ async function handleSignup(e) {
 }
 async function handleQuickSignup(meetup, btn) {
   if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) return;
+
+  let passwordVal = null;
+  if (meetup.has_password || meetup.is_private) {
+    passwordVal = prompt(`活動「${meetup.name}」為私人密碼團，請輸入發起人提供的通關密碼：`);
+    if (passwordVal === null) return;
+    if (!passwordVal.trim()) {
+      alert("此活動為私人密碼團，請輸入通關密碼後再進行報名！");
+      return;
+    }
+    passwordVal = passwordVal.trim();
+  }
   
   btn.disabled = true;
   const originalText = btn.innerHTML;
@@ -1192,7 +1242,8 @@ async function handleQuickSignup(meetup, btn) {
       p_skill_level: skillLevelVal,
       p_note: null,
       p_people_count: 1,
-      p_is_tentative: false
+      p_is_tentative: false,
+      p_password: passwordVal
     });
     if (error) throw error;
     const result = Array.isArray(data) ? data[0] : data;
@@ -1896,7 +1947,7 @@ async function loadMemberDashboard() {
     try {
       const { data: myMeetups, error: myMeetupsErr } = await client
         .from("meetups")
-        .select("id, name, city, address, street_address, start_date, start_time, end_time, capacity, fee, notes, is_active")
+        .select("id, name, city, address, street_address, start_date, start_time, end_time, capacity, fee, notes, is_active, join_password")
         .eq("creator_member_id", currentSystemMember.id)
         .order("start_date", { ascending: false });
 
@@ -1951,8 +2002,9 @@ async function loadMemberDashboard() {
             <div class="booking-item-card" style="flex-direction: column; align-items: stretch; gap: 10px;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
                 <div>
-                  <div style="display: flex; align-items: center; gap: 6px;">
+                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                     <span class="badge pickup-badge" style="font-size: 11px; padding: 2px 6px;">我的自揪</span>
+                    ${m.join_password ? `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 密碼: ${escapeHtml(m.join_password)}</span>` : `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">🌐 公開團</span>`}
                     <strong style="font-size: 15px; color: var(--text);">${escapeHtml(m.name)}</strong>
                   </div>
                   <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">
