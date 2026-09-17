@@ -63,6 +63,7 @@ export default function FaqPage() {
                   <p style={{ fontSize: "12px", color: "var(--sub)", lineHeight: "18px", marginBottom: "12px", minHeight: "54px" }}>
                     當您排在備取時，一旦有名額釋出或被轉為正取，LINE 將立刻推播通知卡片。<br/>
                     <span style={{ color: "#dc2626", fontWeight: "bold", display: "block", marginTop: "4px" }}>⚠️ 提醒：請務必在個人中心綁定手機號碼，否則系統無法對應發送通知！</span>
+                    <span style={{ color: "#d97706", fontWeight: "bold", display: "block", marginTop: "4px" }}>💡 重要說明：LINE 推播通知由官方團主負擔訊息費用，因此<strong>僅限「團主發起」之場次</strong>；「球友自發團」系統仍會自動依序遞補，但為節省費用不會發送 LINE 推播，請自行登入查看狀態。</span>
                   </p>
                   <img src="/images/line_promote_notice.png" alt="備取遞補成功通知" onClick={() => handleImageClick("/images/line_promote_notice.png")} style={{ width: "100%", borderRadius: "8px", border: "1px solid var(--line)", cursor: "zoom-in" }} />
                 </div>
@@ -206,6 +207,7 @@ export default function FaqPage() {
                       <li><strong>發起人保障：</strong>發起人建立即自動為正取第 1 位，無需重複搶位。</li>
                       <li><strong>私人密碼團：</strong>可自訂「🔒 通關密碼」，先讓熟識好友報名，後續可隨時清空密碼開放全站球友報名。</li>
                       <li><strong>費用與分攤：</strong>通常為「場租平分」或約定零打費，由同行球友在現場自主協調分攤。</li>
+                      <li><strong>備取遞補通知：</strong>若正取有人取消，系統仍會<strong>自動依序遞補</strong>；但因節省訊息費用，自發團<strong>不會發送 LINE 推播通知</strong>，請備取球友自行至網站/App 查詢狀態。</li>
                     </ul>
                   </div>
 
@@ -219,7 +221,7 @@ export default function FaqPage() {
                       <li><strong>活動性質：</strong>每週固定常態暢打、技巧指導班或分級友誼對抗賽。</li>
                       <li><strong>現場服務：</strong>通常配有教練或團長駐場主持、排定上下場順序或提供用球/備用拍。</li>
                       <li><strong>儲值與扣點：</strong>支援俱樂部會員點數錢包自動扣款、會員專屬折扣或多次卡抵扣。</li>
-                      <li><strong>名額規範：</strong>嚴格遵守開團規範、專屬取消時限與系統備取自動遞補機制。</li>
+                      <li><strong>備取遞補通知：</strong>正取有人取消時系統自動遞補備取，且<strong>由團主負擔費用發送 LINE 官方卡片推播通知</strong>（需在個人中心綁定手機並加入官方 LINE 好友）。</li>
                     </ul>
                   </div>
                 </div>
