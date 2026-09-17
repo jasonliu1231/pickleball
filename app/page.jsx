@@ -93,7 +93,7 @@ export default function Page() {
                 <option value="1">1 人</option>
               </select>
             </label>
-            <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: "12px 0 16px 0", userSelect: "none" }}>
+            <label style={{ display: "none" }}>
               <input type="checkbox" id="isTentative" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
               <span style={{ fontSize: "13.5px", fontWeight: "700", color: "var(--text)" }}>排彈性候補 (直接排備取，不佔正取名額)</span>
             </label>
