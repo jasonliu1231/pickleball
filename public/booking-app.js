@@ -310,120 +310,148 @@ function isMeetupEnded(m, dateStr) {
   return new Date() > gameEnd;
 }
 
-async function loadMeetupsByDate(dateStr) {
-  const weekday = dateFromISO(dateStr).getDay();
-  let query = client
-    .from("booking_meetup_weekdays_view")
-    .select("*")
-    .eq("is_active", true)
-    .eq("weekday_is_active", true)
-    .eq("weekday", weekday)
-    .lte("start_date", dateStr);
-  query = applyCityFilter(query);
+// 高效記憶體快取 (90 秒 TTL) 與並行請求去重
+const MEETUP_CACHE = new Map();
+const CACHE_TTL = 90 * 1000;
+const inFlightMeetupRequests = new Map();
 
-  // Run all independent queries in parallel to drastically reduce network latency
-  const [meetupsRes, exclRes, sessionRes] = await Promise.all([
-    query.order("id", { ascending: false }),
-    client.from("meetup_exclusions").select("meetup_id").eq("exclude_date", dateStr),
-    client.from("sessions").select("meetup_id, capacity_override, session_notes, status, match_schedule").eq("session_date", dateStr)
-  ]);
+async function loadMeetupsByDate(dateStr, forceRefresh = false) {
+  const cached = MEETUP_CACHE.get(dateStr);
+  const now = Date.now();
+  if (cached && !forceRefresh && (now - cached.timestamp < CACHE_TTL)) {
+    return cached.data; // 0ms 極速秒開！
+  }
 
-  if (meetupsRes.error) throw meetupsRes.error;
-  const data = meetupsRes.data;
-  const excludedIds = new Set((exclRes.data || []).map(x => String(x.meetup_id)));
-  const sessionMap = (sessionRes.data || []).reduce((acc, row) => {
-    acc[String(row.meetup_id)] = row;
-    return acc;
-  }, {});
+  // 若相同日期的請求正在進行中，共用同一個 Promise，避免重複發送請求
+  if (inFlightMeetupRequests.has(dateStr)) {
+    return inFlightMeetupRequests.get(dateStr);
+  }
 
-  const rows = (data || [])
-    .filter(m => {
-      if (excludedIds.has(String(m.id))) return false;
-      if (m.is_one_off && m.one_off_date !== dateStr) return false;
-      const sess = sessionMap[String(m.id)];
-      if (sess && sess.status === 'cancelled') return false;
-      return true;
-    })
-    .map((m) => {
-      const sess = sessionMap[String(m.id)];
-      return {
-        ...m,
-        push_tokens: normalizePushTokens(m.push_tokens),
-        capacity_override: sess ? (sess.capacity_override ?? m.capacity_override ?? null) : (m.capacity_override ?? null),
-        weekday_notes: m.weekday_notes ?? null,
-        session_notes: sess ? (sess.session_notes ?? null) : null,
-        status: sess ? (sess.status ?? 'open') : 'open',
-        match_schedule: sess ? (sess.match_schedule ?? null) : null,
-      };
-    });
+  const fetchPromise = (async () => {
+    try {
+      const weekday = dateFromISO(dateStr).getDay();
+      let query = client
+        .from("booking_meetup_weekdays_view")
+        .select("*")
+        .eq("is_active", true)
+        .eq("weekday_is_active", true)
+        .eq("weekday", weekday)
+        .lte("start_date", dateStr);
+      query = applyCityFilter(query);
 
-  const ids = rows.map((x) => x.id);
-  let counts = {};
-  if (ids.length) {
-    const { data: countRows, error: rpcError } = await client.rpc("get_meetup_counts_by_date", {
-      p_reservation_date: dateStr,
-      p_meetup_ids: ids
-    });
-    if (!rpcError) {
-      counts = (countRows || []).reduce((acc, row) => {
+      // 並行執行開團資料、停開排除與特別場次查詢，大幅縮短網路延遲
+      const [meetupsRes, exclRes, sessionRes] = await Promise.all([
+        query.order("id", { ascending: false }),
+        client.from("meetup_exclusions").select("meetup_id").eq("exclude_date", dateStr),
+        client.from("sessions").select("meetup_id, capacity_override, session_notes, status, match_schedule").eq("session_date", dateStr)
+      ]);
+
+      if (meetupsRes.error) throw meetupsRes.error;
+      const data = meetupsRes.data;
+      const excludedIds = new Set((exclRes.data || []).map(x => String(x.meetup_id)));
+      const sessionMap = (sessionRes.data || []).reduce((acc, row) => {
         acc[String(row.meetup_id)] = row;
         return acc;
       }, {});
-    } else {
-      const { data: signups, error: signupError } = await client
-        .from("signups")
-        .select("meetup_id,status,people_count")
-        .in("meetup_id", ids)
-        .eq("reservation_date", dateStr)
-        .in("status", ["confirmed", "waitlist"]);
-      if (signupError) throw signupError;
-      counts = (signups || []).reduce((acc, row) => {
-        const key = String(row.meetup_id);
-        const pCount = Number(row.people_count || 1);
-        acc[key] = acc[key] || { confirmed_total_count: 0, waitlist_count: 0, member_count: 0, confirmed_signup_count: 0 };
-        if (row.status === "waitlist") acc[key].waitlist_count += pCount;
-        else {
-          acc[key].confirmed_total_count += pCount;
-          acc[key].confirmed_signup_count += pCount;
-        }
-        return acc;
-      }, {});
-    }
-  }
-  
-  const mapped = rows.map((m) => {
-    const cap = m.capacity_override ?? m.capacity ?? 0;
-    const c = counts[String(m.id)] || {};
-    const realConfirmed = Number(c.confirmed_total_count ?? c.confirmed_count ?? 0);
-    return {
-      ...m,
-      member_count: Number(c.member_count || 0),
-      confirmed_signup_count: Number(c.confirmed_signup_count || 0),
-      confirmed_count: realConfirmed,
-      display_confirmed_count: cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed,
-      waitlist_count: Number(c.waitlist_count || 0),
-      over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
-    };
-  });
 
-  // 排序邏輯：未結束的活動排前面，已結束的排後面；在此大分類下，以開始時間 start_time 由小到大排序
-  return mapped.sort((a, b) => {
-    const aEnded = isMeetupEnded(a, dateStr);
-    const bEnded = isMeetupEnded(b, dateStr);
-    
-    // 1. 已結束的排最下面
-    if (aEnded && !bEnded) return 1;
-    if (!aEnded && bEnded) return -1;
-    
-    // 2. 其餘照開始時間由小到大排序
-    const aTime = a.start_time || "00:00";
-    const bTime = b.start_time || "00:00";
-    if (aTime !== bTime) {
-      return aTime.localeCompare(bTime);
+      const rows = (data || [])
+        .filter(m => {
+          if (excludedIds.has(String(m.id))) return false;
+          if (m.is_one_off && m.one_off_date !== dateStr) return false;
+          const sess = sessionMap[String(m.id)];
+          if (sess && sess.status === 'cancelled') return false;
+          return true;
+        })
+        .map((m) => {
+          const sess = sessionMap[String(m.id)];
+          return {
+            ...m,
+            push_tokens: normalizePushTokens(m.push_tokens),
+            capacity_override: sess ? (sess.capacity_override ?? m.capacity_override ?? null) : (m.capacity_override ?? null),
+            weekday_notes: m.weekday_notes ?? null,
+            session_notes: sess ? (sess.session_notes ?? null) : null,
+            status: sess ? (sess.status ?? 'open') : 'open',
+            match_schedule: sess ? (sess.match_schedule ?? null) : null,
+          };
+        });
+
+      const ids = rows.map((x) => x.id);
+      let counts = {};
+      if (ids.length) {
+        const { data: countRows, error: rpcError } = await client.rpc("get_meetup_counts_by_date", {
+          p_reservation_date: dateStr,
+          p_meetup_ids: ids
+        });
+        if (!rpcError) {
+          counts = (countRows || []).reduce((acc, row) => {
+            acc[String(row.meetup_id)] = row;
+            return acc;
+          }, {});
+        } else {
+          const { data: signups, error: signupError } = await client
+            .from("signups")
+            .select("meetup_id,status,people_count")
+            .in("meetup_id", ids)
+            .eq("reservation_date", dateStr)
+            .in("status", ["confirmed", "waitlist"]);
+          if (signupError) throw signupError;
+          counts = (signups || []).reduce((acc, row) => {
+            const key = String(row.meetup_id);
+            const pCount = Number(row.people_count || 1);
+            acc[key] = acc[key] || { confirmed_total_count: 0, waitlist_count: 0, member_count: 0, confirmed_signup_count: 0 };
+            if (row.status === "waitlist") acc[key].waitlist_count += pCount;
+            else {
+              acc[key].confirmed_total_count += pCount;
+              acc[key].confirmed_signup_count += pCount;
+            }
+            return acc;
+          }, {});
+        }
+      }
+      
+      const mapped = rows.map((m) => {
+        const cap = m.capacity_override ?? m.capacity ?? 0;
+        const c = counts[String(m.id)] || {};
+        const realConfirmed = Number(c.confirmed_total_count ?? c.confirmed_count ?? 0);
+        return {
+          ...m,
+          member_count: Number(c.member_count || 0),
+          confirmed_signup_count: Number(c.confirmed_signup_count || 0),
+          confirmed_count: realConfirmed,
+          display_confirmed_count: cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed,
+          waitlist_count: Number(c.waitlist_count || 0),
+          over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
+        };
+      });
+
+      // 排序邏輯：未結束的活動排前面，已結束的排後面；在此大分類下，以開始時間 start_time 由小到大排序
+      mapped.sort((a, b) => {
+        const aEnded = isMeetupEnded(a, dateStr);
+        const bEnded = isMeetupEnded(b, dateStr);
+        
+        // 1. 已結束的排最下面
+        if (aEnded && !bEnded) return 1;
+        if (!aEnded && bEnded) return -1;
+        
+        // 2. 其餘照開始時間由小到大排序
+        const aTime = a.start_time || "00:00";
+        const bTime = b.start_time || "00:00";
+        if (aTime !== bTime) {
+          return aTime.localeCompare(bTime);
+        }
+        
+        return Number(a.id) - Number(b.id);
+      });
+
+      MEETUP_CACHE.set(dateStr, { data: mapped, timestamp: Date.now() });
+      return mapped;
+    } finally {
+      inFlightMeetupRequests.delete(dateStr);
     }
-    
-    return Number(a.id) - Number(b.id);
-  });
+  })();
+
+  inFlightMeetupRequests.set(dateStr, fetchPromise);
+  return fetchPromise;
 }
 
 async function fetchRoster(meetupId, dateStr) {
@@ -450,7 +478,35 @@ async function fetchRoster(meetupId, dateStr) {
   rosterCache.set(key, rows);
   return rows;
 }
-function clearRosterCache() { rosterCache.clear(); }
+function clearRosterCache() {
+  rosterCache.clear();
+  MEETUP_CACHE.clear();
+}
+
+function prefetchMonthMeetups() {
+  if (!availableRules || !availableRules.length) return;
+  const today = toISODate(new Date());
+  const base = dateFromISO(visibleMonth);
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const last = new Date(year, month + 1, 0);
+  const dates = [];
+  for (let d = 1; d <= last.getDate(); d++) {
+    const ds = toISODate(new Date(year, month, d));
+    if (ds >= today && hasAvailableMeetupOnDate(ds) && !MEETUP_CACHE.has(ds)) {
+      dates.push(ds);
+    }
+  }
+
+  // 背景非同步預載近期的開團資料 (每次最多預載 5 個有效開團日)
+  dates.slice(0, 5).forEach((ds, i) => {
+    setTimeout(() => {
+      if (!MEETUP_CACHE.has(ds)) {
+        loadMeetupsByDate(ds, false).catch(() => {});
+      }
+    }, 180 * (i + 1));
+  });
+}
 
 function renderCalendar() {
   const monthTitleEl = $("monthTitle");
@@ -485,9 +541,11 @@ function renderCalendar() {
     btn.addEventListener("click", () => {
       selectedDate = btn.dataset.date;
       visibleMonth = selectedDate.slice(0, 7) + "-01";
-      refreshAll(true);
+      renderCalendar();
+      refreshAll(false);
     });
   });
+  prefetchMonthMeetups();
 }
 
 function renderMeetups(meetups) {
@@ -1305,8 +1363,9 @@ async function handleCancel(e) {
 }
 
 async function refreshMeetupListOnly() {
-  const meetups = await loadMeetupsByDate(selectedDate);
+  const meetups = await loadMeetupsByDate(selectedDate, true);
   renderMeetups(meetups);
+  updateDailyPulse(meetups);
 }
 async function refreshAll(showLoading = true) {
   if (!$("daysGrid") && !$("meetupList")) return;
@@ -1315,7 +1374,18 @@ async function refreshAll(showLoading = true) {
   if (dateEl) dateEl.textContent = formatDate(selectedDate);
   
   const meetupEl = $("meetupList");
-  if (meetupEl && showLoading) {
+  const cached = MEETUP_CACHE.get(selectedDate);
+  const now = Date.now();
+  const isFresh = cached && (now - cached.timestamp < CACHE_TTL);
+
+  // 1. 若記憶體已有快取，0ms 極速秒開渲染！
+  if (cached) {
+    renderMeetups(cached.data);
+    updateDailyPulse(cached.data);
+    if (isFresh && !showLoading) {
+      return;
+    }
+  } else if (meetupEl && showLoading) {
     meetupEl.innerHTML = `
       <div class="skeleton-card">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1345,11 +1415,11 @@ async function refreshAll(showLoading = true) {
     `;
   }
   try {
-    const meetups = await loadMeetupsByDate(selectedDate);
+    const meetups = await loadMeetupsByDate(selectedDate, !isFresh);
     renderMeetups(meetups);
     updateDailyPulse(meetups);
   } catch (e) {
-    if (meetupEl) {
+    if (meetupEl && !cached) {
       meetupEl.innerHTML = `<p class="empty">資料讀取失敗，請稍後再試。</p>`;
     }
     console.error(e);
@@ -1528,14 +1598,18 @@ async function ensureSystemMember(user) {
     }
     return inserted;
   } else {
-    // 預防防禦：若資料庫內仍為預設的「球友」或無有效 LINE ID (以 U 開頭)，在登入時自動同步更新
+    // 僅在有新資料或需要修正時更新，避免每次載入頁面都觸發冗餘的資料庫寫入 (省下約 1 秒)
+    const shouldUpdateName = data.nickname === "球友" && defaultName && defaultName !== "球友";
     const hasValidLineId = data.line_user_id && typeof data.line_user_id === "string" && data.line_user_id.startsWith("U") && data.line_user_id.length === 33;
-    if ((data.nickname === "球友" && defaultName !== "球友") || !hasValidLineId) {
+    const hasNewValidLineId = lineUserId && typeof lineUserId === "string" && lineUserId.startsWith("U") && lineUserId.length === 33;
+    const shouldUpdateLine = hasNewValidLineId && (!hasValidLineId || lineUserId !== data.line_user_id);
+
+    if (shouldUpdateName || shouldUpdateLine) {
       const { data: updated } = await client
         .from("system_members")
         .update({ 
-          nickname: data.nickname === "球友" ? defaultName : data.nickname, 
-          line_user_id: lineUserId 
+          nickname: shouldUpdateName ? defaultName : data.nickname, 
+          line_user_id: shouldUpdateLine ? lineUserId : data.line_user_id 
         })
         .eq("id", user.id)
         .select()
@@ -2628,29 +2702,38 @@ if ($("knowledgeList")) renderStaticContent();
     refreshAll();
   });
 
-  // Auth session check runs concurrently in the background without blocking card rendering
-  client.auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      sessionStorage.removeItem("user_logged_out");
-      currentUser = session.user;
-      currentSystemMember = await ensureSystemMember(currentUser);
-      toggleAuthView(true);
-      if ($("memberDashboard")) loadMemberDashboard();
-    } else {
+  // 統一身分同步處理 (避免 onAuthStateChange 與 getSession 重複並行呼叫造成多次資料庫查詢)
+  let activeMemberPromise = null;
+  async function syncUserAuth(user) {
+    if (!user) {
       currentUser = null;
       currentSystemMember = null;
       toggleAuthView(false);
+      return null;
     }
+    sessionStorage.removeItem("user_logged_out");
+    currentUser = user;
+    if (!activeMemberPromise) {
+      activeMemberPromise = ensureSystemMember(user).then((m) => {
+        currentSystemMember = m;
+        toggleAuthView(true);
+        if ($("memberDashboard")) loadMemberDashboard();
+        return m;
+      }).finally(() => {
+        activeMemberPromise = null;
+      });
+    }
+    return activeMemberPromise;
+  }
+
+  client.auth.onAuthStateChange((event, session) => {
+    syncUserAuth(session?.user);
   });
 
   try {
     const { data: { session } } = await client.auth.getSession();
     if (session?.user) {
-      sessionStorage.removeItem("user_logged_out");
-      currentUser = session.user;
-      currentSystemMember = await ensureSystemMember(currentUser);
-      toggleAuthView(true);
-      if ($("memberDashboard")) loadMemberDashboard();
+      syncUserAuth(session.user);
     } else {
       const isLineBrowser = /Line/i.test(navigator.userAgent);
       const hasAuthParams = window.location.hash.includes("access_token") || 
