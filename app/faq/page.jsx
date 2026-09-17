@@ -187,6 +187,46 @@ export default function FaqPage() {
             </article>
 
             <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                🏸「球友自發」與「團主發起」有什麼不同？
+              </h3>
+              <div style={{ fontSize: "13.5px", color: "var(--sub)", lineHeight: "23px" }}>
+                <p style={{ margin: "0 0 10px 0" }}>
+                  為了讓大家有更靈活豐富的打球選擇，平台上的活動分為兩種類型，主要差異如下：
+                </p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px", marginTop: "10px" }}>
+                  <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "10px", padding: "14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                      <span className="badge" style={{ background: "#eff6ff", color: "#2563eb", border: "1px solid #bfdbfe", fontSize: "11px", padding: "2px 8px", fontWeight: "800" }}>球友自發</span>
+                      <strong style={{ fontSize: "14px", color: "var(--text)" }}>球友自主揪團（自揪活動）</strong>
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px" }}>
+                      <li><strong>發起對象：</strong>任何已登入並綁定手機的會員球友皆可自主發起。</li>
+                      <li><strong>活動性質：</strong>臨時湊人暢打、平日/假日自組切磋、私約平分場地費等。</li>
+                      <li><strong>發起人保障：</strong>發起人建立即自動為正取第 1 位，無需重複搶位。</li>
+                      <li><strong>私人密碼團：</strong>可自訂「🔒 通關密碼」，先讓熟識好友報名，後續可隨時清空密碼開放全站球友報名。</li>
+                      <li><strong>費用與分攤：</strong>通常為「場租平分」或約定零打費，由同行球友在現場自主協調分攤。</li>
+                    </ul>
+                  </div>
+
+                  <div style={{ background: "var(--bg)", border: "1px solid var(--line)", borderRadius: "10px", padding: "14px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                      <span className="badge" style={{ background: "rgba(22, 163, 74, 0.1)", color: "var(--accent)", border: "1px solid rgba(22, 163, 74, 0.2)", fontSize: "11px", padding: "2px 8px", fontWeight: "800" }}>團主發起</span>
+                      <strong style={{ fontSize: "14px", color: "var(--text)" }}>官方／教練常規團</strong>
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px" }}>
+                      <li><strong>發起對象：</strong>由球隊負責人、主辦團長或專業教練定期發布。</li>
+                      <li><strong>活動性質：</strong>每週固定常態暢打、技巧指導班或分級友誼對抗賽。</li>
+                      <li><strong>現場服務：</strong>通常配有教練或團長駐場主持、排定上下場順序或提供用球/備用拍。</li>
+                      <li><strong>儲值與扣點：</strong>支援俱樂部會員點數錢包自動扣款、會員專屬折扣或多次卡抵扣。</li>
+                      <li><strong>名額規範：</strong>嚴格遵守開團規範、專屬取消時限與系統備取自動遞補機制。</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article className="tip-card" style={{ gridColumn: "1 / -1", marginBottom: "8px" }}>
               <h3 style={{ fontSize: "16px", fontWeight: "800", color: "var(--text)", marginBottom: "8px" }}>
                 📱 報名時「手機號碼」無法輸入 / 怎麼讓系統自動帶入電話？
               </h3>
