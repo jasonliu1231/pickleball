@@ -183,7 +183,15 @@ async function notifyNewSignup({ meetup, meetupId, reservationDate, nickname, sk
     console.log("notify new signup failed", error?.message || error);
   }
 }
-let selectedDate = toISODate(new Date());
+
+// URL Query Parameter parsing (for shareable links & deep links)
+const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+const urlDate = urlParams.get("date");
+const urlMeetupId = urlParams.get("meetup_id") || urlParams.get("id");
+const urlPwd = urlParams.get("pwd") || urlParams.get("password");
+let hasHandledUrlMeetup = false;
+
+let selectedDate = (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate.trim())) ? urlDate.trim() : toISODate(new Date());
 let visibleMonth = selectedDate.slice(0, 7) + "-01";
 let availableRules = [];
 let currentMeetup = null;
@@ -602,7 +610,7 @@ function renderMeetups(meetups) {
       </div>
     ` : "";
 
-    return `<article class="meetup-card" data-meetup-id="${m.id}" 
+    return `<article class="meetup-card" id="meetup-card-${m.id}" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
       data-is-full="${full}"
       data-capacity="${cap}"
@@ -641,6 +649,7 @@ function renderMeetups(meetups) {
         ${quickSignupBtnHtml}
         <button class="btn-secondary roster-btn">查看名單</button>
         ${m.match_schedule ? `<button class="btn-secondary schedule-btn" style="background:#f0fdf4; border-color:var(--accent); color:var(--accent); font-weight:800;">📅 查看賽程</button>` : ""}
+        <button class="btn-ghost share-link-btn" style="font-size: 12.5px; font-weight: 800;" title="複製此活動分享連結">🔗 分享</button>
         <button class="btn-ghost cancel-btn">預約管理</button>
       </div>
       <div class="roster" id="roster-${m.id}"></div>
@@ -656,7 +665,41 @@ function renderMeetups(meetups) {
     card.querySelector(".roster-btn")?.addEventListener("click", () => toggleRoster(meetup));
     card.querySelector(".schedule-btn")?.addEventListener("click", () => toggleSchedule(meetup));
     card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
+    card.querySelector(".share-link-btn")?.addEventListener("click", () => {
+      const shareUrl = `${window.location.origin}/?date=${selectedDate}&meetup_id=${meetup.id}${meetup.join_password ? `&pwd=${encodeURIComponent(meetup.join_password)}` : ''}`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          alert(`🎉 已複製專屬報名連結！可直接傳給朋友或貼到 LINE 群組：\n\n${shareUrl}`);
+        }).catch(() => {
+          prompt("請複製以下活動報名連結：", shareUrl);
+        });
+      } else {
+        prompt("請複製以下活動報名連結：", shareUrl);
+      }
+    });
   });
+
+  // Auto-scroll and auto-open signup modal if meetup_id is passed in URL
+  if (urlMeetupId && !hasHandledUrlMeetup && meetups && meetups.length) {
+    const target = meetups.find((x) => String(x.id) === String(urlMeetupId));
+    if (target) {
+      hasHandledUrlMeetup = true;
+      setTimeout(() => {
+        const card = document.getElementById(`meetup-card-${target.id}`);
+        if (card) {
+          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          card.style.transition = "box-shadow 0.4s ease, border-color 0.4s ease";
+          card.style.borderColor = "var(--primary)";
+          card.style.boxShadow = "0 0 0 4px rgba(5, 150, 105, 0.4)";
+          setTimeout(() => {
+            card.style.boxShadow = "";
+            card.style.borderColor = "";
+          }, 3000);
+        }
+        openSignup(target, urlPwd);
+      }, 400);
+    }
+  }
 
   if (document.querySelector(".meetup-card[data-open-time]")) {
     startCountdownTicker();
@@ -786,7 +829,7 @@ async function toggleRoster(meetup) {
   }
 }
 
-function openSignup(meetup) {
+function openSignup(meetup, initialPwd = null) {
   currentMeetup = meetup;
   clearMessage($("formMessage"));
   $("signupForm").reset();
@@ -823,7 +866,7 @@ function openSignup(meetup) {
   if (pwdRow) {
     if (meetup.has_password || meetup.is_private) {
       pwdRow.style.display = "block";
-      if ($("signupPassword")) $("signupPassword").value = "";
+      if ($("signupPassword")) $("signupPassword").value = initialPwd || "";
     } else {
       pwdRow.style.display = "none";
       if ($("signupPassword")) $("signupPassword").value = "";
@@ -1057,7 +1100,16 @@ async function handleCreatePickup(e) {
       throw new Error(data.error || "發起揪團失敗");
     }
 
-    setMessage($("pickupFormMessage"), "🎉 自揪團發起成功！已自動將您加入正取第 1 位。", true);
+    const newMeetupId = data?.meetup_id;
+    let successMsg = "🎉 自揪團發起成功！已自動將您加入正取第 1 位。";
+    if (newMeetupId && navigator?.clipboard?.writeText) {
+      const shareUrl = `${window.location.origin}/?date=${date}&meetup_id=${newMeetupId}${joinPassword ? `&pwd=${encodeURIComponent(joinPassword)}` : ''}`;
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        successMsg += "（活動專屬連結已複製至剪貼簿）";
+      } catch (_) {}
+    }
+    setMessage($("pickupFormMessage"), successMsg, true);
     setTimeout(async () => {
       closeCreatePickupModal();
       $("createPickupForm")?.reset();
@@ -2049,6 +2101,8 @@ async function loadMemberDashboard() {
             statusBadge = `<span class="status-badge confirmed">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
           }
 
+          const shareUrl = `${window.location.origin}/?date=${m.start_date}&meetup_id=${m.id}${m.join_password ? `&pwd=${encodeURIComponent(m.join_password)}` : ''}`;
+
           return `
             <div class="booking-item-card" style="flex-direction: column; align-items: stretch; gap: 10px;">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
@@ -2064,7 +2118,10 @@ async function loadMemberDashboard() {
                 </div>
                 ${statusBadge}
               </div>
-              <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px;">
+              <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px; flex-wrap: wrap;">
+                <button type="button" class="btn-secondary copy-link-btn" data-url="${escapeHtml(shareUrl)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669;">
+                  🔗 複製連結
+                </button>
                 <button type="button" class="btn-secondary copy-roster-btn" data-roster="${escapeHtml(rosterText)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800;">
                   📋 複製名單
                 </button>
@@ -2080,6 +2137,21 @@ async function loadMemberDashboard() {
             </div>
           `;
         }).join("");
+
+        myPickupsList.querySelectorAll(".copy-link-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const url = btn.dataset.url;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(url).then(() => {
+                alert(`🎉 已複製專屬報名連結！可直接傳給朋友或貼到 LINE 群組：\n\n${url}`);
+              }).catch(() => {
+                prompt("請手動複製以下報名連結：", url);
+              });
+            } else {
+              prompt("請手動複製以下報名連結：", url);
+            }
+          });
+        });
 
         myPickupsList.querySelectorAll(".copy-roster-btn").forEach(btn => {
           btn.addEventListener("click", () => {
