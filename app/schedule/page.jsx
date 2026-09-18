@@ -631,7 +631,7 @@ export default function SchedulePage() {
           border: 1.5px solid #cbd5e1;
           border-radius: 8px;
           padding: 8px 12px;
-          font-size: 14px;
+          font-size: 16px;
           font-weight: 700;
           color: #0f172a;
           background: #ffffff;

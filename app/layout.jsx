@@ -7,6 +7,13 @@ export const metadata = {
   description: "匹克球同樂會線上預約，查看公告、小知識與可報名場次。",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="zh-Hant">
