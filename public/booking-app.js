@@ -892,9 +892,9 @@ function openSignup(meetup, initialPwd = null) {
     }
   }
 
-  $("signupModal").classList.add("show");
+  setModalVisible($("signupModal"), true);
 }
-function closeSignup() { $("signupModal").classList.remove("show"); currentMeetup = null; }
+function closeSignup() { setModalVisible($("signupModal"), false); currentMeetup = null; }
 function openCancel(meetup) {
   currentMeetup = meetup;
   clearMessage($("cancelMessage"));
@@ -917,9 +917,22 @@ function openCancel(meetup) {
     $("cancelSubmitBtn").disabled = false;
     $("cancelSubmitBtn").textContent = "取消預約";
   }
-  $("cancelModal").classList.add("show");
+  setModalVisible($("cancelModal"), true);
 }
-function closeCancel() { $("cancelModal").classList.remove("show"); currentMeetup = null; }
+function closeCancel() { setModalVisible($("cancelModal"), false); currentMeetup = null; }
+
+function setModalVisible(el, visible) {
+  if (!el) return;
+  if (visible) {
+    el.classList.add("show");
+    document.body.classList.add("modal-open");
+  } else {
+    el.classList.remove("show");
+    if (!document.querySelector(".modal.show")) {
+      document.body.classList.remove("modal-open");
+    }
+  }
+}
 
 function initPickupModal() {
   const citySelect = $("pickupCity");
@@ -953,11 +966,11 @@ function openEditPickupModal(m) {
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
-  $("editPickupModal")?.classList.add("show");
+  setModalVisible($("editPickupModal"), true);
 }
 
 function closeEditPickupModal() {
-  $("editPickupModal")?.classList.remove("show");
+  setModalVisible($("editPickupModal"), false);
 }
 
 async function handleUpdatePickup(e) {
@@ -1058,11 +1071,11 @@ function openCreatePickupModal(presetDate) {
       if (privateCheckbox.checked) $("pickupJoinPassword")?.focus();
     };
   }
-  $("createPickupModal")?.classList.add("show");
+  setModalVisible($("createPickupModal"), true);
 }
 
 function closeCreatePickupModal() {
-  $("createPickupModal")?.classList.remove("show");
+  setModalVisible($("createPickupModal"), false);
 }
 
 async function handleCreatePickup(e) {
@@ -2508,7 +2521,7 @@ window.showTransactions = async function(memberId, clubName, payerMemberId) {
 
   modalTitle.textContent = `${clubName} 交易明細`;
   container.innerHTML = `<p style="color: var(--muted); text-align: center; padding: 20px;">載入中...</p>`;
-  $("transactionModal").classList.add("show");
+  setModalVisible($("transactionModal"), true);
 
   const targetId = payerMemberId && payerMemberId !== 'null' ? payerMemberId : memberId;
 
@@ -2709,8 +2722,8 @@ $("closeCreatePickupModal")?.addEventListener("click", closeCreatePickupModal);
 $("closeEditPickupModal")?.addEventListener("click", closeEditPickupModal);
 $("openCreatePickupBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
 $("openCreatePickupInlineBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
-$("closeTransactionModal")?.addEventListener("click", () => $("transactionModal")?.classList.remove("show"));
-$("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "transactionModal") $("transactionModal")?.classList.remove("show"); });
+$("closeTransactionModal")?.addEventListener("click", () => setModalVisible($("transactionModal"), false));
+$("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "transactionModal") setModalVisible($("transactionModal"), false); });
 $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
 $("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
 $("createPickupModal")?.addEventListener("click", (e) => { if (e.target.id === "createPickupModal") closeCreatePickupModal(); });
