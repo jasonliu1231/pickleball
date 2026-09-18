@@ -67,6 +67,18 @@ export default function Page() {
             <div>
               <h2 className="section-title" id="modalTitle" style={{ fontSize: "24px" }}>我要報名</h2>
               <p className="muted" id="modalSubtitle">--</p>
+              <div id="modalInfoBadges" style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
+                <span id="modalFeeBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "800" }}>
+                  💰 費用：<span id="modalFeeText">--</span>
+                </span>
+                <span id="modalAddressBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "700" }}>
+                  📍 <span id="modalAddressText">--</span>
+                </span>
+              </div>
+              <div id="modalNotesBox" style={{ display: "none", background: "#f8fafc", border: "1px solid #e2e8f0", borderLeft: "4px solid var(--accent, #10b981)", padding: "10px 12px", borderRadius: "8px", color: "#334155", fontSize: "13px", fontWeight: "600", marginTop: "10px", lineHeight: "1.5" }}>
+                <strong style={{ color: "var(--accent, #10b981)", display: "block", marginBottom: "3px" }}>📝 開團備註說明：</strong>
+                <span id="modalNotesText"></span>
+              </div>
               <div id="ratingLimitWarning" style={{ display: "none", background: "#FEF3C7", border: "1px solid #D97706", padding: "10px 12px", borderRadius: "10px", color: "#B45309", fontSize: "13px", fontWeight: "700", marginTop: "10px", lineHeight: "1.4" }}></div>
             </div>
             <button className="close-btn" id="closeModal">×</button>
@@ -155,36 +167,30 @@ export default function Page() {
             <label>活動主題
               <input id="pickupName" placeholder="例如：週六下午暢打、新手交流" required />
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <label>活動日期
-                <input id="pickupDate" type="date" required />
-              </label>
-              <label>活動縣市
-                <select id="pickupCity" required></select>
-              </label>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <label>開始時間
-                <input id="pickupStartTime" type="time" defaultValue="14:00" required />
-              </label>
-              <label>結束時間
-                <input id="pickupEndTime" type="time" defaultValue="16:00" required />
-              </label>
-            </div>
+            <label>活動日期
+              <input id="pickupDate" type="date" required />
+            </label>
+            <label>開始時間
+              <input id="pickupStartTime" type="time" defaultValue="14:00" required />
+            </label>
+            <label>結束時間
+              <input id="pickupEndTime" type="time" defaultValue="16:00" required />
+            </label>
+            <label>活動縣市
+              <select id="pickupCity" required></select>
+            </label>
             <label>球場地點
               <input id="pickupAddress" placeholder="例如：南屯匹克球場 2 號場" required />
             </label>
             <label>詳細地址（選填，供導航）
               <input id="pickupStreetAddress" placeholder="例如：文心南七路 (填寫後可直接在地圖導航)" />
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-              <label>人數上限
-                <input id="pickupCapacity" type="number" min="2" max="32" defaultValue="4" required />
-              </label>
-              <label>每人費用
-                <input id="pickupFee" placeholder="例如：平分80元、免費" defaultValue="場租平分" required />
-              </label>
-            </div>
+            <label>人數上限
+              <input id="pickupCapacity" type="number" min="2" max="32" defaultValue="4" required />
+            </label>
+            <label>每人費用
+              <input id="pickupFee" placeholder="例如：平分80元、免費" defaultValue="場租平分" required />
+            </label>
             <label>備註說明（選填）
               <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
             </label>

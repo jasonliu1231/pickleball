@@ -836,6 +836,25 @@ function openSignup(meetup, initialPwd = null) {
   $("modalTitle").textContent = meetup.name || "我要報名";
   $("modalSubtitle").textContent = `${formatDate(selectedDate)}｜${timeText(meetup.start_time, meetup.end_time)}`;
   
+  if ($("modalFeeText")) {
+    $("modalFeeText").textContent = meetup.fee || "現場公告 / 場租平分";
+  }
+  if ($("modalAddressText")) {
+    const loc = [meetup.city, meetup.address].filter(Boolean).join(" ");
+    $("modalAddressText").textContent = loc ? `${loc}${meetup.street_address ? ` (${meetup.street_address})` : ""}` : "地點另行公告";
+  }
+  const notesBox = $("modalNotesBox");
+  const notesText = $("modalNotesText");
+  const fullNotes = [meetup.notes, meetup.session_notes, meetup.weekday_notes].filter(Boolean).join(" ｜ ");
+  if (notesBox && notesText) {
+    if (fullNotes && fullNotes.trim()) {
+      notesText.textContent = fullNotes.trim();
+      notesBox.style.display = "block";
+    } else {
+      notesBox.style.display = "none";
+    }
+  }
+  
   if (currentSystemMember) {
     $("nickname").value = currentSystemMember.nickname || "";
     $("phone").value = currentSystemMember.phone || "";
