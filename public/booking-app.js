@@ -156,18 +156,13 @@ async function notifyNewSignup({ meetup, meetupId, reservationDate, nickname, sk
   const sourceMeetup = meetup || currentMeetup || {};
   const tokens = normalizePushTokens(sourceMeetup.push_tokens);
 
-  if (!tokens.length) {
-    console.log("這個開團目前沒有可用的推播 token");
-    return;
-  }
-
   try {
     const response = await fetch("/api/send-signup-notification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         pushTokens: tokens,
-        meetupId,
+        meetupId: meetupId || sourceMeetup.id,
         meetupName: sourceMeetup.name || "開團",
         reservationDate,
         nickname,
@@ -181,6 +176,29 @@ async function notifyNewSignup({ meetup, meetupId, reservationDate, nickname, sk
     }
   } catch (error) {
     console.log("notify new signup failed", error?.message || error);
+  }
+}
+
+async function notifyCancelSignup({ meetup, meetupId, reservationDate, nickname, meetupName }) {
+  const sourceMeetup = meetup || currentMeetup || {};
+  try {
+    const response = await fetch("/api/send-cancel-notification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        meetupId: meetupId || sourceMeetup.id,
+        meetupName: meetupName || sourceMeetup.name || "開團",
+        reservationDate,
+        nickname,
+      }),
+    });
+
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.ok === false) {
+      console.log("notify cancel signup failed", result?.message || result);
+    }
+  } catch (error) {
+    console.log("notify cancel signup failed", error?.message || error);
   }
 }
 
@@ -1048,8 +1066,7 @@ function openCreatePickupModal(presetDate) {
     return;
   }
   if (!currentSystemMember.phone) {
-    alert("發起揪團前請先於個人中心設定手機號碼，以供球友聯絡。");
-    window.location.href = "/member";
+    openBindPhoneModal("發起自揪活動需要您的聯絡手機，請先完成手機綁定！");
     return;
   }
 
@@ -1299,7 +1316,10 @@ async function handleSignup(e) {
   }
 }
 async function handleQuickSignup(meetup, btn) {
-  if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) return;
+  if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) {
+    openBindPhoneModal("使用 1 鍵快速預約前，請先完成手機號碼綁定！");
+    return;
+  }
 
   let passwordVal = null;
   if (meetup.has_password || meetup.is_private) {
@@ -1411,6 +1431,13 @@ async function handleCancel(e) {
         ? "你已經完成請假，當天不會列入名單。"
         : (result?.message || "已取消預約，名額已釋出。");
     setMessage($("cancelMessage"), successMessage, true);
+    notifyCancelSignup({
+      meetup: currentMeetup,
+      meetupId: currentMeetup.id,
+      reservationDate: selectedDate,
+      nickname: currentSystemMember?.nickname || phone,
+      meetupName: currentMeetup.name
+    });
     $("cancelFormSecondStep").style.display = "none";
     $("queryResultText").textContent = "";
     clearRosterCache();
@@ -2458,6 +2485,12 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
         ? "已完成會員請假，當天不會列入名單，名額已釋出。"
         : (result?.message || "已成功取消預約！");
       alert(successMessage);
+      notifyCancelSignup({
+        meetupId: signup.meetup_id,
+        reservationDate: signup.reservation_date,
+        nickname: currentSystemMember?.nickname || signup.phone,
+        meetupName: meetupName
+      });
       if (typeof loadMemberDashboard === "function") {
         await loadMemberDashboard();
       }
@@ -2563,6 +2596,119 @@ window.showTransactions = async function(memberId, clubName, payerMemberId) {
   }
 };
 
+function checkAndPromptBindPhone(member) {
+  if (!member) return;
+  const cleanPh = cleanPhone(member.phone);
+  if (cleanPh && cleanPh.length === 10) return; // Already has valid phone
+
+  // If user clicked "稍後再說" during this browser session, do not auto-prompt
+  if (sessionStorage.getItem("skip_bind_phone") === "true") return;
+
+  openBindPhoneModal();
+}
+
+function openBindPhoneModal(customNotice) {
+  if (!currentUser) return;
+  if ($("bindNickname")) {
+    $("bindNickname").value = currentSystemMember?.nickname || currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || "";
+  }
+  if ($("bindPhone")) {
+    $("bindPhone").value = currentSystemMember?.phone || "";
+  }
+  if ($("bindSkillLevel")) {
+    $("bindSkillLevel").value = currentSystemMember?.skill_level || "normal";
+  }
+  const msgEl = $("bindPhoneMessage");
+  if (msgEl) {
+    if (customNotice) {
+      setMessage(msgEl, customNotice, false);
+    } else {
+      msgEl.style.display = "none";
+    }
+  }
+  setModalVisible($("bindPhoneModal"), true);
+}
+
+function closeBindPhoneModal(skip = false) {
+  if (skip) {
+    sessionStorage.setItem("skip_bind_phone", "true");
+  }
+  setModalVisible($("bindPhoneModal"), false);
+}
+
+async function handleBindPhoneSubmit(e) {
+  e.preventDefault();
+  if (!currentUser) return;
+  const nickname = $("bindNickname")?.value?.trim() || "球友";
+  const phoneVal = $("bindPhone")?.value || "";
+  const phone = cleanPhone(phoneVal);
+  const skillLevel = $("bindSkillLevel")?.value || "normal";
+  const isBeginner = (skillLevel === "first_time" || skillLevel === "beginner");
+  const msgEl = $("bindPhoneMessage");
+
+  if (!phone || !validatePhone(phone)) {
+    return setMessage(msgEl, "請輸入正確的手機號碼 (09開頭共10碼數字)", false);
+  }
+
+  const submitBtn = $("bindPhoneSubmitBtn");
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "綁定中...";
+  }
+
+  try {
+    setMessage(msgEl, "正在為您綁定並連結球館資料...", true);
+
+    // 1. Update system_members
+    const { data: updatedMember, error: updateErr } = await client
+      .from("system_members")
+      .update({
+        nickname,
+        phone,
+        skill_level: skillLevel,
+        is_beginner: isBeginner,
+        created_at: new Date().toISOString()
+      })
+      .eq("id", currentUser.id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    // 2. Auto-link to any existing club records in members table where phone matches
+    try {
+      await client
+        .from("members")
+        .update({
+          system_member_id: currentUser.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq("phone", phone)
+        .is("system_member_id", null);
+    } catch (linkErr) {
+      console.warn("Auto-link members error:", linkErr);
+    }
+
+    currentSystemMember = updatedMember;
+    sessionStorage.removeItem("skip_bind_phone");
+    closeBindPhoneModal(false);
+
+    alert("🎉 手機號碼綁定成功！已自動為您連結會員資料與開團紀錄。");
+
+    // 3. Refresh views
+    toggleAuthView(true);
+    if ($("memberDashboard")) loadMemberDashboard();
+    await refreshMeetupListOnly();
+  } catch (err) {
+    setMessage(msgEl, err.message || "綁定失敗，請稍候重試", false);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "立即綁定並連結資料";
+    }
+  }
+}
+
 async function handleUpdateProfile(e) {
   e.preventDefault();
   if (!currentUser || !currentSystemMember) return;
@@ -2585,6 +2731,19 @@ async function handleUpdateProfile(e) {
 
     if (error) throw error;
     currentSystemMember = data;
+
+    // Auto-link members table if phone is provided
+    if (phone) {
+      try {
+        await client
+          .from("members")
+          .update({ system_member_id: currentUser.id, updated_at: new Date().toISOString() })
+          .eq("phone", phone)
+          .is("system_member_id", null);
+      } catch (linkErr) {
+        console.warn("Auto-link members error:", linkErr);
+      }
+    }
 
     setMessage(msgEl, "個人資料更新成功！", true);
     toggleAuthView(true);
@@ -2760,6 +2919,12 @@ $("logoutBtn")?.addEventListener("click", async () => { sessionStorage.setItem("
 $("lineLoginBtn")?.addEventListener("click", handleLineLogin);
 $("authForm")?.addEventListener("submit", handleAuthSubmit);
 $("updateProfileForm")?.addEventListener("submit", handleUpdateProfile);
+$("bindPhoneForm")?.addEventListener("submit", handleBindPhoneSubmit);
+$("skipBindPhoneBtn")?.addEventListener("click", () => closeBindPhoneModal(true));
+$("closeBindPhoneModal")?.addEventListener("click", () => closeBindPhoneModal(true));
+$("bindPhoneModal")?.addEventListener("click", (e) => {
+  if (e.target.id === "bindPhoneModal") closeBindPhoneModal(true);
+});
 $("copyIdBtn")?.addEventListener("click", () => {
   if (currentSystemMember?.id) {
     navigator.clipboard.writeText(currentSystemMember.id);
@@ -2799,6 +2964,7 @@ if ($("knowledgeList")) renderStaticContent();
         currentSystemMember = m;
         toggleAuthView(true);
         if ($("memberDashboard")) loadMemberDashboard();
+        checkAndPromptBindPhone(m);
         return m;
       }).finally(() => {
         activeMemberPromise = null;
