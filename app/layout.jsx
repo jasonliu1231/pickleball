@@ -1,5 +1,6 @@
 import Script from "next/script";
 import Navbar from "./Navbar";
+import SupabaseBridge from "./SupabaseBridge";
 import "./globals.css";
 
 export const metadata = {
@@ -14,20 +15,19 @@ export const viewport = {
   userScalable: false,
 };
 
+// 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.5.0";
+
 export default function RootLayout({ children }) {
   return (
     <html lang="zh-Hant">
       <head>
         <link rel="preconnect" href="https://vurcntmcpemioybqqrcx.supabase.co" crossOrigin="" />
         <link rel="dns-prefetch" href="https://vurcntmcpemioybqqrcx.supabase.co" />
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
-        <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
       </head>
       <body>
-        <Script
-          src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
-          strategy="beforeInteractive"
-        />
+        {/* 本機打包之 Supabase Client，安全可靠且不依賴外部 CDN */}
+        <SupabaseBridge />
         
         <main className="page">
           <header className="topbar">
@@ -88,7 +88,7 @@ export default function RootLayout({ children }) {
         </main>
 
         <Script
-          src="/booking-app.js?v=1.4.6"
+          src={`/booking-app.js?v=${BUILD_VERSION}`}
           strategy="afterInteractive"
         />
       </body>

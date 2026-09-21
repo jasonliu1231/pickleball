@@ -1,6 +1,8 @@
 const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
-const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const client = (typeof window !== "undefined" && window.supabaseClient)
+  ? window.supabaseClient
+  : (typeof supabase !== "undefined" && supabase.createClient ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null);
 
 let countdownInterval = null;
 let exclusions = [];
