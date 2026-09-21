@@ -68,38 +68,59 @@ export default function MemberPage() {
           {/* Member Dashboard (Hidden if logged out) */}
           <div id="memberDashboard" style={{ display: "none", flexDirection: "column", gap: "20px" }}>
             {/* Profile Summary Card */}
-            <div className="member-profile-card" style={{ background: "linear-gradient(135deg, #064e3b 0%, #15803d 50%, #166534 100%)", color: "#ffffff" }}>
-              <div className="profile-main-info" style={{ flex: 1 }}>
-                <div className="profile-text-group" style={{ alignItems: "flex-start" }}>
-                  <h3 className="profile-welcome" style={{ color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
-                    👋 哈囉，<span id="dashboardNickname">球友</span>
-                  </h3>
-                  <div className="profile-badges-row">
-                    <span className="info-pill" style={{ color: "rgba(255, 255, 255, 0.95)" }}>
-                      📱 <span id="dashboardPhone">未設定</span>
-                    </span>
-                    <span className="info-pill info-pill-id" style={{ color: "rgba(255, 255, 255, 0.95)", display: "inline-flex", alignItems: "center", gap: "6px" }}>
-                      🆔 ID: <span id="dashboardMemberId" style={{ maxWidth: "120px", display: "inline-block", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>--</span>
-                      <button id="copyIdBtn" type="button" className="copy-btn-sleek">複製 ID</button>
-                    </span>
+            <div className="member-profile-card" style={{ background: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)", color: "#ffffff", flexDirection: "column", alignItems: "stretch" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "16px", flexWrap: "wrap" }}>
+                <div className="profile-main-info" style={{ flex: 1, minWidth: "240px" }}>
+                  <div className="profile-text-group" style={{ alignItems: "flex-start" }}>
+                    <h3 className="profile-welcome" style={{ color: "#ffffff", display: "flex", alignItems: "center", gap: "6px" }}>
+                      👋 哈囉，<span id="dashboardNickname">球友</span>
+                    </h3>
+                    <div className="profile-badges-row">
+                      <span className="info-pill" style={{ color: "rgba(255, 255, 255, 0.95)" }}>
+                        📱 <span id="dashboardPhone">未設定</span>
+                      </span>
+                      <span className="info-pill info-pill-id" style={{ color: "rgba(255, 255, 255, 0.95)", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                        🆔 ID: <span id="dashboardMemberId" style={{ maxWidth: "120px", display: "inline-block", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>--</span>
+                        <button id="copyIdBtn" type="button" className="copy-btn-sleek">複製 ID</button>
+                      </span>
+                    </div>
                   </div>
+                </div>
+
+                {/* QR Code Section */}
+                <div id="memberQrContainer" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "rgba(255, 255, 255, 0.08)", padding: "12px 18px", borderRadius: "18px", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  <img id="memberQrImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="會員 QR Code" style={{ width: "130px", height: "130px", borderRadius: "10px", backgroundColor: "#ffffff", padding: "6px" }} />
+                  <span style={{ fontSize: "11.5px", fontWeight: "800", opacity: 0.9, letterSpacing: "0.5px" }}>出示給教練/團主掃描綁定</span>
                 </div>
               </div>
 
-              {/* QR Code Section */}
-              <div id="memberQrContainer" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", background: "rgba(255, 255, 255, 0.08)", padding: "14px 20px", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.15)", alignSelf: "center" }}>
-                <img id="memberQrImg" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="會員 QR Code" style={{ width: "150px", height: "150px", borderRadius: "12px", backgroundColor: "#ffffff", padding: "6px" }} />
-                <span style={{ fontSize: "12px", fontWeight: "800", opacity: 0.9, letterSpacing: "0.5px" }}>出示給教練/團主掃描綁定</span>
+              {/* Bottom Actions Row: Delete Account & Logout */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginTop: "14px", borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: "12px" }}>
+                <button className="delete-account-btn-sleek" id="deleteAccountBtn" type="button">
+                  註銷帳號
+                </button>
+                <button className="logout-btn-sleek" id="logoutBtn" type="button" style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.3)", backgroundColor: "rgba(255, 255, 255, 0.12)", padding: "6px 14px", fontSize: "13px" }}>
+                  登出帳號
+                </button>
               </div>
-
-              <button className="logout-btn-sleek" id="logoutBtn" type="button" style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.3)", backgroundColor: "rgba(255, 255, 255, 0.12)" }}>登出帳號</button>
             </div>
             
+            {/* Warning Banners */}
+            <div id="phoneWarningBanner" style={{ display: "none", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "16px", padding: "14px", color: "#B45309", fontWeight: "bold", flexDirection: "row", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "18px" }}>📱</span>
+              <span style={{ fontSize: "13.5px", flex: 1 }}>您尚未設定手機號碼！請在下方「編輯個人資料」填寫並儲存手機，以便接收 LINE 遞補通知與自動連通歷史報名紀錄。</span>
+            </div>
+
+            <div id="balanceWarningBanner" style={{ display: "none", background: "#FFF1F2", border: "1px solid #FECACA", borderRadius: "16px", padding: "14px", color: "#991B1B", fontWeight: "bold", flexDirection: "row", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "18px" }}>⚠️</span>
+              <span style={{ fontSize: "13.5px", flex: 1 }}>您的餘額不足以支付下週的出席費用，請聯絡團長進行儲值，以免影響自動卡位權益。</span>
+            </div>
+
             {/* Update Profile Form */}
-            <div className="edit-profile-section" style={{ marginTop: "16px" }}>
+            <div className="edit-profile-section">
               <h4 style={{ fontSize: "16px", fontWeight: "900", marginBottom: "16px" }}>✏️ 編輯個人資料</h4>
               <form id="updateProfileForm" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div className="modern-form-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px" }}>
+                <div className="modern-form-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", maxWidth: "100%" }}>
                   <div className="modern-input-group">
                     <label htmlFor="profileNickname">修改暱稱 / 姓名</label>
                     <input id="profileNickname" className="modern-text-input" placeholder="請輸入姓名或暱稱" />
@@ -108,14 +129,15 @@ export default function MemberPage() {
                     <label htmlFor="profilePhone">修改手機號碼</label>
                     <input id="profilePhone" className="modern-text-input" placeholder="0912345678" inputMode="numeric" />
                   </div>
-                  <div className="modern-input-group">
-                    <label htmlFor="profileSkillLevel">預設程度等級</label>
-                    <select id="profileSkillLevel" className="modern-text-input" style={{ appearance: "auto", height: "42px", padding: "0 12px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "10px" }}>
-                      <option value="first_time">第一次 (需要教學)</option>
-                      <option value="beginner">初學 (已會基本規則)</option>
-                      <option value="normal">一般 (能流暢來回對打)</option>
-                      <option value="advanced">進階 (有戰術強攻能力)</option>
-                    </select>
+                  <div className="modern-input-group" style={{ gridColumn: "1 / -1" }}>
+                    <label>預設程度等級</label>
+                    <input type="hidden" id="profileSkillLevel" defaultValue="normal" />
+                    <div className="skill-chips-row" id="skillChipsRow">
+                      <button type="button" className="skill-chip-btn" data-value="first_time">第一次體驗</button>
+                      <button type="button" className="skill-chip-btn" data-value="beginner">初學</button>
+                      <button type="button" className="skill-chip-btn active" data-value="normal">一般</button>
+                      <button type="button" className="skill-chip-btn" data-value="advanced">進階</button>
+                    </div>
                   </div>
                 </div>
                 <button className="btn-primary" type="submit" style={{ alignSelf: "flex-start", minWidth: "120px", padding: "10px 24px", borderRadius: "12px" }}>儲存修改</button>
@@ -123,66 +145,73 @@ export default function MemberPage() {
               <div id="profileMessage" className="message" style={{ marginTop: "8px" }}></div>
             </div>
 
-            <div className="profile-tip-banner" style={{ marginTop: "16px" }}>
-              <span style={{ fontSize: "16px" }}>💡</span>
-              <span><strong>系統關聯提示</strong>：將您的「系統 ID」提供給球館或團主，即可在後台進行儲值與卡位扣點！若需要接收即時通知與遞補提醒，請 <a href="https://line.me/R/ti/p/%40657kasvh" target="_blank" rel="noopener noreferrer" style={{ color: "#06C755", fontWeight: "900", textDecoration: "underline" }}>點此加入 LINE 官方好友</a>。</span>
-            </div>
-            
-            {/* Warning Banner */}
-            <div id="phoneWarningBanner" style={{ display: "none", background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "16px", padding: "14px", color: "#B45309", fontWeight: "bold", flexDirection: "row", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "18px" }}>📱</span>
-              <span style={{ fontSize: "13.5px", flex: 1 }}>您尚未設定手機號碼！請在下方「編輯個人資料」填寫並儲存手機，以便接收 LINE 遞補通知與自動填寫報名。</span>
-            </div>
-
-            <div id="balanceWarningBanner" style={{ display: "none", background: "#FFF1F2", border: "1px solid #FECACA", borderRadius: "16px", padding: "14px", color: "#991B1B", fontWeight: "bold", flexDirection: "row", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "18px" }}>⚠️</span>
-              <span style={{ fontSize: "13.5px", flex: 1 }}>您的餘額不足以支付下週的出席費用，請聯絡團長進行儲值，以免影響自動卡位權益。</span>
-            </div>
-
-            <div className="dashboard-grid-premium">
-              {/* Left: Wallet Balances */}
-              <div className="dashboard-panel-card">
-                <h4 className="panel-header-title">
-                  🏢 我的俱樂部
-                </h4>
-                <div id="balancesList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>尚未加入任何俱樂部或無成員資料</p>
-                </div>
-              </div>
-
-              {/* Right: Upcoming Bookings */}
-              <div className="dashboard-panel-card">
-                <h4 className="panel-header-title">
-                  📅 近期預約與出席狀態
-                </h4>
-                <div id="userBookingsList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>目前無任何預約紀錄</p>
-                </div>
-              </div>
+            {/* 4 Feature Tabs (Matching Mobile App Logic) */}
+            <div className="member-tabs-nav" id="memberTabsNav">
+              <button type="button" className="member-tab-btn active" data-tab="clubs" id="tabBtnClubs">
+                <span className="tab-icon">🏢</span>
+                <span className="tab-label">我的俱樂部</span>
+                <span className="member-tab-badge" id="badgeClubsCount" style={{ display: "none" }}>0</span>
+              </button>
+              <button type="button" className="member-tab-btn" data-tab="bookings" id="tabBtnBookings">
+                <span className="tab-icon">📅</span>
+                <span className="tab-label">近期預約</span>
+                <span className="member-tab-badge" id="badgeBookingsCount" style={{ display: "none" }}>0</span>
+              </button>
+              <button type="button" className="member-tab-btn" data-tab="pickups" id="tabBtnPickups">
+                <span className="tab-icon">🏓</span>
+                <span className="tab-label">我的自揪團</span>
+                <span className="member-tab-badge" id="badgePickupsCount" style={{ display: "none" }}>0</span>
+              </button>
+              <button type="button" className="member-tab-btn" data-tab="stats" id="tabBtnStats">
+                <span className="tab-icon">⚔️</span>
+                <span className="tab-label">戰績與積分</span>
+              </button>
             </div>
 
-            {/* My Initiated Pickups */}
-            <div className="dashboard-panel-card" style={{ width: "100%", marginTop: "20px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <h4 className="panel-header-title" style={{ margin: 0 }}>
-                  🏓 我發起的自揪團
-                </h4>
-                <a href="/#createPickupModal" id="memberCenterCreatePickupBtn" className="btn-secondary" style={{ fontSize: "12.5px", padding: "6px 12px", textDecoration: "none", borderRadius: "8px", fontWeight: "800", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d" }}>
-                  ➕ 發起新揪團
-                </a>
-              </div>
-              <div id="myPickupsList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>目前尚無自揪活動</p>
-              </div>
-            </div>
-
-            {/* ELO Rating Chart & Match History Section */}
-            <div id="eloHistorySection" style={{ display: "none", flexDirection: "column", gap: "20px", marginTop: "20px" }}>
+            {/* Tab 1: 我的俱樂部 */}
+            <div className="member-tab-panel active" id="tabPanelClubs">
               <div className="dashboard-panel-card" style={{ width: "100%" }}>
-                <h4 className="panel-header-title">
-                  📈 我的戰力積分走勢
-                </h4>
-                <div className="profile-tip-banner" id="ratingInfoBanner" style={{ display: "none", background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.18)", color: "#9A3412", marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                  <h4 className="panel-header-title" style={{ margin: 0 }}>🏢 我的俱樂部</h4>
+                </div>
+                <div id="balancesList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>載入俱樂部資料中...</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab 2: 近期預約 */}
+            <div className="member-tab-panel" id="tabPanelBookings" style={{ display: "none" }}>
+              <div className="dashboard-panel-card" style={{ width: "100%" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+                  <h4 className="panel-header-title" style={{ margin: 0 }}>📅 近期預約與出席狀態</h4>
+                </div>
+                <div id="userBookingsList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>載入預約紀錄中...</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab 3: 我的自揪團 */}
+            <div className="member-tab-panel" id="tabPanelPickups" style={{ display: "none" }}>
+              <div className="dashboard-panel-card" style={{ width: "100%" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+                  <h4 className="panel-header-title" style={{ margin: 0 }}>🏓 我發起的自揪團</h4>
+                  <a href="/#createPickupModal" id="memberCenterCreatePickupBtn" className="btn-secondary" style={{ fontSize: "13px", padding: "6px 14px", textDecoration: "none", borderRadius: "10px", fontWeight: "800", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    ➕ 發起新揪團
+                  </a>
+                </div>
+                <div id="myPickupsList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>載入自揪活動中...</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab 4: 戰績與積分 */}
+            <div className="member-tab-panel" id="tabPanelStats" style={{ display: "none" }}>
+              <div className="dashboard-panel-card" style={{ width: "100%", marginBottom: "20px" }}>
+                <h4 className="panel-header-title">📈 我的戰力積分走勢</h4>
+                <div className="profile-tip-banner" id="ratingInfoBanner" style={{ display: "flex", background: "rgba(245, 158, 11, 0.05)", border: "1px solid rgba(245, 158, 11, 0.18)", color: "#9A3412", marginBottom: "16px" }}>
                   <span style={{ fontSize: "16px" }}>🏆</span>
                   <span><strong>戰力評級提示</strong>：戰力分數以 1000 為起步（等同 DUPR 2.0），會依對戰成績與分差自動結算。本轉換分數僅供俱樂部內部對戰分場參考，非 DUPR 官方正式認證。</span>
                 </div>
@@ -192,15 +221,21 @@ export default function MemberPage() {
               </div>
 
               <div className="dashboard-panel-card" style={{ width: "100%" }}>
-                <h4 className="panel-header-title">
-                  ⚔️ 近期對戰戰績紀錄
-                </h4>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
+                  <h4 className="panel-header-title" style={{ margin: 0 }}>⚔️ 近期對戰戰績紀錄</h4>
+                  <span id="matchStatsSummary" style={{ fontSize: "13px", fontWeight: "800", color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "3px 12px", borderRadius: "100px" }}>0 場 ｜ 0勝 0敗 (勝率 0%)</span>
+                </div>
                 <div id="matchHistoryList" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>目前尚無任何積分對戰紀錄</p>
                 </div>
               </div>
             </div>
+
+            <div className="profile-tip-banner" style={{ marginTop: "10px" }}>
+              <span style={{ fontSize: "16px" }}>💡</span>
+              <span><strong>系統關聯提示</strong>：將您的「系統 ID」提供給球館或團主，即可在後台進行儲值與卡位扣點！若需要接收即時通知與遞補提醒，請 <a href="https://line.me/R/ti/p/%40657kasvh" target="_blank" rel="noopener noreferrer" style={{ color: "#06C755", fontWeight: "900", textDecoration: "underline" }}>點此加入 LINE 官方好友</a>。</span>
             </div>
+          </div>
 
           <div className="modal" id="transactionModal">
             <div className="modal-card" style={{ maxWidth: "520px" }}>

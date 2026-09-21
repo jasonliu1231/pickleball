@@ -1708,45 +1708,97 @@ async function ensureSystemMember(user) {
   return data;
 }
 
+let activeMemberTab = "clubs";
+let lastEloTrend = [];
+
+function switchMemberTab(tab) {
+  activeMemberTab = tab;
+  document.querySelectorAll(".member-tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === tab);
+  });
+  const panels = {
+    clubs: $("tabPanelClubs"),
+    bookings: $("tabPanelBookings"),
+    pickups: $("tabPanelPickups"),
+    stats: $("tabPanelStats")
+  };
+  Object.entries(panels).forEach(([key, el]) => {
+    if (el) el.style.display = (key === tab) ? "block" : "none";
+  });
+  if (tab === "stats") {
+    setTimeout(() => {
+      if (lastEloTrend && typeof drawEloChart === "function") {
+        drawEloChart(lastEloTrend);
+      }
+    }, 60);
+  }
+}
+
+function initMemberTabs() {
+  const tabsNav = $("memberTabsNav");
+  if (!tabsNav) return;
+  tabsNav.querySelectorAll(".member-tab-btn").forEach(btn => {
+    btn.onclick = () => {
+      const tab = btn.dataset.tab;
+      switchMemberTab(tab);
+    };
+  });
+}
+
+function initSkillChips() {
+  const chipsRow = $("skillChipsRow");
+  if (!chipsRow) return;
+  chipsRow.querySelectorAll(".skill-chip-btn").forEach(btn => {
+    btn.onclick = () => {
+      chipsRow.querySelectorAll(".skill-chip-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if ($("profileSkillLevel")) {
+        $("profileSkillLevel").value = btn.dataset.value;
+      }
+    };
+  });
+}
+
 function drawEloChart(trend) {
   const container = $("eloChartContainer");
   if (!container) return;
 
-  if (trend.length < 2) {
-    container.innerHTML = `<p style="color: var(--muted); font-style: italic; font-size: 13px">需要至少 2 場對戰數據才能顯示積分走勢。</p>`;
+  if (!trend || trend.length < 2) {
+    container.innerHTML = `
+      <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; gap:8px;">
+        <span style="font-size:32px;">📊</span>
+        <p style="color:var(--muted); font-style:italic; font-size:13.5px; font-weight:600; text-align:center;">需要至少 2 場對抗賽數據才能顯示積分走勢。</p>
+      </div>
+    `;
     return;
   }
 
-  // Calculate width and height based on container width
-  const width = container.clientWidth || 340;
-  const height = 180;
-  const paddingLeft = 40;
-  const paddingRight = 15;
+  const width = Math.min(640, container.clientWidth || 340);
+  const height = 190;
+  const paddingLeft = 42;
+  const paddingRight = 20;
   const paddingTop = 20;
-  const paddingBottom = 30;
+  const paddingBottom = 32;
 
   const chartWidth = width - paddingLeft - paddingRight;
   const chartHeight = height - paddingTop - paddingBottom;
 
-  // Extract ELO values
   const elos = trend.map(t => t.elo);
-  const minElo = Math.min(...elos) - 20;
-  const maxElo = Math.max(...elos) + 20;
+  const minElo = Math.min(...elos) - 15;
+  const maxElo = Math.max(...elos) + 15;
   const range = maxElo - minElo || 40;
-
   const pointsCount = trend.length;
 
-  // Generate SVG coordinates
   const coords = trend.map((t, idx) => {
     const x = paddingLeft + (idx / (pointsCount - 1)) * chartWidth;
     const y = height - paddingBottom - ((t.elo - minElo) / range) * chartHeight;
     return { x, y, elo: t.elo, date: t.date };
   });
 
-  // Polyline points
-  const pointsStr = coords.map(c => `${c.x},${c.y}`).join(" ");
+  const polylinePoints = coords.map(c => `${c.x},${c.y}`).join(" ");
+  const polygonPoints = `${coords[0].x},${height - paddingBottom} ` + polylinePoints + ` ${coords[coords.length - 1].x},${height - paddingBottom}`;
 
-  // Grid lines (horizontal)
+  // Grid lines
   let gridsHtml = "";
   const gridCount = 4;
   for (let i = 0; i <= gridCount; i++) {
@@ -1758,63 +1810,44 @@ function drawEloChart(trend) {
     `;
   }
 
-  // Dots for each game
+  // Dots
   let dotsHtml = "";
   coords.forEach((c, idx) => {
-    let dotColor = "var(--accent)";
+    let dotColor = "#059669";
     if (idx > 0) {
       const prevElo = coords[idx - 1].elo;
-      if (c.elo > prevElo) dotColor = "#10b981"; // Win
-      else if (c.elo < prevElo) dotColor = "#ef4444"; // Loss
+      if (c.elo > prevElo) dotColor = "#10b981";
+      else if (c.elo < prevElo) dotColor = "#ef4444";
     }
-    
     dotsHtml += `
-      <circle cx="${c.x}" cy="${c.y}" r="4.5" fill="${dotColor}" stroke="#ffffff" stroke-width="1.5" style="cursor: pointer;">
+      <circle cx="${c.x}" cy="${c.y}" r="4.5" fill="${dotColor}" stroke="#ffffff" stroke-width="2" style="cursor:pointer;">
         <title>${idx === 0 ? "初始積分" : `第 ${idx} 局`}: ${c.elo} 分${c.date ? ` (${c.date})` : ""}</title>
       </circle>
     `;
   });
 
-  // Draw X axis labels (limited to max 6 labels for clean layout)
   let xLabelsHtml = "";
   const labelInterval = Math.max(1, Math.ceil(pointsCount / 6));
   coords.forEach((c, idx) => {
     if (idx % labelInterval === 0 || idx === pointsCount - 1) {
       xLabelsHtml += `
-        <text x="${c.x}" y="${height - 10}" fill="#94a3b8" font-size="9" text-anchor="middle" font-weight="bold">${idx === 0 ? "起點" : `局${idx}`}</text>
+        <text x="${c.x}" y="${height - 10}" fill="#94a3b8" font-size="9.5" text-anchor="middle" font-weight="bold">${idx === 0 ? "起點" : `局${idx}`}</text>
       `;
     }
   });
 
-  // Area under line
-  const fillPath = `
-    M ${coords[0].x} ${height - paddingBottom} 
-    L ${coords.map(c => `${c.x} ${c.y}`).join(" L ")} 
-    L ${coords[coords.length - 1].x} ${height - paddingBottom} Z
-  `;
-
   const svgHtml = `
-    <svg width="${width}" height="${height}" style="overflow:visible">
+    <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="overflow:visible; display:block;">
       <defs>
-        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="var(--accent)" stop-opacity="0"/>
+        <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="#10b981" stop-opacity="0.02"/>
         </linearGradient>
       </defs>
-      
-      <!-- Grid -->
       ${gridsHtml}
-      
-      <!-- Area Fill -->
-      <path d="${fillPath}" fill="url(#areaGrad)" />
-      
-      <!-- Line -->
-      <polyline points="${pointsStr}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-      
-      <!-- X Labels -->
+      <polygon points="${polygonPoints}" fill="url(#chartGrad)"/>
+      <polyline points="${polylinePoints}" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
       ${xLabelsHtml}
-      
-      <!-- Dots -->
       ${dotsHtml}
     </svg>
   `;
@@ -1848,7 +1881,11 @@ async function loadMemberDashboard() {
   
   if ($("profileNickname")) $("profileNickname").value = currentSystemMember.nickname || "";
   if ($("profilePhone")) $("profilePhone").value = currentSystemMember.phone || "";
-  if ($("profileSkillLevel")) $("profileSkillLevel").value = currentSystemMember.skill_level || "normal";
+  const userSkill = currentSystemMember.skill_level || "normal";
+  if ($("profileSkillLevel")) $("profileSkillLevel").value = userSkill;
+  document.querySelectorAll("#skillChipsRow .skill-chip-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.value === userSkill);
+  });
 
   const cleanPh = cleanPhone(currentSystemMember.phone);
   let clubMembers = [];
@@ -1874,6 +1911,13 @@ async function loadMemberDashboard() {
     }
   } else if (rows) {
     clubMembers = rows;
+  }
+
+  // Update badge for Clubs
+  const badgeClubs = $("badgeClubsCount");
+  if (badgeClubs) {
+    badgeClubs.textContent = clubMembers.length;
+    badgeClubs.style.display = clubMembers.length > 0 ? "inline-flex" : "none";
   }
 
   // 取得並顯示會員/球友的最新戰力積分 (若有多個團，以最高分數顯示在個人主卡片)
@@ -1921,7 +1965,13 @@ async function loadMemberDashboard() {
     let lowBalanceDetected = false;
 
     if (clubMembers.length === 0) {
-      balancesList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">尚未加入任何俱樂部或無成員資料</p>`;
+      balancesList.innerHTML = `
+        <div class="empty-view-box">
+          <span class="empty-icon">🏢</span>
+          <div class="empty-title">尚未加入任何俱樂部或無會員紀錄</div>
+          <div class="empty-desc">向球館教練或團主出示您的專屬 QR Code / 系統 ID，即可完成跨場儲值與卡位綁定！</div>
+        </div>
+      `;
     } else {
       clubMembers.forEach(m => {
         const isActive = m.status === "active";
@@ -2011,6 +2061,7 @@ async function loadMemberDashboard() {
 
   const upcomingList = $("userBookingsList");
   if (upcomingList) {
+    let bookingCount = 0;
     if (cleanPh) {
       const { data: signups, error: signupsError } = await client
         .from("signups")
@@ -2022,6 +2073,7 @@ async function loadMemberDashboard() {
 
       upcomingList.innerHTML = "";
       if (!signupsError && signups && signups.length > 0) {
+        bookingCount = signups.length;
         signups.forEach(s => {
           const dateStr = s.reservation_date;
           const meetupName = s.meetups?.name || "匹克球活動";
@@ -2097,10 +2149,27 @@ async function loadMemberDashboard() {
           upcomingList.appendChild(div);
         });
       } else {
-        upcomingList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">近期無任何預約紀錄</p>`;
+        upcomingList.innerHTML = `
+          <div class="empty-view-box">
+            <span class="empty-icon">📅</span>
+            <div class="empty-title">目前無任何預約紀錄</div>
+            <div class="empty-desc">歡迎至「立即預約」挑選心儀場次進行報名！</div>
+          </div>
+        `;
       }
     } else {
-      upcomingList.innerHTML = `<p style="color: var(--muted); font-size: 13.5px; font-style: italic;">請在下方編輯設定手機號碼以讀取您的預約紀錄</p>`;
+      upcomingList.innerHTML = `
+        <div class="empty-view-box">
+          <span class="empty-icon">📱</span>
+          <div class="empty-title">尚未綁定手機號碼</div>
+          <div class="empty-desc">請在上方編輯個人資料填寫並儲存手機，以便讀取您的預約紀錄與出席狀態。</div>
+        </div>
+      `;
+    }
+    const badgeBookings = $("badgeBookingsCount");
+    if (badgeBookings) {
+      badgeBookings.textContent = bookingCount;
+      badgeBookings.style.display = bookingCount > 0 ? "inline-flex" : "none";
     }
   }
 
@@ -2116,8 +2185,21 @@ async function loadMemberDashboard() {
 
       if (myMeetupsErr) throw myMeetupsErr;
 
+      const badgePickups = $("badgePickupsCount");
+      if (badgePickups) {
+        const count = myMeetups?.length || 0;
+        badgePickups.textContent = count;
+        badgePickups.style.display = count > 0 ? "inline-flex" : "none";
+      }
+
       if (!myMeetups || myMeetups.length === 0) {
-        myPickupsList.innerHTML = `<p style="color: var(--muted); font-size: 13px; font-style: italic;">目前尚無自揪活動。歡迎至首頁發起！</p>`;
+        myPickupsList.innerHTML = `
+          <div class="empty-view-box">
+            <span class="empty-icon">🏓</span>
+            <div class="empty-title">目前尚無自揪活動</div>
+            <div class="empty-desc">點擊右上角「➕ 發起新揪團」邀請球友開打！</div>
+          </div>
+        `;
       } else {
         const mIds = myMeetups.map(m => m.id);
         const { data: allSignups } = await client
@@ -2261,203 +2343,240 @@ async function loadMemberDashboard() {
   }
 
   // 3. 讀取戰力走勢圖與歷史戰績
-  const eloHistorySection = $("eloHistorySection");
-  if (eloHistorySection) {
-    eloHistorySection.style.display = "none"; // Default hidden
-    const eloChartContainer = $("eloChartContainer");
-    const matchHistoryList = $("matchHistoryList");
+  const matchHistoryList = $("matchHistoryList");
+  const matchStatsSummary = $("matchStatsSummary");
 
-    const allUserIds = [];
-    if (clubMembers && clubMembers.length > 0) {
-      clubMembers.forEach(m => {
-        if (m.id) allUserIds.push(m.id);
-      });
-    }
+  const allUserIds = [];
+  if (clubMembers && clubMembers.length > 0) {
+    clubMembers.forEach(m => {
+      if (m.id) allUserIds.push(m.id);
+    });
+  }
 
-    if (cleanPh) {
-      try {
-        const { data: userSignups } = await client
-          .from("signups")
-          .select("id")
-          .eq("phone", cleanPh);
-        if (userSignups && userSignups.length > 0) {
-          userSignups.forEach(s => {
-            allUserIds.push(String(s.id));
-          });
-        }
-      } catch (err) {
-        console.warn("Failed to fetch signup IDs for ELO history:", err);
+  if (cleanPh) {
+    try {
+      const { data: userSignups } = await client
+        .from("signups")
+        .select("id")
+        .eq("phone", cleanPh);
+      if (userSignups && userSignups.length > 0) {
+        userSignups.forEach(s => {
+          allUserIds.push(String(s.id));
+        });
       }
-    }
-
-    if (allUserIds.length > 0) {
-      const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
-      const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
-      
-      try {
-        const { data: matches, error: matchesError } = await client
-          .from("session_match_records")
-          .select(`
-            id,
-            meetup_id,
-            reservation_date,
-            court_number,
-            player_a1_id,
-            player_a1_type,
-            player_a2_id,
-            player_a2_type,
-            player_b1_id,
-            player_b1_type,
-            player_b2_id,
-            player_b2_type,
-            score_a,
-            score_b,
-            rating_change,
-            created_at,
-            meetups(name, organizers(name))
-          `)
-          .or(orFilter)
-          .order("created_at", { ascending: true });
-
-        if (matchesError) throw matchesError;
-
-        if (matches && matches.length > 0) {
-          eloHistorySection.style.display = "flex";
-
-          // Process matches to compute ELO trend
-          let currentElo = 1000;
-          const eloTrend = [{ elo: 1000, date: "" }];
-          const renderedMatches = [];
-
-          // Query names mapping
-          const uniquePlayerIds = new Set();
-          matches.forEach(m => {
-            if (m.player_a1_id) uniquePlayerIds.add(m.player_a1_id);
-            if (m.player_a2_id) uniquePlayerIds.add(m.player_a2_id);
-            if (m.player_b1_id) uniquePlayerIds.add(m.player_b1_id);
-            if (m.player_b2_id) uniquePlayerIds.add(m.player_b2_id);
-          });
-
-          const playerNamesMap = new Map();
-          allUserIds.forEach(id => playerNamesMap.set(id, "我"));
-
-          const memberIdsQuery = [...uniquePlayerIds].filter(id => id.length > 10);
-          const signupIdsQuery = [...uniquePlayerIds].filter(id => id.length <= 10).map(id => parseInt(id));
-
-          if (memberIdsQuery.length > 0) {
-            const { data: dbMemNames } = await client
-              .from("members")
-              .select("id, name")
-              .in("id", memberIdsQuery);
-            if (dbMemNames) {
-              dbMemNames.forEach(x => {
-                if (!playerNamesMap.has(x.id)) playerNamesMap.set(x.id, x.name);
-              });
-            }
-          }
-          if (signupIdsQuery.length > 0) {
-            const { data: dbSigNames } = await client
-              .from("signups")
-              .select("id, nickname")
-              .in("id", signupIdsQuery);
-            if (dbSigNames) {
-              dbSigNames.forEach(x => {
-                const key = String(x.id);
-                if (!playerNamesMap.has(key)) playerNamesMap.set(key, x.nickname);
-              });
-            }
-          }
-
-          matches.forEach((m, index) => {
-            const isTeamA = allUserIds.includes(m.player_a1_id) || allUserIds.includes(m.player_a2_id);
-            
-            let partnerName = "";
-            let opponent1Name = "";
-            let opponent2Name = "";
-            let myScore = 0;
-            let oppScore = 0;
-
-            if (isTeamA) {
-              partnerName = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "隊友") : "";
-              opponent1Name = playerNamesMap.get(m.player_b1_id) || "對手A";
-              opponent2Name = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "對手B") : "";
-              myScore = m.score_a;
-              oppScore = m.score_b;
-            } else {
-              partnerName = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "隊友") : "";
-              opponent1Name = playerNamesMap.get(m.player_a1_id) || "對手A";
-              opponent2Name = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "對手B") : "";
-              myScore = m.score_b;
-              oppScore = m.score_a;
-            }
-
-            let outcome = "TIE";
-            let changeSymbol = "";
-            let badgeStyle = "background-color:#e2e8f0; color:#475569; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
-            let changeColor = "#64748b";
-
-            if (myScore > oppScore) {
-              outcome = "WIN";
-              currentElo += m.rating_change;
-              changeSymbol = `+${m.rating_change}`;
-              badgeStyle = "background-color:#dcfce7; color:#166534; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
-              changeColor = "#15803d";
-            } else if (myScore < oppScore) {
-              outcome = "LOSS";
-              currentElo -= m.rating_change;
-              changeSymbol = `-${m.rating_change}`;
-              badgeStyle = "background-color:#fee2e2; color:#991b1b; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
-              changeColor = "#b91c1c";
-            } else {
-              changeSymbol = "±0";
-            }
-
-            eloTrend.push({
-              elo: currentElo,
-              date: m.reservation_date ? m.reservation_date.slice(5) : ""
-            });
-
-            const clubPrefix = m.meetups?.organizers?.name ? `[${m.meetups.organizers.name}] ` : "";
-            const formattedDate = m.reservation_date ? m.reservation_date.replace(/-/g, "/") : "";
-            const partnerStr = partnerName ? ` + ${partnerName}` : "";
-            const opponentsStr = opponent2Name ? `${opponent1Name} + ${opponent2Name}` : opponent1Name;
-
-            renderedMatches.unshift(`
-              <div class="match-history-row" style="display:flex; flex-direction:row; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:14px; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.01)">
-                <div style="flex:1">
-                  <div style="display:flex; align-items:center; justify-content:space-between">
-                    <div style="display:flex; align-items:center; gap:8px">
-                      <span style="${badgeStyle}">${outcome === "WIN" ? "勝" : (outcome === "LOSS" ? "敗" : "平")}</span>
-                      <span style="font-size:15px; font-weight:800; color:#0f172a">${myScore} : ${oppScore}</span>
-                    </div>
-                    <span style="font-size:14px; font-weight:800; color:${changeColor}">${changeSymbol} 分</span>
-                  </div>
-                  <div style="font-size:13px; color:#475569; font-weight:700; margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
-                    <span>我${partnerStr}</span>
-                    <span style="color:#94a3b8">vs</span>
-                    <span>${opponentsStr}</span>
-                  </div>
-                  <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-top:6px">
-                    📅 ${formattedDate} ｜ 🎾 ${escapeHtml(clubPrefix + (m.meetups?.name || "計分對戰"))} (第 ${m.court_number} 場)
-                  </div>
-                </div>
-              </div>
-            `);
-          });
-
-          if (matchHistoryList) {
-            matchHistoryList.innerHTML = renderedMatches.join("");
-          }
-
-          drawEloChart(eloTrend);
-        } else {
-          eloHistorySection.style.display = "none";
-        }
-      } catch (err) {
-        console.error("Failed to query match records:", err);
-      }
+    } catch (err) {
+      console.warn("Failed to fetch signup IDs for ELO history:", err);
     }
   }
+
+  if (allUserIds.length > 0) {
+    const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
+    const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
+    
+    try {
+      const { data: matches, error: matchesError } = await client
+        .from("session_match_records")
+        .select(`
+          id,
+          meetup_id,
+          reservation_date,
+          court_number,
+          player_a1_id,
+          player_a1_type,
+          player_a2_id,
+          player_a2_type,
+          player_b1_id,
+          player_b1_type,
+          player_b2_id,
+          player_b2_type,
+          score_a,
+          score_b,
+          rating_change,
+          created_at,
+          meetups(name, organizers(name))
+        `)
+        .or(orFilter)
+        .order("created_at", { ascending: true });
+
+      if (matchesError) throw matchesError;
+
+      if (matches && matches.length > 0) {
+        // Process matches to compute ELO trend & win rate stats
+        let currentElo = 1000;
+        const eloTrend = [{ elo: 1000, date: "" }];
+        const renderedMatches = [];
+        let calcWins = 0;
+        let calcLosses = 0;
+
+        // Query names mapping
+        const uniquePlayerIds = new Set();
+        matches.forEach(m => {
+          if (m.player_a1_id) uniquePlayerIds.add(m.player_a1_id);
+          if (m.player_a2_id) uniquePlayerIds.add(m.player_a2_id);
+          if (m.player_b1_id) uniquePlayerIds.add(m.player_b1_id);
+          if (m.player_b2_id) uniquePlayerIds.add(m.player_b2_id);
+        });
+
+        const playerNamesMap = new Map();
+        allUserIds.forEach(id => playerNamesMap.set(id, "我"));
+
+        const memberIdsQuery = [...uniquePlayerIds].filter(id => id.length > 10);
+        const signupIdsQuery = [...uniquePlayerIds].filter(id => id.length <= 10).map(id => parseInt(id));
+
+        if (memberIdsQuery.length > 0) {
+          const { data: dbMemNames } = await client
+            .from("members")
+            .select("id, name")
+            .in("id", memberIdsQuery);
+          if (dbMemNames) {
+            dbMemNames.forEach(x => {
+              if (!playerNamesMap.has(x.id)) playerNamesMap.set(x.id, x.name);
+            });
+          }
+        }
+        if (signupIdsQuery.length > 0) {
+          const { data: dbSigNames } = await client
+            .from("signups")
+            .select("id, nickname")
+            .in("id", signupIdsQuery);
+          if (dbSigNames) {
+            dbSigNames.forEach(x => {
+              const key = String(x.id);
+              if (!playerNamesMap.has(key)) playerNamesMap.set(key, x.nickname);
+            });
+          }
+        }
+
+        matches.forEach((m, index) => {
+          const isTeamA = allUserIds.includes(m.player_a1_id) || allUserIds.includes(m.player_a2_id);
+          
+          let partnerName = "";
+          let opponent1Name = "";
+          let opponent2Name = "";
+          let myScore = 0;
+          let oppScore = 0;
+
+          if (isTeamA) {
+            partnerName = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "隊友") : "";
+            opponent1Name = playerNamesMap.get(m.player_b1_id) || "對手A";
+            opponent2Name = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "對手B") : "";
+            myScore = m.score_a;
+            oppScore = m.score_b;
+          } else {
+            partnerName = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "隊友") : "";
+            opponent1Name = playerNamesMap.get(m.player_a1_id) || "對手A";
+            opponent2Name = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "對手B") : "";
+            myScore = m.score_b;
+            oppScore = m.score_a;
+          }
+
+          let outcome = "TIE";
+          let changeSymbol = "";
+          let badgeStyle = "background-color:#e2e8f0; color:#475569; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
+          let changeColor = "#64748b";
+
+          if (myScore > oppScore) {
+            outcome = "WIN";
+            calcWins++;
+            currentElo += m.rating_change;
+            changeSymbol = `+${m.rating_change}`;
+            badgeStyle = "background-color:#dcfce7; color:#166534; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
+            changeColor = "#15803d";
+          } else if (myScore < oppScore) {
+            outcome = "LOSS";
+            calcLosses++;
+            currentElo -= m.rating_change;
+            changeSymbol = `-${m.rating_change}`;
+            badgeStyle = "background-color:#fee2e2; color:#991b1b; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
+            changeColor = "#b91c1c";
+          } else {
+            changeSymbol = "±0";
+          }
+
+          eloTrend.push({
+            elo: currentElo,
+            date: m.reservation_date ? m.reservation_date.slice(5) : ""
+          });
+
+          const clubPrefix = m.meetups?.organizers?.name ? `[${m.meetups.organizers.name}] ` : "";
+          const formattedDate = m.reservation_date ? m.reservation_date.replace(/-/g, "/") : "";
+          const partnerStr = partnerName ? ` + ${partnerName}` : "";
+          const opponentsStr = opponent2Name ? `${opponent1Name} + ${opponent2Name}` : opponent1Name;
+
+          renderedMatches.unshift(`
+            <div class="match-history-row" style="display:flex; flex-direction:row; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:14px; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.01)">
+              <div style="flex:1">
+                <div style="display:flex; align-items:center; justify-content:space-between">
+                  <div style="display:flex; align-items:center; gap:8px">
+                    <span style="${badgeStyle}">${outcome === "WIN" ? "勝" : (outcome === "LOSS" ? "敗" : "平")}</span>
+                    <span style="font-size:15px; font-weight:800; color:#0f172a">${myScore} : ${oppScore}</span>
+                  </div>
+                  <span style="font-size:14px; font-weight:800; color:${changeColor}">${changeSymbol} 分</span>
+                </div>
+                <div style="font-size:13px; color:#475569; font-weight:700; margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+                  <span>我${partnerStr}</span>
+                  <span style="color:#94a3b8">vs</span>
+                  <span>${opponentsStr}</span>
+                </div>
+                <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-top:6px">
+                  📅 ${formattedDate} ｜ 🎾 ${escapeHtml(clubPrefix + (m.meetups?.name || "計分對戰"))} (第 ${m.court_number} 場)
+                </div>
+              </div>
+            </div>
+          `);
+        });
+
+        lastEloTrend = eloTrend;
+        const winRate = matches.length > 0 ? ((calcWins / matches.length) * 100).toFixed(0) + "%" : "0%";
+        if (matchStatsSummary) {
+          matchStatsSummary.textContent = `${matches.length} 場 ｜ ${calcWins}勝 ${calcLosses}敗 (勝率 ${winRate})`;
+        }
+        if (matchHistoryList) {
+          matchHistoryList.innerHTML = renderedMatches.join("");
+        }
+
+        drawEloChart(eloTrend);
+      } else {
+        lastEloTrend = [];
+        if (matchStatsSummary) {
+          matchStatsSummary.textContent = "0 場 ｜ 0勝 0敗 (勝率 0%)";
+        }
+        if (matchHistoryList) {
+          matchHistoryList.innerHTML = `
+            <div class="empty-view-box">
+              <span class="empty-icon">⚔️</span>
+              <div class="empty-title">目前尚無任何積分對抗戰績</div>
+              <div class="empty-desc">參加俱樂部的對抗賽並完成結算後，戰績將自動呈現在此！</div>
+            </div>
+          `;
+        }
+        drawEloChart([]);
+      }
+    } catch (err) {
+      console.error("Failed to query match records:", err);
+    }
+  } else {
+    lastEloTrend = [];
+    if (matchStatsSummary) {
+      matchStatsSummary.textContent = "0 場 ｜ 0勝 0敗 (勝率 0%)";
+    }
+    if (matchHistoryList) {
+      matchHistoryList.innerHTML = `
+        <div class="empty-view-box">
+          <span class="empty-icon">⚔️</span>
+          <div class="empty-title">目前尚無任何積分對抗戰績</div>
+          <div class="empty-desc">參加俱樂部的對抗賽並完成結算後，戰績將自動呈現在此！</div>
+        </div>
+      `;
+    }
+    drawEloChart([]);
+  }
+
+  // Initialize tabs & skill chips and apply active tab
+  initMemberTabs();
+  initSkillChips();
+  switchMemberTab(activeMemberTab);
+
   } catch (err) {
     console.error("loadMemberDashboard error:", err);
   }
@@ -2920,6 +3039,28 @@ $("phone")?.addEventListener("input", async (e) => {
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
 $("logoutBtn")?.addEventListener("click", async () => { sessionStorage.setItem("user_logged_out", "true"); await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
+$("deleteAccountBtn")?.addEventListener("click", async () => {
+  if (!confirm("確定要註銷並刪除您的會員資料嗎？此操作將解除綁定並清除所有登入資訊，且無法復原。")) return;
+  try {
+    if (currentSystemMember?.id) {
+      await client.from("system_members").delete().eq("id", currentSystemMember.id);
+    }
+    sessionStorage.setItem("user_logged_out", "true");
+    await client.auth.signOut();
+    currentUser = null;
+    currentSystemMember = null;
+    toggleAuthView(false);
+    alert("已成功註銷並清除會員帳號！");
+  } catch (err) {
+    console.error("註銷失敗:", err);
+    sessionStorage.setItem("user_logged_out", "true");
+    await client.auth.signOut();
+    currentUser = null;
+    currentSystemMember = null;
+    toggleAuthView(false);
+    alert("已完成本機登入資訊清除。");
+  }
+});
 $("lineLoginBtn")?.addEventListener("click", handleLineLogin);
 $("authForm")?.addEventListener("submit", handleAuthSubmit);
 $("updateProfileForm")?.addEventListener("submit", handleUpdateProfile);
