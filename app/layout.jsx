@@ -17,6 +17,12 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="zh-Hant">
+      <head>
+        <link rel="preconnect" href="https://vurcntmcpemioybqqrcx.supabase.co" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://vurcntmcpemioybqqrcx.supabase.co" />
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+      </head>
       <body>
         <Script
           src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
@@ -82,7 +88,7 @@ export default function RootLayout({ children }) {
         </main>
 
         <Script
-          src="/booking-app.js?v=1.4.5"
+          src="/booking-app.js?v=1.4.6"
           strategy="afterInteractive"
         />
       </body>

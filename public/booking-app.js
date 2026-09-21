@@ -1888,30 +1888,92 @@ async function loadMemberDashboard() {
   });
 
   const cleanPh = cleanPhone(currentSystemMember.phone);
-  let clubMembers = [];
-  
-  // Query by system_member_id, or phone (if present)
-  let filterStr = `system_member_id.eq.${currentSystemMember.id}`;
-  if (cleanPh) {
-    filterStr = `phone.eq.${cleanPh},${filterStr}`;
-  }
 
-  let { data: rows, error } = await client
-    .from("members")
-    .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
-    .or(filterStr);
-
-  if (error) {
-    const fallbackResult = await client
+  // ==========================================
+  // Wave 1: 5 大核心資料平行並發請求 (Promise.all)
+  // ==========================================
+  const pClubs = (async () => {
+    let filterStr = `system_member_id.eq.${currentSystemMember.id}`;
+    if (cleanPh) filterStr = `phone.eq.${cleanPh},${filterStr}`;
+    let { data: rows, error } = await client
       .from("members")
-      .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
+      .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
       .or(filterStr);
-    if (!fallbackResult.error && fallbackResult.data) {
-      clubMembers = fallbackResult.data;
+    if (error) {
+      const fallbackResult = await client
+        .from("members")
+        .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
+        .or(filterStr);
+      return (!fallbackResult.error && fallbackResult.data) ? fallbackResult.data : [];
     }
-  } else if (rows) {
-    clubMembers = rows;
-  }
+    return rows || [];
+  })();
+
+  const pBookings = cleanPh ? (async () => {
+    const { data: signups, error: signupsError } = await client
+      .from("signups")
+      .select("id, status, reservation_date, arrived_count, meetup_id, is_tentative, meetups(id, name, start_time, end_time, address, cancel_deadline_hours)")
+      .eq("phone", currentSystemMember.phone)
+      .gte("reservation_date", toISODate(new Date()))
+      .neq("status", "cancelled")
+      .order("reservation_date", { ascending: true });
+    return (!signupsError && signups) ? signups : [];
+  })() : Promise.resolve([]);
+
+  const pPickups = currentSystemMember?.id ? (async () => {
+    const { data: myMeetups, error: myMeetupsErr } = await client
+      .from("meetups")
+      .select("id, name, city, address, street_address, start_date, start_time, end_time, capacity, fee, notes, is_active, join_password")
+      .eq("creator_member_id", currentSystemMember.id)
+      .order("start_date", { ascending: false });
+
+    if (myMeetupsErr || !myMeetups || myMeetups.length === 0) {
+      return { myMeetups: myMeetups || [], signupsByMeetup: {} };
+    }
+
+    const mIds = myMeetups.map(m => m.id);
+    const { data: allSignups } = await client
+      .from("signups")
+      .select("id, meetup_id, nickname, phone, status, people_count")
+      .in("meetup_id", mIds)
+      .in("status", ["confirmed", "waitlist"]);
+
+    const signupsByMeetup = (allSignups || []).reduce((acc, s) => {
+      const mid = String(s.meetup_id);
+      acc[mid] = acc[mid] || [];
+      acc[mid].push(s);
+      return acc;
+    }, {});
+
+    return { myMeetups, signupsByMeetup };
+  })() : Promise.resolve({ myMeetups: [], signupsByMeetup: {} });
+
+  const pSignupIds = cleanPh ? (async () => {
+    const { data: userSignups } = await client
+      .from("signups")
+      .select("id")
+      .eq("phone", cleanPh);
+    return (userSignups || []).map(s => String(s.id));
+  })() : Promise.resolve([]);
+
+  const pFallbackRating = cleanPh ? (async () => {
+    const { data: recentSignups } = await client
+      .from("signups")
+      .select("rating")
+      .eq("phone", cleanPh)
+      .not("rating", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    return (recentSignups && recentSignups.length > 0 && recentSignups[0].rating) ? recentSignups[0].rating : null;
+  })() : Promise.resolve(null);
+
+  const [clubMembers, upcomingSignups, pickupsData, userSignupIds, fallbackRating] = await Promise.all([
+    pClubs,
+    pBookings,
+    pPickups,
+    pSignupIds,
+    pFallbackRating
+  ]);
 
   // Update badge for Clubs
   const badgeClubs = $("badgeClubsCount");
@@ -1928,21 +1990,8 @@ async function loadMemberDashboard() {
       userRating = Math.max(...ratings);
     }
   }
-  if (!userRating && cleanPh) {
-    try {
-      const { data: recentSignups } = await client
-        .from("signups")
-        .select("rating")
-        .eq("phone", cleanPh)
-        .not("rating", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1);
-      if (recentSignups && recentSignups.length > 0 && recentSignups[0].rating) {
-        userRating = recentSignups[0].rating;
-      }
-    } catch (e) {
-      console.warn("Failed to fetch signup rating:", e);
-    }
+  if (!userRating && fallbackRating) {
+    userRating = fallbackRating;
   }
 
   if (userRating) {
@@ -2063,18 +2112,10 @@ async function loadMemberDashboard() {
   if (upcomingList) {
     let bookingCount = 0;
     if (cleanPh) {
-      const { data: signups, error: signupsError } = await client
-        .from("signups")
-        .select("id, status, reservation_date, arrived_count, meetup_id, is_tentative, meetups(id, name, start_time, end_time, address, cancel_deadline_hours)")
-        .eq("phone", currentSystemMember.phone)
-        .gte("reservation_date", toISODate(new Date()))
-        .neq("status", "cancelled")
-        .order("reservation_date", { ascending: true });
-
       upcomingList.innerHTML = "";
-      if (!signupsError && signups && signups.length > 0) {
-        bookingCount = signups.length;
-        signups.forEach(s => {
+      if (upcomingSignups && upcomingSignups.length > 0) {
+        bookingCount = upcomingSignups.length;
+        upcomingSignups.forEach(s => {
           const dateStr = s.reservation_date;
           const meetupName = s.meetups?.name || "匹克球活動";
           const timeStr = s.meetups?.start_time ? s.meetups.start_time.slice(0, 5) : "";
@@ -2177,22 +2218,17 @@ async function loadMemberDashboard() {
   const myPickupsList = $("myPickupsList");
   if (myPickupsList && currentSystemMember?.id) {
     try {
-      const { data: myMeetups, error: myMeetupsErr } = await client
-        .from("meetups")
-        .select("id, name, city, address, street_address, start_date, start_time, end_time, capacity, fee, notes, is_active, join_password")
-        .eq("creator_member_id", currentSystemMember.id)
-        .order("start_date", { ascending: false });
-
-      if (myMeetupsErr) throw myMeetupsErr;
+      const myMeetups = pickupsData?.myMeetups || [];
+      const signupsByMeetup = pickupsData?.signupsByMeetup || {};
 
       const badgePickups = $("badgePickupsCount");
       if (badgePickups) {
-        const count = myMeetups?.length || 0;
+        const count = myMeetups.length;
         badgePickups.textContent = count;
         badgePickups.style.display = count > 0 ? "inline-flex" : "none";
       }
 
-      if (!myMeetups || myMeetups.length === 0) {
+      if (myMeetups.length === 0) {
         myPickupsList.innerHTML = `
           <div class="empty-view-box">
             <span class="empty-icon">🏓</span>
@@ -2201,20 +2237,6 @@ async function loadMemberDashboard() {
           </div>
         `;
       } else {
-        const mIds = myMeetups.map(m => m.id);
-        const { data: allSignups } = await client
-          .from("signups")
-          .select("id, meetup_id, nickname, phone, status, people_count")
-          .in("meetup_id", mIds)
-          .in("status", ["confirmed", "waitlist"]);
-
-        const signupsByMeetup = (allSignups || []).reduce((acc, s) => {
-          const mid = String(s.meetup_id);
-          acc[mid] = acc[mid] || [];
-          acc[mid].push(s);
-          return acc;
-        }, {});
-
         myPickupsList.innerHTML = myMeetups.map((m) => {
           const isEnded = m.start_date < toISODate(new Date());
           const mSignups = signupsByMeetup[String(m.id)] || [];
@@ -2352,21 +2374,10 @@ async function loadMemberDashboard() {
       if (m.id) allUserIds.push(m.id);
     });
   }
-
-  if (cleanPh) {
-    try {
-      const { data: userSignups } = await client
-        .from("signups")
-        .select("id")
-        .eq("phone", cleanPh);
-      if (userSignups && userSignups.length > 0) {
-        userSignups.forEach(s => {
-          allUserIds.push(String(s.id));
-        });
-      }
-    } catch (err) {
-      console.warn("Failed to fetch signup IDs for ELO history:", err);
-    }
+  if (userSignupIds && userSignupIds.length > 0) {
+    userSignupIds.forEach(id => {
+      allUserIds.push(id);
+    });
   }
 
   if (allUserIds.length > 0) {
@@ -2435,28 +2446,22 @@ async function loadMemberDashboard() {
           }
         });
 
-        if (memberIdsQuery.length > 0) {
-          const { data: dbMemNames } = await client
-            .from("members")
-            .select("id, name")
-            .in("id", memberIdsQuery);
-          if (dbMemNames) {
-            dbMemNames.forEach(x => {
-              if (!playerNamesMap.has(x.id)) playerNamesMap.set(x.id, x.name);
-            });
-          }
+        // 並行查詢球友姓名 (members 與 signups 同時並發)
+        const [memNamesRes, sigNamesRes] = await Promise.all([
+          memberIdsQuery.length > 0 ? client.from("members").select("id, name").in("id", memberIdsQuery) : Promise.resolve({ data: [] }),
+          signupIdsQuery.length > 0 ? client.from("signups").select("id, nickname").in("id", signupIdsQuery) : Promise.resolve({ data: [] })
+        ]);
+
+        if (memNamesRes?.data) {
+          memNamesRes.data.forEach(x => {
+            if (!playerNamesMap.has(x.id)) playerNamesMap.set(x.id, x.name);
+          });
         }
-        if (signupIdsQuery.length > 0) {
-          const { data: dbSigNames } = await client
-            .from("signups")
-            .select("id, nickname")
-            .in("id", signupIdsQuery);
-          if (dbSigNames) {
-            dbSigNames.forEach(x => {
-              const key = String(x.id);
-              if (!playerNamesMap.has(key)) playerNamesMap.set(key, x.nickname);
-            });
-          }
+        if (sigNamesRes?.data) {
+          sigNamesRes.data.forEach(x => {
+            const key = String(x.id);
+            if (!playerNamesMap.has(key)) playerNamesMap.set(key, x.nickname);
+          });
         }
 
         matches.forEach((m, index) => {
@@ -3099,11 +3104,14 @@ if ($("knowledgeList")) renderStaticContent();
 (async function init() {
   if ($("announcementList")) loadAnnouncements().catch(console.error);
 
-  // Load weekdays and immediately render calendar & meetup cards
-  const weekdaysPromise = $("daysGrid") ? loadAvailableWeekdays().catch(console.error) : Promise.resolve();
-  weekdaysPromise.then(() => {
+  // 並行載入月曆規則與開團列表，首頁加載不再受阻塞
+  if ($("daysGrid") || $("meetupList")) {
+    const weekdaysPromise = $("daysGrid") ? loadAvailableWeekdays().catch(console.error) : Promise.resolve();
     refreshAll();
-  });
+    weekdaysPromise.then(() => {
+      if ($("daysGrid")) renderCalendar();
+    });
+  }
 
   // 統一身分同步處理 (避免 onAuthStateChange 與 getSession 重複並行呼叫造成多次資料庫查詢)
   let activeMemberPromise = null;
