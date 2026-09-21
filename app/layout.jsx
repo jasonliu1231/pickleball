@@ -35,6 +35,8 @@ export default function RootLayout({ children }) {
             <Navbar />
           </header>
 
+          {children}
+
           {/* Global Phone Binding Modal (Shown when logged in but phone is missing) */}
           <div className="modal" id="bindPhoneModal">
             <div className="modal-card">
@@ -80,7 +82,7 @@ export default function RootLayout({ children }) {
         </main>
 
         <Script
-          src="/booking-app.js?v=1.4.2"
+          src="/booking-app.js?v=1.4.3"
           strategy="afterInteractive"
         />
       </body>

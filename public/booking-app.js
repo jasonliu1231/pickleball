@@ -1824,6 +1824,7 @@ function drawEloChart(trend) {
 
 async function loadMemberDashboard() {
   if (!currentUser || !currentSystemMember) return;
+  try {
   
   if ($("dashboardNickname")) $("dashboardNickname").textContent = currentSystemMember.nickname || "球友";
   if ($("dashboardPhone")) $("dashboardPhone").textContent = currentSystemMember.phone || "未設定";
@@ -2456,6 +2457,9 @@ async function loadMemberDashboard() {
         console.error("Failed to query match records:", err);
       }
     }
+  }
+  } catch (err) {
+    console.error("loadMemberDashboard error:", err);
   }
 }
 
