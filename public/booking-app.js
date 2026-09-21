@@ -2420,8 +2420,20 @@ async function loadMemberDashboard() {
         const playerNamesMap = new Map();
         allUserIds.forEach(id => playerNamesMap.set(id, "我"));
 
-        const memberIdsQuery = [...uniquePlayerIds].filter(id => id.length > 10);
-        const signupIdsQuery = [...uniquePlayerIds].filter(id => id.length <= 10).map(id => parseInt(id));
+        const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || "").trim());
+        const isInt = (id) => /^\d+$/.test(String(id || "").trim());
+
+        const memberIdsQuery = [...uniquePlayerIds].filter(isUuid);
+        const signupIdsQuery = [...uniquePlayerIds].filter(isInt).map(id => parseInt(id, 10));
+
+        // For non-UUID and non-numeric IDs (e.g. test dummy players), assign fallback names directly
+        uniquePlayerIds.forEach(id => {
+          if (!isUuid(id) && !isInt(id)) {
+            if (!playerNamesMap.has(id)) {
+              playerNamesMap.set(id, id.toLowerCase().includes("dummy") ? "練習球友" : id);
+            }
+          }
+        });
 
         if (memberIdsQuery.length > 0) {
           const { data: dbMemNames } = await client

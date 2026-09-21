@@ -82,7 +82,7 @@ export default function RootLayout({ children }) {
         </main>
 
         <Script
-          src="/booking-app.js?v=1.4.4"
+          src="/booking-app.js?v=1.4.5"
           strategy="afterInteractive"
         />
       </body>
