@@ -15,10 +15,31 @@ export async function GET(request) {
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
+  // 解析 state 中是否指定了 App 端自訂返回網址 (e.g. exp://... 或 pickleballceilidh://...)
+  let appReturnUrl = null;
+  if (state) {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(state));
+      if (parsed.returnUrl) appReturnUrl = parsed.returnUrl;
+    } catch (e) {
+      try {
+        const decoded = Buffer.from(state, "base64").toString("utf-8");
+        const parsed = JSON.parse(decoded);
+        if (parsed.returnUrl) appReturnUrl = parsed.returnUrl;
+      } catch (e2) {}
+    }
+  }
+
   // 1. 若 LINE 授權回傳錯誤
   if (error || !code) {
     console.error("LINE Auth callback error from provider:", error, errorDescription);
     const msg = errorDescription || error || "未收到 LINE 授權碼";
+    if (appReturnUrl) {
+      const sep = appReturnUrl.includes("#") ? "&" : "#";
+      return NextResponse.redirect(
+        `${appReturnUrl}${sep}error=${encodeURIComponent(error || "no_code")}&error_description=${encodeURIComponent(msg)}`
+      );
+    }
     return NextResponse.redirect(
       `${origin}/member?error=${encodeURIComponent(error || "no_code")}&error_description=${encodeURIComponent(msg)}`
     );
@@ -198,13 +219,24 @@ export async function GET(request) {
       }
     }
 
-    // 8. 成功導回 /member，以 URL Fragment 帶入憑證
+    // 8. 成功導回：若來自 App，跳轉回 App 專屬協定；若來自 Web，導回 /member
     // Supabase JS Client 會在頁面載入時自動解析 #access_token=...，完成身分驗證並持久化至 localStorage！
-    const redirectUrl = `${origin}/member#access_token=${access_token}&refresh_token=${refresh_token}&token_type=bearer&type=recovery`;
+    if (appReturnUrl) {
+      const sep = appReturnUrl.includes("#") ? "&" : "#";
+      const redirectUrl = `${appReturnUrl}${sep}access_token=${access_token}&refresh_token=${refresh_token}&token_type=bearer&type=recovery`;
+      return NextResponse.redirect(redirectUrl);
+    }
 
+    const redirectUrl = `${origin}/member#access_token=${access_token}&refresh_token=${refresh_token}&token_type=bearer&type=recovery`;
     return NextResponse.redirect(redirectUrl);
   } catch (err) {
     console.error("Fatal exception in LINE callback:", err);
+    if (appReturnUrl) {
+      const sep = appReturnUrl.includes("#") ? "&" : "#";
+      return NextResponse.redirect(
+        `${appReturnUrl}${sep}error=server_error&error_description=${encodeURIComponent(err.message || "伺服器換證發生錯誤")}`
+      );
+    }
     return NextResponse.redirect(
       `${origin}/member?error=server_error&error_description=${encodeURIComponent(err.message || "伺服器換證發生錯誤")}`
     );
