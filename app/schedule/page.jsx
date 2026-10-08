@@ -664,8 +664,8 @@ export default function SchedulePage() {
           background: #f8fafc;
         }
         .mode-card.active {
-          border-color: #059669;
-          background: #f0fdf4;
+          border-color: #2563eb;
+          background: #eff6ff;
         }
         .mode-title {
           font-size: 12px;
@@ -688,7 +688,7 @@ export default function SchedulePage() {
           border-top: 1px solid #e2e8f0;
         }
         .primary-generate-btn {
-          background: #16a34a;
+          background: #2563eb;
           color: #ffffff;
           border: none;
           font-size: 14px;
@@ -702,7 +702,7 @@ export default function SchedulePage() {
           transition: all 0.2s;
         }
         .primary-generate-btn:hover {
-          background: #15803d;
+          background: #1d4ed8;
         }
         .secondary-btn-group {
           display: flex;
@@ -773,7 +773,7 @@ export default function SchedulePage() {
         }
         .fair-tag {
           font-size: 10px;
-          background: #16a34a;
+          background: #2563eb;
           color: #ffffff;
           padding: 1px 6px;
           border-radius: 4px;
@@ -864,7 +864,7 @@ export default function SchedulePage() {
         .p-name { font-weight: 700; color: #0f172a; }
 
         .r-num { font-weight: 800; color: #334155; font-size: 12px; }
-        .r-teama { font-size: 13.5px; font-weight: 800; color: #047857; }
+        .r-teama { font-size: 13.5px; font-weight: 800; color: #d97706; }
         .r-teamb { font-size: 13.5px; font-weight: 800; color: #1d4ed8; }
         .score-box-print {
           display: inline-block;

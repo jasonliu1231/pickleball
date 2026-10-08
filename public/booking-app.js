@@ -1,8 +1,62 @@
-const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
-const client = (typeof window !== "undefined" && window.supabaseClient)
-  ? window.supabaseClient
-  : (typeof supabase !== "undefined" && supabase.createClient ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null);
+const SUPABASE_URL = "https://jynbpziqitriicruwqlz.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_l92pwfLLpWoFtNVv_QF39g_xzZOwqpZ";
+
+function getSupabaseClient() {
+  if (typeof window !== "undefined" && window.supabaseClient) {
+    return window.supabaseClient;
+  }
+  if (typeof window !== "undefined" && window.supabase?.createClient) {
+    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return window.supabaseClient;
+  }
+  if (typeof supabase !== "undefined" && supabase.createClient) {
+    return supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return null;
+}
+
+const client = new Proxy({}, {
+  get(target, prop) {
+    const actualClient = getSupabaseClient();
+    if (!actualClient) {
+      if (prop === "auth") {
+        return {
+          getSession: () => Promise.resolve({ data: { session: null } }),
+          onAuthStateChange: (cb) => {
+            // 当 client 就绪后自动補訂閱
+            const poll = setInterval(() => {
+              const c = getSupabaseClient();
+              if (c) {
+                clearInterval(poll);
+                c.auth.onAuthStateChange(cb);
+              }
+            }, 100);
+            return { data: { subscription: { unsubscribe: () => clearInterval(poll) } } };
+          },
+          setSession: (s) => {
+            const c = getSupabaseClient();
+            return c ? c.auth.setSession(s) : Promise.resolve({ data: { session: null }, error: null });
+          },
+          signInWithPassword: (p) => {
+            const c = getSupabaseClient();
+            return c ? c.auth.signInWithPassword(p) : Promise.resolve({ data: {}, error: new Error("Client initializing") });
+          },
+          signUp: (p) => {
+            const c = getSupabaseClient();
+            return c ? c.auth.signUp(p) : Promise.resolve({ data: {}, error: new Error("Client initializing") });
+          },
+          signOut: () => {
+            const c = getSupabaseClient();
+            return c ? c.auth.signOut() : Promise.resolve({ error: null });
+          }
+        };
+      }
+      return (...args) => Promise.resolve({ data: null, error: new Error("Supabase client initializing") });
+    }
+    const val = actualClient[prop];
+    return typeof val === "function" ? val.bind(actualClient) : val;
+  }
+});
 
 let countdownInterval = null;
 let exclusions = [];
@@ -128,10 +182,10 @@ const taiwanCities = [
 ];
 let selectedCity = "all";
 const skillLabels = {
-  first_time: "第一次",
-  beginner: "初學",
-  normal: "一般",
-  advanced: "進階"
+  first_time: "需教學 (<2.0)",
+  beginner: "初學 (2.0-2.5)",
+  normal: "一般 (2.5-3.0)",
+  advanced: "進階 (3.0+)"
 };
 function skillLabel(value, isBeginner) {
   return skillLabels[value] || (isBeginner ? "初學" : "一般");
@@ -284,26 +338,46 @@ async function loadAvailableWeekdays(forceRefresh = false) {
     return; // Fast path: return cached rules without network request
   }
   let query = client
-    .from("booking_meetup_weekdays_view")
-    .select("id,weekday,start_date,is_active,weekday_is_active,city,is_one_off,one_off_date")
-    .eq("is_active", true)
-    .eq("weekday_is_active", true);
+    .from("meetups")
+    .select("id, city, weekdays, is_one_off, one_off_date, is_active")
+    .eq("is_active", true);
   query = applyCityFilter(query);
 
   try {
-    const [rulesRes, exclRes] = await Promise.all([
+    const [meetupsRes, cancelSessRes] = await Promise.all([
       query,
-      client.from("meetup_exclusions").select("meetup_id, exclude_date")
+      client.from("sessions").select("meetup_id, session_date").eq("status", "cancelled")
     ]);
-    if (rulesRes.error) throw rulesRes.error;
-    availableRules = (rulesRes.data || []).map((x) => ({
-      id: x.id,
-      weekday: x.weekday,
-      start_date: x.start_date || null,
-      is_one_off: !!x.is_one_off,
-      one_off_date: x.one_off_date || null,
+    if (meetupsRes.error) throw meetupsRes.error;
+
+    const rules = [];
+    (meetupsRes.data || []).forEach((m) => {
+      if (m.is_one_off) {
+        rules.push({
+          id: m.id,
+          weekday: m.one_off_date ? dateFromISO(m.one_off_date).getDay() : 0,
+          is_one_off: true,
+          one_off_date: m.one_off_date,
+          city: m.city || null
+        });
+      } else {
+        (m.weekdays || []).forEach((w) => {
+          rules.push({
+            id: m.id,
+            weekday: Number(w),
+            is_one_off: false,
+            one_off_date: null,
+            city: m.city || null
+          });
+        });
+      }
+    });
+
+    availableRules = rules;
+    exclusions = (cancelSessRes.data || []).map(s => ({
+      meetup_id: s.meetup_id,
+      exclude_date: s.session_date
     }));
-    exclusions = exclRes.data || [];
   } catch (err) {
     console.error("載入開團規則或停開日期失敗", err);
   }
@@ -358,124 +432,132 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
   const fetchPromise = (async () => {
     try {
       const weekday = dateFromISO(dateStr).getDay();
-      let query = client
-        .from("booking_meetup_weekdays_view")
-        .select("*")
-        .eq("is_active", true)
-        .eq("weekday_is_active", true)
-        .eq("weekday", weekday)
-        .lte("start_date", dateStr);
-      query = applyCityFilter(query);
 
-      // 並行執行開團資料與特別場次查詢，大幅縮短網路延遲
-      const [meetupsRes, sessionRes] = await Promise.all([
-        query.order("id", { ascending: false }),
-        client.from("sessions").select("meetup_id, capacity_override, session_notes, status, match_schedule").eq("session_date", dateStr)
+      let mQuery = client
+        .from("meetups")
+        .select("*, organizer:organizers(name, line_id, phone)")
+        .eq("is_active", true);
+      mQuery = applyCityFilter(mQuery);
+
+      const [sessionRes, meetupRes, subsRes] = await Promise.all([
+        client
+          .from("sessions")
+          .select("*, meetup:meetups(*, organizer:organizers(name, line_id, phone)), participants:session_participants(user_id, status)")
+          .eq("session_date", dateStr),
+        mQuery.order("start_time", { ascending: true }),
+        client
+          .from("member_meetup_subscriptions")
+          .select("meetup_id, organizer_member_id, organizer_member:organizer_members(id, user_id, status)")
       ]);
 
-      if (meetupsRes.error) throw meetupsRes.error;
-      const data = meetupsRes.data;
-      const excludedIds = new Set(
-        (exclusions || [])
-          .filter(x => x.exclude_date === dateStr)
-          .map(x => String(x.meetup_id))
-      );
-      const sessionMap = (sessionRes.data || []).reduce((acc, row) => {
-        acc[String(row.meetup_id)] = row;
-        return acc;
-      }, {});
+      if (sessionRes.error) throw sessionRes.error;
+      if (meetupRes.error) throw meetupRes.error;
 
-      const rows = (data || [])
-        .filter(m => {
-          if (excludedIds.has(String(m.id))) return false;
-          if (m.is_one_off && m.one_off_date !== dateStr) return false;
-          const sess = sessionMap[String(m.id)];
-          if (sess && sess.status === 'cancelled') return false;
-          return true;
-        })
-        .map((m) => {
-          const sess = sessionMap[String(m.id)];
-          return {
-            ...m,
-            push_tokens: normalizePushTokens(m.push_tokens),
-            capacity_override: sess ? (sess.capacity_override ?? m.capacity_override ?? null) : (m.capacity_override ?? null),
-            weekday_notes: m.weekday_notes ?? null,
-            session_notes: sess ? (sess.session_notes ?? null) : null,
-            status: sess ? (sess.status ?? 'open') : 'open',
-            match_schedule: sess ? (sess.match_schedule ?? null) : null,
-          };
-        });
+      const sessionRows = sessionRes.data || [];
+      const activeMeetups = meetupRes.data || [];
+      const sessionMeetupIds = new Set(sessionRows.map((s) => String(s.meetup_id)));
 
-      const ids = rows.map((x) => x.id);
-      let counts = {};
-      if (ids.length) {
-        const { data: countRows, error: rpcError } = await client.rpc("get_meetup_counts_by_date", {
-          p_reservation_date: dateStr,
-          p_meetup_ids: ids
-        });
-        if (!rpcError) {
-          counts = (countRows || []).reduce((acc, row) => {
-            acc[String(row.meetup_id)] = row;
-            return acc;
-          }, {});
-        } else {
-          const { data: signups, error: signupError } = await client
-            .from("signups")
-            .select("meetup_id,status,people_count")
-            .in("meetup_id", ids)
-            .eq("reservation_date", dateStr)
-            .in("status", ["confirmed", "waitlist"]);
-          if (signupError) throw signupError;
-          counts = (signups || []).reduce((acc, row) => {
-            const key = String(row.meetup_id);
-            const pCount = Number(row.people_count || 1);
-            acc[key] = acc[key] || { confirmed_total_count: 0, waitlist_count: 0, member_count: 0, confirmed_signup_count: 0 };
-            if (row.status === "waitlist") acc[key].waitlist_count += pCount;
-            else {
-              acc[key].confirmed_total_count += pCount;
-              acc[key].confirmed_signup_count += pCount;
-            }
-            return acc;
-          }, {});
-        }
-      }
-      
-      const mapped = rows.map((m) => {
-        const cap = m.capacity_override ?? m.capacity ?? 0;
-        const c = counts[String(m.id)] || {};
-        const realConfirmed = Number(c.confirmed_total_count ?? c.confirmed_count ?? 0);
-        return {
+      // 建立開團之固定會員訂閱映射
+      const allSubs = subsRes?.data || [];
+      const subsByMeetup = new Map();
+      allSubs.forEach((s) => {
+        if (s.organizer_member && s.organizer_member.status !== "active") return;
+        const mId = String(s.meetup_id);
+        if (!subsByMeetup.has(mId)) subsByMeetup.set(mId, []);
+        subsByMeetup.get(mId).push(s);
+      });
+
+      const rows = [];
+
+      // 1. 處理當天已實例化的場次
+      sessionRows.forEach((s) => {
+        if (s.status === "cancelled") return;
+        const m = s.meetup || {};
+        const cap = s.capacity_override ?? m.capacity ?? 0;
+        const mId = String(s.meetup_id || m.id);
+        const subs = subsByMeetup.get(mId) || [];
+        const absentUserIds = new Set((s.participants || []).filter(p => p.status === 'absent').map(p => String(p.user_id)));
+        const activeSubs = subs.filter(sub => !absentUserIds.has(String(sub.organizer_member?.user_id)));
+        const memberCount = activeSubs.length;
+        const signupConfirmed = Number(s.confirmed_count || 0);
+        const realConfirmed = signupConfirmed + memberCount;
+
+        rows.push({
           ...m,
-          member_count: Number(c.member_count || 0),
-          confirmed_signup_count: Number(c.confirmed_signup_count || 0),
+          session_id: s.id,
+          session_date: s.session_date,
+          capacity_override: s.capacity_override,
+          capacity: cap,
+          session_notes: s.session_notes || null,
+          notes: s.session_notes || m.notes,
+          status: s.status || "open",
+          match_schedule: s.match_schedule || null,
           confirmed_count: realConfirmed,
           display_confirmed_count: cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed,
-          waitlist_count: Number(c.waitlist_count || 0),
+          waitlist_count: Number(s.waitlist_count || 0),
           over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
-        };
+          member_count: memberCount,
+          confirmed_signup_count: signupConfirmed,
+          organizer_name: m.organizer?.name || "未知主辦"
+        });
       });
 
-      // 排序邏輯：未結束的活動排前面，已結束的排後面；在此大分類下，以開始時間 start_time 由小到大排序
-      mapped.sort((a, b) => {
+      // 2. 虛擬場次合成 (常態性每週開團但尚未有預約之日)
+      activeMeetups.forEach((m) => {
+        if (sessionMeetupIds.has(String(m.id))) return;
+        const matchesWeekday = !m.is_one_off && (m.weekdays || []).includes(weekday);
+        const matchesOneOff = m.is_one_off && m.one_off_date === dateStr;
+        if (matchesWeekday || matchesOneOff) {
+          const cap = m.capacity ?? 0;
+          const subs = subsByMeetup.get(String(m.id)) || [];
+          const memberCount = subs.length;
+          const realConfirmed = memberCount;
+          rows.push({
+            ...m,
+            session_id: null,
+            session_date: dateStr,
+            capacity: cap,
+            session_notes: null,
+            status: "open",
+            match_schedule: null,
+            confirmed_count: realConfirmed,
+            display_confirmed_count: cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed,
+            waitlist_count: 0,
+            over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
+            member_count: memberCount,
+            confirmed_signup_count: 0,
+            organizer_name: m.organizer?.name || "未知主辦"
+          });
+        }
+      });
+
+      // 排序邏輯：未結束的活動排前面，已結束的排後面；自訂排序 sort_order 優先（預設：上課 ➔ 覆訓 ➔ 球敘）；次依開始時間排序
+      const DEFAULT_MEETUP_ORDER = {
+        "匹克球初階（上課）": 1,
+        "學長姊覆訓": 2,
+        "匹克球初階（球敘）": 3
+      };
+      const getOrder = (m) => {
+        if (m.sort_order !== null && m.sort_order !== undefined && Number(m.sort_order) > 0) return Number(m.sort_order);
+        const name = m.name || m.meetup_name || "";
+        return DEFAULT_MEETUP_ORDER[name] || 100;
+      };
+
+      rows.sort((a, b) => {
         const aEnded = isMeetupEnded(a, dateStr);
         const bEnded = isMeetupEnded(b, dateStr);
-        
-        // 1. 已結束的排最下面
-        if (aEnded && !bEnded) return 1;
-        if (!aEnded && bEnded) return -1;
-        
-        // 2. 其餘照開始時間由小到大排序
-        const aTime = a.start_time || "00:00";
-        const bTime = b.start_time || "00:00";
-        if (aTime !== bTime) {
-          return aTime.localeCompare(bTime);
-        }
-        
-        return Number(a.id) - Number(b.id);
+        if (aEnded !== bEnded) return aEnded ? 1 : -1;
+        const orderA = getOrder(a);
+        const orderB = getOrder(b);
+        if (orderA !== orderB) return orderA - orderB;
+        return String(a.start_time).localeCompare(String(b.start_time));
       });
 
-      MEETUP_CACHE.set(dateStr, { data: mapped, timestamp: Date.now() });
-      return mapped;
+      MEETUP_CACHE.set(dateStr, {
+        timestamp: Date.now(),
+        data: rows
+      });
+      return rows;
     } finally {
       inFlightMeetupRequests.delete(dateStr);
     }
@@ -488,26 +570,81 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
 async function fetchRoster(meetupId, dateStr) {
   const key = `${meetupId}-${dateStr}`;
   if (rosterCache.has(key)) return rosterCache.get(key);
-  const { data, error } = await client.rpc("get_roster_with_members", {
-    p_meetup_id: meetupId,
-    p_reservation_date: dateStr
-  });
-  if (!error) {
-    const rows = data || [];
+
+  try {
+    const [sessionRes, subsRes] = await Promise.all([
+      client
+        .from("sessions")
+        .select("id, participants:session_participants(id, people_count, status, note, created_at, user:users(id, name, phone, is_beginner, skill_level, rating))")
+        .eq("meetup_id", meetupId)
+        .eq("session_date", dateStr)
+        .maybeSingle(),
+      client
+        .from("member_meetup_subscriptions")
+        .select("organizer_member_id, organizer_member:organizer_members(id, user_id, status, created_at, user:users(id, name, phone, is_beginner, skill_level, rating))")
+        .eq("meetup_id", meetupId)
+    ]);
+
+    const session = sessionRes?.data;
+    const participants = session?.participants || [];
+    const absentUserIds = new Set(participants.filter(p => p.status === 'absent').map(p => String(p.user?.id)));
+
+    // 1. 固定會員（保留名冊，依加入時間先後順序排序）
+    const memberRows = [];
+    (subsRes?.data || []).forEach(sub => {
+      const om = sub.organizer_member;
+      if (!om || om.status !== 'active') return;
+      const uId = String(om.user?.id || om.user_id);
+      if (absentUserIds.has(uId)) return; // 請假不列入
+      memberRows.push({
+        id: `member-${om.id}`,
+        user_id: uId,
+        nickname: om.user?.name || "固定會員",
+        display_name: om.user?.name || "固定會員",
+        phone: om.user?.phone || "",
+        is_beginner: om.user?.is_beginner || false,
+        skill_level: om.user?.skill_level || "3.0",
+        rating: om.user?.rating || 1000,
+        people_count: 1,
+        status: "confirmed",
+        note: "",
+        created_at: om.created_at || null,
+        source: "member"
+      });
+    });
+
+    memberRows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+
+    const subUserIds = new Set(memberRows.map(m => String(m.user_id)));
+
+    // 2. 一般報名者（依報名時間先後順序排序）
+    const signupRows = participants
+      .filter(x => ["confirmed", "waitlist", "attended"].includes(x.status) && !subUserIds.has(String(x.user?.id)))
+      .map(x => ({
+        id: x.id,
+        user_id: x.user?.id,
+        nickname: x.user?.name || "球友",
+        display_name: x.user?.name || "球友",
+        phone: x.user?.phone || "",
+        is_beginner: x.user?.is_beginner || false,
+        skill_level: x.user?.skill_level || "3.0",
+        rating: x.user?.rating || 1000,
+        people_count: x.people_count || 1,
+        status: x.status === "attended" ? "confirmed" : x.status,
+        note: x.note,
+        created_at: x.created_at,
+        source: "signup"
+      }));
+
+    signupRows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+
+    const rows = [...memberRows, ...signupRows];
     rosterCache.set(key, rows);
     return rows;
+  } catch (err) {
+    console.error("fetchRoster error:", err);
+    return [];
   }
-  const fallback = await client
-    .from("signups")
-    .select("id,nickname,phone,is_beginner,skill_level,note,status,created_at")
-    .eq("meetup_id", meetupId)
-    .eq("reservation_date", dateStr)
-    .in("status", ["confirmed", "waitlist"])
-    .order("created_at", { ascending: true });
-  if (fallback.error) throw fallback.error;
-  const rows = (fallback.data || []).map((x) => ({ ...x, display_name: x.nickname, source: "signup" }));
-  rosterCache.set(key, rows);
-  return rows;
 }
 function clearRosterCache() {
   rosterCache.clear();
@@ -553,6 +690,19 @@ function renderCalendar() {
   });
 }
 
+function hasRatingThreshold(m) {
+  return false;
+}
+
+function formatRatingMin(val) {
+  const num = Number(val);
+  if (num <= 10) {
+    return `DUPR ${num.toFixed(1)} 以上`;
+  }
+  const minDupr = Math.max(2.0, 2.0 + (num - 1000) / 400).toFixed(2);
+  return `${num}分 (等同 DUPR ${minDupr} 以上)`;
+}
+
 function renderMeetups(meetups) {
   const dateEl = $("selectedDateText");
   const listEl = $("meetupList");
@@ -564,7 +714,7 @@ function renderMeetups(meetups) {
       <div class="empty-state">
         <div class="empty-icon">🏓</div>
         <div class="empty-title">這天目前沒有開放報名</div>
-        <p class="empty-sub">在上方月曆點選有小綠點的日期，即可查看當天可報名的球團！</p>
+        <p class="empty-sub">在上方月曆點選有黃色小點的日期，即可查看當天可報名的球團！</p>
         <button class="btn-secondary" id="emptyStatePickupBtn" style="margin-top: 14px; font-weight: 800;">➕ 立即發起這天自揪</button>
       </div>
     `;
@@ -615,9 +765,9 @@ function renderMeetups(meetups) {
       primaryBtnText = full ? "加入備取" : "我要報名";
     }
 
-    const showQuickSignup = currentSystemMember && currentSystemMember.phone && currentSystemMember.nickname && !isBookingNotOpen && !isBookingClosed && !btnDisabledAttr && !(m.rating_min > 0);
+    const showQuickSignup = currentSystemMember && currentSystemMember.phone && currentSystemMember.nickname && !isBookingNotOpen && !isBookingClosed && !btnDisabledAttr && !hasRatingThreshold(m);
     const quickSignupBtnHtml = showQuickSignup 
-      ? `<button class="btn-secondary quick-signup-btn" style="background:#f0fdf4;border:1px solid #15803d;color:#15803d;font-weight:900" title="使用您的個人資料快速報名">⚡ 快速報名</button>`
+      ? `<button class="btn-secondary quick-signup-btn" style="background:#eff6ff;border:1.5px solid var(--primary);color:var(--primary);font-weight:900" title="使用您的個人資料快速報名">⚡ 快速報名</button>`
       : "";
 
     const fillPct = cap > 0 ? Math.min(100, Math.round((displayConfirmed / cap) * 100)) : 100;
@@ -655,11 +805,11 @@ function renderMeetups(meetups) {
       <div class="info-grid">
         <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}${m.creator_member_id && currentSystemMember && String(m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
-        <div class="info"><strong>費用</strong>${escapeHtml(m.fee || "現場公告")}</div>
+        <div class="info"><strong>費用</strong>${escapeHtml(String(m.guest_fee !== null && m.guest_fee !== undefined ? m.guest_fee : (m.fee || "現場公告")))}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
         ${waitlistCount > 0 ? `<div class="info"><strong>備取</strong>${waitlistCount} 人</div>` : ""}
         ${m.coach ? `<div class="info"><strong>教練</strong>${escapeHtml(m.coach)}</div>` : ""}
-        ${m.rating_min > 0 ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${m.rating_min} 以上 (等同 DUPR ${Math.max(2.0, 2.0 + (m.rating_min - 1000) / 400).toFixed(2)})</div>` : ""}
+        ${hasRatingThreshold(m) ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${formatRatingMin(m.rating_min)}</div>` : ""}
       </div>
       ${capBarHtml}
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
@@ -668,7 +818,7 @@ function renderMeetups(meetups) {
         <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
         ${quickSignupBtnHtml}
         <button class="btn-secondary roster-btn">查看名單</button>
-        ${m.match_schedule ? `<button class="btn-secondary schedule-btn" style="background:#f0fdf4; border-color:var(--accent); color:var(--accent); font-weight:800;">📅 查看賽程</button>` : ""}
+        ${m.match_schedule ? `<button class="btn-secondary schedule-btn" style="background:#eff6ff; border-color:var(--primary); color:var(--primary); font-weight:800;">📅 查看賽程</button>` : ""}
         <button class="btn-ghost share-link-btn" style="font-size: 12.5px; font-weight: 800;" title="複製此活動分享連結">🔗 分享</button>
         <button class="btn-ghost cancel-btn">預約管理</button>
       </div>
@@ -710,7 +860,7 @@ function renderMeetups(meetups) {
           card.scrollIntoView({ behavior: "smooth", block: "center" });
           card.style.transition = "box-shadow 0.4s ease, border-color 0.4s ease";
           card.style.borderColor = "var(--primary)";
-          card.style.boxShadow = "0 0 0 4px rgba(5, 150, 105, 0.4)";
+          card.style.boxShadow = "0 0 0 4px rgba(37, 99, 235, 0.4)";
           setTimeout(() => {
             card.style.boxShadow = "";
             card.style.borderColor = "";
@@ -857,7 +1007,7 @@ function openSignup(meetup, initialPwd = null) {
   $("modalSubtitle").textContent = `${formatDate(selectedDate)}｜${timeText(meetup.start_time, meetup.end_time)}`;
   
   if ($("modalFeeText")) {
-    $("modalFeeText").textContent = meetup.fee || "現場公告 / 場租平分";
+    $("modalFeeText").textContent = meetup.guest_fee !== null && meetup.guest_fee !== undefined ? meetup.guest_fee : (meetup.fee || "現場公告 / 場租平分");
   }
   if ($("modalAddressText")) {
     const loc = [meetup.city, meetup.address].filter(Boolean).join(" ");
@@ -892,10 +1042,10 @@ function openSignup(meetup, initialPwd = null) {
   
   const ratingWarningEl = $("ratingLimitWarning");
   if (ratingWarningEl) {
-    if (meetup.rating_min > 0) {
-      const minDupr = Math.max(2.0, 2.0 + (meetup.rating_min - 1000) / 400).toFixed(2);
+    if (hasRatingThreshold(meetup)) {
+      const ratingLabel = formatRatingMin(meetup.rating_min);
       ratingWarningEl.style.display = "block";
-      ratingWarningEl.innerHTML = `🏆 <b>本場次設有戰力限制</b>：報名積分需達 <b>${meetup.rating_min}分</b> (等同 DUPR ${minDupr} 以上)。<br/>若您的積分未達限制，報名送出後會<b>自動加入「彈性候補」</b>，待場主審核後即可轉為正取！`;
+      ratingWarningEl.innerHTML = `🏆 <b>本場次設有戰力門檻</b>：報名門檻需達 <b>${ratingLabel}</b>。<br/>若您的戰力未達限制，報名送出後會<b>自動加入「彈性候補」</b>，待場主審核後即可轉為正取！`;
     } else {
       ratingWarningEl.style.display = "none";
     }
@@ -1195,12 +1345,34 @@ async function handleQueryCancel() {
   $("queryCancelBtn").disabled = true;
   $("queryCancelBtn").textContent = "查詢中...";
   try {
-    const { data, error } = await client
-      .from("signups")
-      .select("id, nickname, people_count, status, is_tentative")
-      .eq("meetup_id", currentMeetup.id)
-      .eq("reservation_date", selectedDate)
+    const { data: user } = await client
+      .from("users")
+      .select("id, name")
       .eq("phone", phone)
+      .maybeSingle();
+
+    if (!user) {
+      $("cancelFormSecondStep").style.display = "none";
+      return setMessage($("cancelMessage"), "找不到該手機的預約紀錄。", false);
+    }
+
+    const { data: session } = await client
+      .from("sessions")
+      .select("id")
+      .eq("meetup_id", currentMeetup.id)
+      .eq("session_date", selectedDate)
+      .maybeSingle();
+
+    if (!session) {
+      $("cancelFormSecondStep").style.display = "none";
+      return setMessage($("cancelMessage"), "查無該場次預約紀錄。", false);
+    }
+
+    const { data, error } = await client
+      .from("session_participants")
+      .select("id, people_count, status")
+      .eq("session_id", session.id)
+      .eq("user_id", user.id)
       .in("status", ["confirmed", "waitlist"])
       .maybeSingle();
 
@@ -1228,18 +1400,8 @@ async function handleQueryCancel() {
       }
     }
 
-    const statusText = data.status === "waitlist" ? (data.is_tentative ? "彈性候補" : "備取") : "正取";
-    $("queryResultText").textContent = `查得預約：${data.nickname || "球友"} (${statusText} ${count}人)`;
-    
-    const promoteBtn = $("guestPromoteBtn");
-    if (promoteBtn) {
-      if (data.status === "waitlist" && data.is_tentative) {
-        promoteBtn.style.display = "block";
-        promoteBtn.onclick = () => promoteTentativeGuest(data.id);
-      } else {
-        promoteBtn.style.display = "none";
-      }
-    }
+    const statusText = data.status === "waitlist" ? "備取" : "正取";
+    $("queryResultText").textContent = `查得預約：${user.name || "球友"} (${statusText} ${count}人)`;
     
     $("cancelFormSecondStep").style.display = "block";
   } catch (err) {
@@ -1259,44 +1421,101 @@ async function handleSignup(e) {
   const skillLevel = $("skillLevel").value || "normal";
   const isBeginner = isBeginnerSkill(skillLevel);
   const peopleCount = parseInt($("peopleCount")?.value || "1") || 1;
-  const isTentative = $("isTentative") ? $("isTentative").checked : false;
   const password = $("signupPassword")?.value?.trim() || null;
 
-  if ((currentMeetup.has_password || currentMeetup.is_private) && !password) {
-    return setMessage($("formMessage"), "此活動為私人密碼團，請輸入報名通關密碼。", false);
+  if (currentMeetup.join_password && String(currentMeetup.join_password).trim() !== String(password || "").trim()) {
+    return setMessage($("formMessage"), "此活動通關密碼錯誤，請確認後再試！", false);
   }
   if (!nickname) return setMessage($("formMessage"), "請填寫暱稱。", false);
   if (!validatePhone(phone)) return setMessage($("formMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
   $("submitBtn").disabled = true;
   $("submitBtn").textContent = "送出中...";
   try {
-    const { data, error } = await client.rpc("signup_basic_date", {
-      p_meetup_id: currentMeetup.id,
-      p_reservation_date: selectedDate,
-      p_nickname: nickname,
-      p_phone: phone,
-      p_is_beginner: isBeginner,
-      p_skill_level: skillLevel,
-      p_note: note || null,
-      p_people_count: peopleCount,
-      p_is_tentative: isTentative,
-      p_password: password
-    });
-    if (error) throw error;
-    const result = Array.isArray(data) ? data[0] : data;
-    if (result && result.ok === false) return setMessage($("formMessage"), result.message || "無法完成報名。", false);
+    // 1. Find or create user
+    let user = null;
+    const { data: existingUser } = await client
+      .from("users")
+      .select("id, name, phone")
+      .eq("phone", phone)
+      .maybeSingle();
 
-    // 如果球友已登入，且個人資料中的手機號碼為空，我們在報名成功時自動幫他更新個人資料！
+    if (existingUser) {
+      user = existingUser;
+      if (nickname && nickname !== user.name) {
+        await client.from("users").update({ name: nickname }).eq("id", user.id);
+      }
+    } else {
+      const { data: newUser, error: createErr } = await client
+        .from("users")
+        .insert({
+          phone: phone,
+          name: nickname,
+          skill_level: skillLevel,
+          is_beginner: isBeginner
+        })
+        .select()
+        .single();
+      if (createErr) throw createErr;
+      user = newUser;
+    }
+
+    // 2. Find or create session
+    let session = null;
+    const { data: existingSession } = await client
+      .from("sessions")
+      .select("id, capacity_override, confirmed_count, waitlist_count, status")
+      .eq("meetup_id", currentMeetup.id)
+      .eq("session_date", selectedDate)
+      .maybeSingle();
+
+    if (existingSession) {
+      session = existingSession;
+    } else {
+      const { data: newSession, error: createSessErr } = await client
+        .from("sessions")
+        .insert({
+          meetup_id: currentMeetup.id,
+          session_date: selectedDate,
+          status: "open"
+        })
+        .select()
+        .single();
+      if (createSessErr) throw createSessErr;
+      session = newSession;
+    }
+
+    // 3. Calculate status (confirmed vs waitlist)
+    const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
+    const confirmed = Number(session.confirmed_count || 0);
+    const targetStatus = (capacity > 0 && confirmed + peopleCount > capacity) ? "waitlist" : "confirmed";
+
+    // 4. Upsert session_participant
+    const { error: partErr } = await client
+      .from("session_participants")
+      .upsert(
+        {
+          session_id: session.id,
+          user_id: user.id,
+          people_count: peopleCount,
+          status: targetStatus,
+          payment_method: "cash",
+          note: note || null
+        },
+        { onConflict: "session_id,user_id" }
+      );
+    if (partErr) throw partErr;
+
+    // 如果球友已登入，且資料中手機為空，自動更新
     if (currentUser && currentSystemMember && !currentSystemMember.phone && phone) {
       try {
         const { data: updatedMember } = await client
-          .from("system_members")
-          .update({ phone: phone, nickname: nickname })
-          .eq("id", currentUser.id)
+          .from("users")
+          .update({ phone: phone, name: nickname })
+          .eq("id", currentSystemMember?.id || currentUser.id)
           .select()
           .single();
         if (updatedMember) {
-          currentSystemMember = updatedMember;
+          currentSystemMember = { ...updatedMember, nickname: updatedMember.name };
           if ($("profilePhone")) $("profilePhone").value = phone;
           if ($("profileNickname")) $("profileNickname").value = nickname;
         }
@@ -1305,8 +1524,7 @@ async function handleSignup(e) {
       }
     }
 
-    const status = result?.signup_status || result?.status;
-    setMessage($("formMessage"), status === "waitlist" ? "目前正取已滿，已幫你加入備取。" : "報名成功，你目前為正取。", true);
+    setMessage($("formMessage"), targetStatus === "waitlist" ? "目前正取已滿，已幫您加入備取。" : "報名成功，您目前為正取。", true);
     notifyNewSignup({ meetup: currentMeetup, meetupId: currentMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
     clearRosterCache();
     await refreshMeetupListOnly();
@@ -1317,6 +1535,7 @@ async function handleSignup(e) {
     $("submitBtn").textContent = "確認報名";
   }
 }
+
 async function handleQuickSignup(meetup, btn) {
   if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) {
     openBindPhoneModal("使用 1 鍵快速預約前，請先完成手機號碼綁定！");
@@ -1324,80 +1543,98 @@ async function handleQuickSignup(meetup, btn) {
   }
 
   let passwordVal = null;
-  if (meetup.has_password || meetup.is_private) {
-    passwordVal = prompt(`活動「${meetup.name}」為私人密碼團，請輸入發起人提供的通關密碼：`);
+  if (meetup.join_password) {
+    passwordVal = prompt(`活動「${meetup.name}」為私人密碼團，請輸入通關密碼：`);
     if (passwordVal === null) return;
-    if (!passwordVal.trim()) {
-      alert("此活動為私人密碼團，請輸入通關密碼後再進行報名！");
+    if (String(passwordVal).trim() !== String(meetup.join_password).trim()) {
+      alert("通關密碼錯誤，請確認後再試！");
       return;
     }
-    passwordVal = passwordVal.trim();
   }
-  
+
   btn.disabled = true;
   const originalText = btn.innerHTML;
   btn.innerHTML = "⏳ 傳送中...";
   try {
-    let isBeginnerVal = currentSystemMember.is_beginner || false;
-    let skillLevelVal = currentSystemMember.skill_level || "normal";
-
+    const isBeginnerVal = currentSystemMember.is_beginner || false;
+    const skillLevelVal = currentSystemMember.skill_level || "normal";
     const phone = cleanPhone(currentSystemMember.phone);
-    const organizerId = meetup.organizer_id;
 
-    let memberRating = null;
-    if (phone && organizerId) {
-      try {
-        const { data: memberRec } = await client
-          .from("members")
-          .select("rating")
-          .eq("system_member_id", currentSystemMember.id)
-          .eq("organizer_id", organizerId)
-          .maybeSingle();
-        if (memberRec && memberRec.rating !== null && memberRec.rating !== undefined) {
-          memberRating = memberRec.rating;
-        }
-      } catch (dbErr) {
-        console.warn("Failed to fetch member rating for quick registration:", dbErr);
-      }
-    }
+    // 1. Find or create user
+    let user = null;
+    const { data: existingUser } = await client
+      .from("users")
+      .select("id, name, phone")
+      .eq("phone", phone)
+      .maybeSingle();
 
-    if (memberRating !== null && memberRating !== 1000) {
-      if (memberRating >= 1300) {
-        skillLevelVal = "advanced";
-        isBeginnerVal = false;
-      } else if (memberRating < 1050) {
-        skillLevelVal = "beginner";
-        isBeginnerVal = true;
-      } else {
-        skillLevelVal = "normal";
-        isBeginnerVal = false;
-      }
-    }
-
-    const { data, error } = await client.rpc("signup_basic_date", {
-      p_meetup_id: meetup.id,
-      p_reservation_date: selectedDate,
-      p_nickname: currentSystemMember.nickname,
-      p_phone: phone,
-      p_is_beginner: isBeginnerVal,
-      p_skill_level: skillLevelVal,
-      p_note: null,
-      p_people_count: 1,
-      p_is_tentative: false,
-      p_password: passwordVal
-    });
-    if (error) throw error;
-    const result = Array.isArray(data) ? data[0] : data;
-    if (result && result.ok === false) {
-      alert(result.message || "無法完成預約。");
+    if (existingUser) {
+      user = existingUser;
     } else {
-      const status = result?.signup_status || result?.status;
-      const msg = status === "waitlist" ? "正取已滿，已幫您排入備取！" : "恭喜！您已成功預約正取！";
-      alert(msg);
-      notifyNewSignup({ meetup, meetupId: meetup.id, reservationDate: selectedDate, nickname: currentSystemMember.nickname, skillLevel: skillLevelVal });
-      clearRosterCache();
-      await refreshMeetupListOnly();
+      const { data: newUser, error: createErr } = await client
+        .from("users")
+        .insert({
+          phone: phone,
+          name: currentSystemMember.nickname,
+          skill_level: skillLevelVal,
+          is_beginner: isBeginnerVal
+        })
+        .select()
+        .single();
+      if (createErr) throw createErr;
+      user = newUser;
     }
+
+    // 2. Find or create session
+    let session = null;
+    const { data: existingSession } = await client
+      .from("sessions")
+      .select("id, capacity_override, confirmed_count, waitlist_count, status")
+      .eq("meetup_id", meetup.id)
+      .eq("session_date", selectedDate)
+      .maybeSingle();
+
+    if (existingSession) {
+      session = existingSession;
+    } else {
+      const { data: newSession, error: createSessErr } = await client
+        .from("sessions")
+        .insert({
+          meetup_id: meetup.id,
+          session_date: selectedDate,
+          status: "open"
+        })
+        .select()
+        .single();
+      if (createSessErr) throw createSessErr;
+      session = newSession;
+    }
+
+    // 3. Calculate status (confirmed vs waitlist)
+    const capacity = session.capacity_override ?? meetup.capacity ?? 0;
+    const confirmed = Number(session.confirmed_count || 0);
+    const targetStatus = (capacity > 0 && confirmed + 1 > capacity) ? "waitlist" : "confirmed";
+
+    // 4. Upsert session_participant
+    const { error: partErr } = await client
+      .from("session_participants")
+      .upsert(
+        {
+          session_id: session.id,
+          user_id: user.id,
+          people_count: 1,
+          status: targetStatus,
+          payment_method: "cash"
+        },
+        { onConflict: "session_id,user_id" }
+      );
+    if (partErr) throw partErr;
+
+    const msg = targetStatus === "waitlist" ? "正取已滿，已幫您排入備取！" : "恭喜！您已成功預約正取！";
+    alert(msg);
+    notifyNewSignup({ meetup, meetupId: meetup.id, reservationDate: selectedDate, nickname: currentSystemMember.nickname, skillLevel: skillLevelVal });
+    clearRosterCache();
+    await refreshMeetupListOnly();
   } catch (err) {
     alert("預約失敗：" + (err.message || String(err)));
   } finally {
@@ -1417,22 +1654,61 @@ async function handleCancel(e) {
   $("cancelSubmitBtn").disabled = true;
   $("cancelSubmitBtn").textContent = "取消中...";
   try {
-    const { data, error } = await client.rpc("cancel_signup_by_phone", {
-      p_meetup_id: currentMeetup.id,
-      p_reservation_date: selectedDate,
-      p_phone: phone,
-      p_cancel_people_count: cancelPeopleCount
-    });
-    if (error) throw error;
-    const result = Array.isArray(data) ? data[0] : data;
-    if (result && result.ok === false) return setMessage($("cancelMessage"), result.message || "找不到這筆預約。", false);
-    const actionType = result?.action_type;
-    const successMessage = actionType === "member_absence_created"
-      ? "已完成會員請假，當天不會列入名單，名額已釋出。"
-      : actionType === "member_already_absent"
-        ? "你已經完成請假，當天不會列入名單。"
-        : (result?.message || "已取消預約，名額已釋出。");
-    setMessage($("cancelMessage"), successMessage, true);
+    const { data: user } = await client
+      .from("users")
+      .select("id")
+      .eq("phone", phone)
+      .maybeSingle();
+    if (!user) throw new Error("找不到該手機的預約紀錄。");
+
+    const { data: session } = await client
+      .from("sessions")
+      .select("id")
+      .eq("meetup_id", currentMeetup.id)
+      .eq("session_date", selectedDate)
+      .maybeSingle();
+    if (!session) throw new Error("查無該場次紀錄。");
+
+    const { data: part } = await client
+      .from("session_participants")
+      .select("id, people_count, status")
+      .eq("session_id", session.id)
+      .eq("user_id", user.id)
+      .in("status", ["confirmed", "waitlist"])
+      .maybeSingle();
+    if (!part) throw new Error("找不到有效的預約紀錄。");
+
+    if (cancelPeopleCount && cancelPeopleCount < part.people_count) {
+      const newCount = part.people_count - cancelPeopleCount;
+      await client
+        .from("session_participants")
+        .update({ people_count: newCount, updated_at: new Date().toISOString() })
+        .eq("id", part.id);
+    } else {
+      await client
+        .from("session_participants")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("id", part.id);
+    }
+
+    if (part.status === "confirmed") {
+      const { data: waitlist } = await client
+        .from("session_participants")
+        .select("id")
+        .eq("session_id", session.id)
+        .eq("status", "waitlist")
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      if (waitlist && waitlist.length > 0) {
+        await client
+          .from("session_participants")
+          .update({ status: "confirmed", updated_at: new Date().toISOString() })
+          .eq("id", waitlist[0].id);
+      }
+    }
+
+    setMessage($("cancelMessage"), "已成功取消預約，名額已釋出。", true);
     notifyCancelSignup({
       meetup: currentMeetup,
       meetupId: currentMeetup.id,
@@ -1590,19 +1866,96 @@ function renderAnnouncements() {
   }
 }
 
+// Image Lightbox System (點擊圖片全螢幕/放大檢視)
+function openImageLightbox(src, title, desc) {
+  if (!src) return;
+  let modal = $("imageLightboxModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "imageLightboxModal";
+    modal.className = "image-lightbox-overlay";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-label", "放大圖片預覽");
+    modal.innerHTML = `
+      <div class="image-lightbox-backdrop" id="lightboxBackdrop"></div>
+      <div class="image-lightbox-container">
+        <button type="button" class="image-lightbox-close" id="lightboxCloseBtn" aria-label="關閉預覽">✕</button>
+        <div class="image-lightbox-content">
+          <img id="lightboxImg" src="" alt="放大預覽" class="image-lightbox-img" />
+          <div class="image-lightbox-info">
+            <h4 id="lightboxTitle" class="image-lightbox-title"></h4>
+            <p id="lightboxDesc" class="image-lightbox-desc"></p>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    modal.querySelector("#lightboxBackdrop").addEventListener("click", closeImageLightbox);
+    modal.querySelector("#lightboxCloseBtn").addEventListener("click", closeImageLightbox);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && modal.style.display === "flex") {
+        closeImageLightbox();
+      }
+    });
+  }
+
+  const imgEl = modal.querySelector("#lightboxImg");
+  const titleEl = modal.querySelector("#lightboxTitle");
+  const descEl = modal.querySelector("#lightboxDesc");
+
+  if (imgEl) {
+    imgEl.src = src;
+    imgEl.alt = title || "放大預覽";
+  }
+  if (titleEl) titleEl.textContent = title || "";
+  if (descEl) descEl.textContent = desc || "";
+
+  modal.style.display = "flex";
+  document.body.classList.add("modal-open");
+}
+
+function closeImageLightbox() {
+  const modal = $("imageLightboxModal");
+  if (modal) {
+    modal.style.display = "none";
+    if (!document.querySelector(".modal.show")) {
+      document.body.classList.remove("modal-open");
+    }
+  }
+}
+
 function renderStaticContent() {
   renderAnnouncements();
   const know = $("knowledgeList");
   if (know) {
-    know.innerHTML = knowledgeItems.map((item) => `
+    know.innerHTML = knowledgeItems.map((item, idx) => `
       <article class="knowledge-card">
-        <img class="knowledge-img" src="${escapeHtml(item.image?.src || "")}" alt="${escapeHtml(item.image?.alt || item.title)}" loading="lazy" />
+        <div class="knowledge-img-wrap" data-knowledge-idx="${idx}" title="點擊放大圖片">
+          <img class="knowledge-img" src="${escapeHtml(item.image?.src || "")}" alt="${escapeHtml(item.image?.alt || item.title)}" loading="lazy" />
+          <div class="knowledge-img-zoom-hint">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+            <span>點擊放大</span>
+          </div>
+        </div>
         <div class="knowledge-body">
           <h3>${escapeHtml(item.title)}</h3>
           <p class="muted">${item.desc}</p>
           <div class="tag-row">${(item.tags || []).map(tag => `<span class="mini-tag">${escapeHtml(tag.k)}｜${escapeHtml(tag.v)}</span>`).join("")}</div>
         </div>
       </article>`).join("");
+
+    know.querySelectorAll(".knowledge-img-wrap").forEach((wrap) => {
+      wrap.addEventListener("click", () => {
+        const idx = parseInt(wrap.dataset.knowledgeIdx, 10);
+        const item = knowledgeItems[idx];
+        if (item) {
+          openImageLightbox(item.image?.src, item.title, item.desc);
+        }
+      });
+    });
   }
 }
 
@@ -1644,18 +1997,14 @@ function initAuthTabs() {
 }
 
 async function ensureSystemMember(user) {
-  const { data, error } = await client
-    .from("system_members")
-    .select("id, nickname, phone, line_user_id, skill_level, is_beginner")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Error loading system member:", error);
-    return null;
+  let defaultName = user.user_metadata?.full_name || user.user_metadata?.name || user.raw_user_meta_data?.name || user.user_metadata?.nickname;
+  if (!defaultName) {
+    if (user.email && !user.email.startsWith("line_")) {
+      defaultName = user.email.split("@")[0];
+    } else {
+      defaultName = "球友";
+    }
   }
-
-  const defaultName = user.user_metadata?.full_name || user.user_metadata?.name || user.raw_user_meta_data?.name || user.user_metadata?.nickname || user.email?.split("@")[0] || "球友";
   
   let lineUserId = null;
   const metaSub = user.raw_user_meta_data?.sub || user.user_metadata?.sub;
@@ -1663,6 +2012,10 @@ async function ensureSystemMember(user) {
     lineUserId = metaSub;
   }
   
+  if (!lineUserId && user.user_metadata?.line_user_id) {
+    lineUserId = user.user_metadata.line_user_id;
+  }
+
   if (!lineUserId) {
     const identId = user.identities?.[0]?.identity_id;
     if (identId && typeof identId === "string" && identId.startsWith("U") && identId.length === 33) {
@@ -1671,49 +2024,278 @@ async function ensureSystemMember(user) {
   }
   
   if (!lineUserId) {
-    console.log("Could not find standard LINE User ID starting with U. Falling back.");
     lineUserId = user.raw_user_meta_data?.sub || user.user_metadata?.sub || user.identities?.[0]?.identity_id || null;
   }
 
+  // 1. 優先以 Auth user.id 查詢
+  let data = null;
+  const { data: userById } = await client
+    .from("users")
+    .select("id, name, phone, line_user_id, skill_level, is_beginner, rating")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (userById) {
+    data = userById;
+  } else if (lineUserId) {
+    // 2. 若以 ID 查無資料，但有 LINE User ID，比對既有已匯入/已綁定的球友 (防止 duplicate key 衝突)
+    const { data: userByLine } = await client
+      .from("users")
+      .select("id, name, phone, line_user_id, skill_level, is_beginner, rating")
+      .eq("line_user_id", lineUserId)
+      .maybeSingle();
+    if (userByLine) {
+      data = userByLine;
+    }
+  }
+
   if (!data) {
-    const defaultPhone = user.user_metadata?.phone || "";
+    const defaultPhone = user.user_metadata?.phone || null;
     const { data: inserted, error: insertError } = await client
-      .from("system_members")
-      .insert({ id: user.id, nickname: defaultName, phone: defaultPhone, line_user_id: lineUserId })
+      .from("users")
+      .insert({ id: user.id, name: defaultName, phone: defaultPhone, line_user_id: lineUserId })
       .select()
       .single();
     if (insertError) {
-      console.error("Error creating system member record:", insertError);
+      console.error("Error creating user record:", insertError);
+      // 若因 line_user_id unique 衝突，再次嘗試以 line_user_id 取得既有球友資料
+      if (insertError.code === "23505" && lineUserId) {
+        const { data: retryUser } = await client
+          .from("users")
+          .select("id, name, phone, line_user_id, skill_level, is_beginner, rating")
+          .eq("line_user_id", lineUserId)
+          .maybeSingle();
+        if (retryUser) return { ...retryUser, nickname: retryUser.name };
+      }
       return null;
     }
-    return inserted;
+    return { ...inserted, nickname: inserted.name };
   } else {
-    // 僅在有新資料或需要修正時更新，避免每次載入頁面都觸發冗餘的資料庫寫入 (省下約 1 秒)
-    const shouldUpdateName = data.nickname === "球友" && defaultName && defaultName !== "球友";
+    const shouldUpdateName = (data.name === "球友" || !data.name) && defaultName && defaultName !== "球友";
     const hasValidLineId = data.line_user_id && typeof data.line_user_id === "string" && data.line_user_id.startsWith("U") && data.line_user_id.length === 33;
     const hasNewValidLineId = lineUserId && typeof lineUserId === "string" && lineUserId.startsWith("U") && lineUserId.length === 33;
     const shouldUpdateLine = hasNewValidLineId && (!hasValidLineId || lineUserId !== data.line_user_id);
 
     if (shouldUpdateName || shouldUpdateLine) {
-      const { data: updated } = await client
-        .from("system_members")
-        .update({ 
-          nickname: shouldUpdateName ? defaultName : data.nickname, 
-          line_user_id: shouldUpdateLine ? lineUserId : data.line_user_id 
-        })
-        .eq("id", user.id)
-        .select()
-        .single();
-      if (updated) return updated;
+      try {
+        const { data: updated } = await client
+          .from("users")
+          .update({ 
+            name: shouldUpdateName ? defaultName : data.name, 
+            line_user_id: shouldUpdateLine ? lineUserId : data.line_user_id,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", data.id)
+          .select()
+          .maybeSingle();
+        if (updated) return { ...updated, nickname: updated.name };
+      } catch (err) {
+        console.warn("Update member record non-fatal warning:", err);
+      }
     }
   }
-  return data;
+  return { ...data, nickname: data.name };
 }
 
 let activeMemberTab = "clubs";
 let lastEloTrend = [];
+let cachedMemberUserIds = [];
+let hasQueriedMatchRecords = false;
+
+async function loadMemberMatchRecords(targetIds) {
+  const allUserIds = (targetIds && targetIds.length > 0) ? targetIds : cachedMemberUserIds;
+  const matchHistoryList = $("matchHistoryList");
+  const matchStatsSummary = $("matchStatsSummary");
+
+  if (!allUserIds || allUserIds.length === 0) {
+    lastEloTrend = [];
+    if (matchStatsSummary) matchStatsSummary.textContent = "0 場 ｜ 0勝 0敗 (勝率 0%)";
+    if (matchHistoryList) {
+      matchHistoryList.innerHTML = `
+        <div class="empty-view-box">
+          <span class="empty-icon">⚔️</span>
+          <div class="empty-title">目前尚無任何積分對抗戰績</div>
+          <div class="empty-desc">參加俱樂部的對抗賽並完成結算後，戰績將自動呈現在此！</div>
+        </div>
+      `;
+    }
+    drawEloChart([]);
+    return;
+  }
+
+  let matches = [];
+  try {
+    const orFilterV2 = allUserIds.map(id => `team_a_user_ids.cs.{${id}},team_b_user_ids.cs.{${id}}`).join(",");
+    const { data: v2Data } = await client
+      .from("session_matches")
+      .select("id, court_number, team_a_user_ids, team_b_user_ids, score_a, score_b, winner, rating_change, created_at, session:sessions(session_date, meetup_id, meetups(name, organizers(name)))")
+      .or(orFilterV2)
+      .order("created_at", { ascending: true });
+
+    if (v2Data && v2Data.length > 0) {
+      matches = v2Data.map(m => ({
+        id: m.id,
+        meetup_id: m.session?.meetup_id,
+        reservation_date: m.session?.session_date,
+        court_number: m.court_number,
+        player_a1_id: m.team_a_user_ids?.[0],
+        player_a2_id: m.team_a_user_ids?.[1],
+        player_b1_id: m.team_b_user_ids?.[0],
+        player_b2_id: m.team_b_user_ids?.[1],
+        score_a: m.score_a,
+        score_b: m.score_b,
+        rating_change: m.rating_change,
+        created_at: m.created_at,
+        meetups: m.session?.meetups
+      }));
+    } else {
+      const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
+      const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
+      const { data: v1Data } = await client
+        .from("session_match_records")
+        .select(`id, meetup_id, reservation_date, court_number, player_a1_id, player_a2_id, player_b1_id, player_b2_id, score_a, score_b, rating_change, created_at, meetups(name, organizers(name))`)
+        .or(orFilter)
+        .order("created_at", { ascending: true });
+      if (v1Data) matches = v1Data;
+    }
+  } catch (err) {
+    console.warn("Matches fetch notice:", err);
+  }
+
+    if (matches && matches.length > 0) {
+      let currentElo = 1000;
+      const eloTrend = [{ elo: 1000, date: "" }];
+      const renderedMatches = [];
+      let calcWins = 0;
+      let calcLosses = 0;
+
+      const playerNamesMap = new Map();
+      const playerIdsQuery = [];
+      matches.forEach(m => {
+        [m.player_a1_id, m.player_a2_id, m.player_b1_id, m.player_b2_id].forEach(id => {
+          if (id && !playerNamesMap.has(id)) {
+            playerNamesMap.set(id, "");
+            playerIdsQuery.push(id);
+          }
+        });
+      });
+
+      if (playerIdsQuery.length > 0) {
+        const { data: usersData } = await client.from("users").select("id, name").in("id", playerIdsQuery);
+        (usersData || []).forEach(x => {
+          playerNamesMap.set(x.id, x.name);
+        });
+      }
+
+      matches.forEach((m, index) => {
+        const isTeamA = allUserIds.includes(m.player_a1_id) || allUserIds.includes(m.player_a2_id);
+        
+        let partnerName = "";
+        let opponent1Name = "";
+        let opponent2Name = "";
+        let myScore = 0;
+        let oppScore = 0;
+
+        if (isTeamA) {
+          partnerName = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "隊友") : "";
+          opponent1Name = playerNamesMap.get(m.player_b1_id) || "對手A";
+          opponent2Name = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "對手B") : "";
+          myScore = m.score_a;
+          oppScore = m.score_b;
+        } else {
+          partnerName = m.player_b2_id ? (playerNamesMap.get(m.player_b2_id) || "隊友") : "";
+          opponent1Name = playerNamesMap.get(m.player_a1_id) || "對手A";
+          opponent2Name = m.player_a2_id ? (playerNamesMap.get(m.player_a2_id) || "對手B") : "";
+          myScore = m.score_b;
+          oppScore = m.score_a;
+        }
+
+        let outcome = "TIE";
+        if (myScore > oppScore) outcome = "WIN";
+        else if (myScore < oppScore) outcome = "LOSS";
+
+        if (outcome === "WIN") calcWins++;
+        else if (outcome === "LOSS") calcLosses++;
+
+        const change = m.rating_change || 0;
+        if (outcome === "WIN") currentElo += change;
+        else if (outcome === "LOSS") currentElo -= change;
+
+        eloTrend.push({
+          elo: currentElo,
+          date: m.reservation_date ? m.reservation_date.slice(5) : `第${index + 1}場`
+        });
+
+        const isWin = outcome === "WIN";
+        const badgeStyle = isWin
+          ? "background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 6px;"
+          : "background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 6px;";
+        const changeColor = isWin ? "#1d4ed8" : "#64748b";
+        const changeSymbol = isWin ? `+${change}` : (change > 0 ? `-${change}` : `${change}`);
+
+        const clubPrefix = m.meetups?.organizers?.name ? `[${m.meetups.organizers.name}] ` : "";
+        const formattedDate = m.reservation_date ? m.reservation_date.replace(/-/g, "/") : "";
+        const partnerStr = partnerName ? ` + ${partnerName}` : "";
+        const opponentsStr = opponent2Name ? `${opponent1Name} + ${opponent2Name}` : opponent1Name;
+
+        renderedMatches.unshift(`
+          <div class="match-history-row" style="display:flex; flex-direction:row; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:14px; gap:12px; box-shadow:0 1px 3px rgba(0,0,0,0.01)">
+            <div style="flex:1">
+              <div style="display:flex; align-items:center; justify-content:space-between">
+                <div style="display:flex; align-items:center; gap:8px">
+                  <span style="${badgeStyle}">${outcome === "WIN" ? "勝" : (outcome === "LOSS" ? "敗" : "平")}</span>
+                  <span style="font-size:15px; font-weight:800; color:#0f172a">${myScore} : ${oppScore}</span>
+                </div>
+                <span style="font-size:14px; font-weight:800; color:${changeColor}">${changeSymbol} 分</span>
+              </div>
+              <div style="font-size:13px; color:#475569; font-weight:700; margin-top:8px; display:flex; gap:6px; flex-wrap:wrap">
+                <span>我${partnerStr}</span>
+                <span style="color:#94a3b8">vs</span>
+                <span>${opponentsStr}</span>
+              </div>
+              <div style="font-size:11px; color:#94a3b8; font-weight:600; margin-top:6px">
+                📅 ${formattedDate} ｜ 🎾 ${escapeHtml(clubPrefix + (m.meetups?.name || "計分對戰"))} (第 ${m.court_number} 場)
+              </div>
+            </div>
+          </div>
+        `);
+      });
+
+      lastEloTrend = eloTrend;
+      const winRate = matches.length > 0 ? ((calcWins / matches.length) * 100).toFixed(0) + "%" : "0%";
+      if (matchStatsSummary) {
+        matchStatsSummary.textContent = `${matches.length} 場 ｜ ${calcWins}勝 ${calcLosses}敗 (勝率 ${winRate})`;
+      }
+      if (matchHistoryList) {
+        matchHistoryList.innerHTML = renderedMatches.join("");
+      }
+
+      drawEloChart(eloTrend);
+    } else {
+      lastEloTrend = [];
+      if (matchStatsSummary) {
+        matchStatsSummary.textContent = "0 場 ｜ 0勝 0敗 (勝率 0%)";
+      }
+      if (matchHistoryList) {
+        matchHistoryList.innerHTML = `
+          <div class="empty-view-box">
+            <span class="empty-icon">⚔️</span>
+            <div class="empty-title">目前尚無任何積分對抗戰績</div>
+            <div class="empty-desc">參加俱樂部的對抗賽並完成結算後，戰績將自動呈現在此！</div>
+          </div>
+        `;
+      }
+      drawEloChart([]);
+    }
+  } catch (err) {
+    if (err?.code !== "PGRST205" && !String(err?.message || "").includes("schema cache")) {
+      console.warn("Match records notice:", err?.message || err);
+    }
+  }
+}
 
 function switchMemberTab(tab) {
+  if (tab === "stats") tab = "clubs";
   activeMemberTab = tab;
   document.querySelectorAll(".member-tab-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tab === tab);
@@ -1728,11 +2310,16 @@ function switchMemberTab(tab) {
     if (el) el.style.display = (key === tab) ? "block" : "none";
   });
   if (tab === "stats") {
-    setTimeout(() => {
-      if (lastEloTrend && typeof drawEloChart === "function") {
-        drawEloChart(lastEloTrend);
-      }
-    }, 60);
+    if (!hasQueriedMatchRecords) {
+      hasQueriedMatchRecords = true;
+      loadMemberMatchRecords(cachedMemberUserIds);
+    } else {
+      setTimeout(() => {
+        if (lastEloTrend && typeof drawEloChart === "function") {
+          drawEloChart(lastEloTrend);
+        }
+      }, 60);
+    }
   }
 }
 
@@ -1815,10 +2402,10 @@ function drawEloChart(trend) {
   // Dots
   let dotsHtml = "";
   coords.forEach((c, idx) => {
-    let dotColor = "#059669";
+    let dotColor = "#2563eb";
     if (idx > 0) {
       const prevElo = coords[idx - 1].elo;
-      if (c.elo > prevElo) dotColor = "#10b981";
+      if (c.elo > prevElo) dotColor = "#3b82f6";
       else if (c.elo < prevElo) dotColor = "#ef4444";
     }
     dotsHtml += `
@@ -1842,13 +2429,13 @@ function drawEloChart(trend) {
     <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="overflow:visible; display:block;">
       <defs>
         <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#10b981" stop-opacity="0.25"/>
-          <stop offset="100%" stop-color="#10b981" stop-opacity="0.02"/>
+          <stop offset="0%" stop-color="#2563eb" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="#2563eb" stop-opacity="0.02"/>
         </linearGradient>
       </defs>
       ${gridsHtml}
       <polygon points="${polygonPoints}" fill="url(#chartGrad)"/>
-      <polyline points="${polylinePoints}" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="${polylinePoints}" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
       ${xLabelsHtml}
       ${dotsHtml}
     </svg>
@@ -1856,6 +2443,258 @@ function drawEloChart(trend) {
 
   container.innerHTML = svgHtml;
 }
+
+window.renderMemberBookingsUI = function(targetContainer) {
+  const container = targetContainer || $("userBookingsList");
+  if (!container || !window._allMemberBookings) return;
+
+  const data = window._allMemberBookings;
+  const currentFilter = window._currentBookingFilter || "all";
+  const displayItems = data[currentFilter] || data.all || [];
+
+  if (data.all.length === 0) {
+    container.innerHTML = `
+      <div class="empty-view-box">
+        <span class="empty-icon">📅</span>
+        <div class="empty-title">目前無任何預約紀錄</div>
+        <div class="empty-desc">歡迎至「立即預約」挑選心儀場次進行報名！</div>
+      </div>
+    `;
+    return;
+  }
+
+  // 1. Subfilter bar
+  let html = `
+    <div class="booking-subfilter-bar">
+      <button type="button" class="subfilter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="window.switchBookingFilter('all')">
+        全部 (${data.all.length})
+      </button>
+      <button type="button" class="subfilter-btn ${currentFilter === 'upcoming' ? 'active' : ''}" onclick="window.switchBookingFilter('upcoming')">
+        即將到來 (${data.upcoming.length})
+      </button>
+      <button type="button" class="subfilter-btn ${currentFilter === 'past' ? 'active' : ''}" onclick="window.switchBookingFilter('past')">
+        歷史場次 (${data.past.length})
+      </button>
+    </div>
+  `;
+
+  // 2. Empty state for selected filter
+  if (displayItems.length === 0) {
+    if (currentFilter === "upcoming") {
+      html += `
+        <div class="empty-view-box" style="padding: 32px 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 18px;">
+          <span class="empty-icon" style="font-size: 32px;">⏰</span>
+          <div class="empty-title" style="font-size: 15px; margin-top: 6px;">目前沒有即將到來的預約</div>
+          <div class="empty-desc" style="font-size: 13px; max-width: 380px;">您目前所有的預約場次均已順利結束。歡迎前往首頁挑選全新場次！</div>
+          <a href="/#meetupsSection" class="btn-primary" style="margin-top: 14px; font-size: 13px; padding: 8px 18px; border-radius: 10px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            🔍 探索最新活動場次
+          </a>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="empty-view-box" style="padding: 32px 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 18px;">
+          <span class="empty-icon" style="font-size: 32px;">📅</span>
+          <div class="empty-title" style="font-size: 15px;">此分類目前無預約紀錄</div>
+        </div>
+      `;
+    }
+    container.innerHTML = html;
+    return;
+  }
+
+  // 3. Render Card List
+  html += `<div class="booking-cards-list" style="display: flex; flex-direction: column; gap: 12px;">`;
+
+  displayItems.forEach(s => {
+    // Date Tile
+    let monthStr = "--";
+    let dayStr = "--";
+    let weekdayStr = "";
+    if (s.dateStr) {
+      const d = dateFromISO(s.dateStr);
+      monthStr = `${d.getMonth() + 1}月`;
+      dayStr = d.getDate();
+      weekdayStr = (typeof weekdaysFull !== 'undefined' && weekdaysFull[d.getDay()]) ? weekdaysFull[d.getDay()] : "";
+    }
+
+    // Status Badge
+    let statusClass = "status-confirmed";
+    let statusText = "✓ 正取";
+    if (s.isAttended) {
+      statusClass = "status-attended";
+      statusText = "✓ 已出席";
+    } else if (s.isPast) {
+      statusClass = "status-past";
+      statusText = "🏁 已結束";
+    } else if (s.status === "confirmed") {
+      statusClass = "status-confirmed";
+      statusText = "✓ 正取";
+    } else if (s.is_tentative) {
+      statusClass = "status-tentative";
+      statusText = "⏳ 彈性候補";
+    } else if (s.status === "waitlist") {
+      statusClass = "status-waitlist";
+      statusText = "⌛ 候補中";
+    } else {
+      statusClass = "status-other";
+      statusText = escapeHtml(s.status);
+    }
+
+    // Time Text
+    let timeStr = "";
+    if (s.startTime && s.endTime) {
+      timeStr = `${s.startTime} - ${s.endTime}`;
+    } else if (s.startTime) {
+      timeStr = `${s.startTime} 開始`;
+    } else {
+      timeStr = "時間另行公告";
+    }
+
+    // Location & Map
+    const mObj = s.meetup || s.meetups || {};
+    const address = mObj.address || "";
+    const city = mObj.city || "";
+    const venueText = address || city || "球館/場地另行通知";
+    let mapChipHtml = "";
+    if (address && address.trim()) {
+      const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+      mapChipHtml = `
+        <a href="${mapUrl}" target="_blank" rel="noopener noreferrer" class="booking-map-chip" title="開啟 Google 地圖導航">
+          導航 ↗
+        </a>
+      `;
+    }
+
+    // Fee & Payment
+    const feeVal = mObj.member_fee || mObj.guest_fee;
+    const feeLabel = feeVal ? `$${feeVal}/人` : "現場收費";
+    let methodLabel = "";
+    if (s.payment_method === "wallet") {
+      methodLabel = "點數扣款";
+    } else if (s.payment_method === "cash") {
+      methodLabel = "現場付現";
+    } else if (s.payment_method) {
+      methodLabel = escapeHtml(s.payment_method);
+    }
+    const paymentFeeText = methodLabel ? `${feeLabel} · ${methodLabel}` : feeLabel;
+
+    const paidBadgeHtml = s.is_paid ? `<span class="badge-micro-paid">已繳費</span>` : "";
+    const attendedBadgeHtml = s.arrived_count > 0 ? `<span class="badge-micro-attended">已簽到扣點</span>` : "";
+
+    // Note Box
+    const noteHtml = s.note ? `<div class="booking-note-box">💬 備註：${escapeHtml(s.note)}</div>` : "";
+
+    // Footer & Actions
+    let footerTipHtml = "";
+    let actionButtonsHtml = "";
+
+    if (s.isPast) {
+      footerTipHtml = `<span class="booking-tip-text muted">此場次活動已圓滿結束</span>`;
+    } else if (s.is_tentative) {
+      footerTipHtml = `<span class="booking-tip-text tentative">已為您保留候補資格，請確認出席</span>`;
+      if (!s.blockCheck.blocked && s.arrived_count === 0) {
+        actionButtonsHtml += `
+          <button type="button" class="btn-booking-cancel" onclick="cancelMemberDashboardSignup('${s.id}', '${escapeHtml(s.meetupName)}')">
+            取消預約
+          </button>
+        `;
+      }
+      actionButtonsHtml += `
+        <button type="button" class="btn-booking-promote" onclick="promoteTentative('${s.id}')">
+          確認出席轉正 ➔
+        </button>
+      `;
+    } else if (s.status === "waitlist") {
+      footerTipHtml = `<span class="booking-tip-text hint">排隊候補中，若有名額釋出將依序自動轉正</span>`;
+      if (!s.blockCheck.blocked && s.arrived_count === 0) {
+        actionButtonsHtml = `
+          <button type="button" class="btn-booking-cancel" onclick="cancelMemberDashboardSignup('${s.id}', '${escapeHtml(s.meetupName)}')">
+            退出候補
+          </button>
+        `;
+      }
+    } else {
+      // Confirmed upcoming
+      if (!s.blockCheck.blocked && s.arrived_count === 0) {
+        footerTipHtml = `<span class="booking-tip-text hint">開賽前可線上免費取消預約</span>`;
+        actionButtonsHtml = `
+          <button type="button" class="btn-booking-cancel" onclick="cancelMemberDashboardSignup('${s.id}', '${escapeHtml(s.meetupName)}')">
+            取消預約
+          </button>
+        `;
+      } else if (s.arrived_count > 0) {
+        footerTipHtml = `<span class="booking-tip-text attended">您已完成現場簽到出席</span>`;
+      } else {
+        footerTipHtml = `<span class="booking-tip-text warn">⚠️ ${s.blockCheck.reason || "已逾線上取消時限，如需請假請聯繫主辦方"}</span>`;
+      }
+    }
+
+    html += `
+      <div class="booking-item-card ${s.isPast ? 'is-past' : 'is-upcoming'}">
+        <div class="booking-card-top">
+          <!-- Calendar Date Tile -->
+          <div class="booking-date-tile ${s.isPast ? 'is-past' : ''}">
+            <span class="date-tile-month">${monthStr}</span>
+            <span class="date-tile-day">${dayStr}</span>
+            <span class="date-tile-weekday">${weekdayStr}</span>
+          </div>
+
+          <!-- Main Info Column -->
+          <div class="booking-card-main-col">
+            <!-- Title & Status Badge -->
+            <div class="booking-card-title-row">
+              <h4 class="booking-meetup-title">${escapeHtml(s.meetupName)}</h4>
+              <span class="booking-status-badge ${statusClass}">${statusText}</span>
+            </div>
+
+            <!-- Meta Chips -->
+            <div class="booking-info-chips">
+              <span class="booking-info-item">
+                <span class="chip-icon">⏰</span>
+                <span>${timeStr}</span>
+              </span>
+
+              <span class="booking-info-item">
+                <span class="chip-icon">📍</span>
+                <span title="${escapeHtml(venueText)}">${escapeHtml(venueText)}</span>
+                ${mapChipHtml}
+              </span>
+
+              <span class="booking-info-item">
+                <span class="chip-icon">👥</span>
+                <span>報名 <strong>${s.people_count || 1}</strong> 人</span>
+              </span>
+
+              <span class="booking-info-item">
+                <span class="chip-icon">💰</span>
+                <span>${paymentFeeText}</span>
+                ${paidBadgeHtml}
+                ${attendedBadgeHtml}
+              </span>
+            </div>
+
+            ${noteHtml}
+          </div>
+        </div>
+
+        <!-- Footer Row -->
+        <div class="booking-card-footer">
+          <div>${footerTipHtml}</div>
+          ${actionButtonsHtml ? `<div class="booking-actions-group">${actionButtonsHtml}</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+};
+
+window.switchBookingFilter = function(filterType) {
+  window._currentBookingFilter = filterType;
+  window.renderMemberBookingsUI();
+};
 
 async function loadMemberDashboard() {
   if (!currentUser || !currentSystemMember) return;
@@ -1892,82 +2731,86 @@ async function loadMemberDashboard() {
   const cleanPh = cleanPhone(currentSystemMember.phone);
 
   // ==========================================
-  // Wave 1: 5 大核心資料平行並發請求 (Promise.all)
+  // Wave 1: 核心資料平行並發請求 (Promise.all)
   // ==========================================
   const pClubs = (async () => {
-    let filterStr = `system_member_id.eq.${currentSystemMember.id}`;
-    if (cleanPh) filterStr = `phone.eq.${cleanPh},${filterStr}`;
-    let { data: rows, error } = await client
-      .from("members")
-      .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), member_meetup_subscriptions(meetup_id, meetups(id, name, member_price))")
-      .or(filterStr);
-    if (error) {
-      const fallbackResult = await client
-        .from("members")
-        .select("id, balance, remaining_times, status, rating, organizer_id, payer_member_id, organizers(id, name), meetups(id, name, member_price, organizer_id, organizers(id, name))")
-        .or(filterStr);
-      return (!fallbackResult.error && fallbackResult.data) ? fallbackResult.data : [];
-    }
-    return rows || [];
+    const { data: rows } = await client
+      .from("organizer_members")
+      .select("id, balance, member_type, status, note, organizer:organizers(id, name)")
+      .eq("user_id", currentSystemMember.id);
+    return (rows || []).map(r => ({
+      id: r.id,
+      balance: Number(r.balance || 0),
+      remaining_times: null,
+      status: r.status,
+      rating: currentSystemMember.rating || 1000,
+      organizers: r.organizer || { id: "", name: "特約球隊" }
+    }));
   })();
 
-  const pBookings = cleanPh ? (async () => {
-    const { data: signups, error: signupsError } = await client
-      .from("signups")
-      .select("id, status, reservation_date, arrived_count, meetup_id, is_tentative, meetups(id, name, start_time, end_time, address, cancel_deadline_hours)")
-      .eq("phone", currentSystemMember.phone)
-      .gte("reservation_date", toISODate(new Date()))
-      .neq("status", "cancelled")
-      .order("reservation_date", { ascending: true });
-    return (!signupsError && signups) ? signups : [];
-  })() : Promise.resolve([]);
+  const pBookings = (async () => {
+    try {
+      const { data: signups, error: signupsError } = await client
+        .from("session_participants")
+        .select(`
+          id,
+          status,
+          people_count,
+          payment_method,
+          is_paid,
+          arrived_count,
+          note,
+          created_at,
+          session:sessions (
+            id,
+            session_date,
+            meetup:meetups (
+              id,
+              name,
+              start_time,
+              end_time,
+              address,
+              city,
+              guest_fee,
+              member_fee,
+              cancel_deadline_hours,
+              capacity
+            )
+          )
+        `)
+        .eq("user_id", currentSystemMember.id)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false });
 
-  const pPickups = currentSystemMember?.id ? (async () => {
-    const { data: myMeetups, error: myMeetupsErr } = await client
-      .from("meetups")
-      .select("id, name, city, address, street_address, start_date, start_time, end_time, capacity, fee, notes, is_active, join_password")
-      .eq("creator_member_id", currentSystemMember.id)
-      .order("start_date", { ascending: false });
+      if (signupsError || !signups) {
+        console.warn("pBookings query note:", signupsError);
+        return [];
+      }
 
-    if (myMeetupsErr || !myMeetups || myMeetups.length === 0) {
-      return { myMeetups: myMeetups || [], signupsByMeetup: {} };
+      return signups.map(s => ({
+        id: s.id,
+        status: s.status,
+        people_count: s.people_count || 1,
+        payment_method: s.payment_method || "",
+        is_paid: !!s.is_paid,
+        arrived_count: s.arrived_count || (s.status === "attended" ? (s.people_count || 1) : 0),
+        note: s.note || "",
+        is_tentative: s.status === "tentative" || !!s.is_tentative,
+        created_at: s.created_at,
+        reservation_date: s.session?.session_date || "",
+        meetup_id: s.session?.meetup?.id,
+        meetup: s.session?.meetup || { id: "", name: "球敘活動" },
+        meetups: s.session?.meetup || { id: "", name: "球敘活動" }
+      }));
+    } catch (err) {
+      console.error("pBookings exception:", err);
+      return [];
     }
+  })();
 
-    const mIds = myMeetups.map(m => m.id);
-    const { data: allSignups } = await client
-      .from("signups")
-      .select("id, meetup_id, nickname, phone, status, people_count")
-      .in("meetup_id", mIds)
-      .in("status", ["confirmed", "waitlist"]);
-
-    const signupsByMeetup = (allSignups || []).reduce((acc, s) => {
-      const mid = String(s.meetup_id);
-      acc[mid] = acc[mid] || [];
-      acc[mid].push(s);
-      return acc;
-    }, {});
-
-    return { myMeetups, signupsByMeetup };
-  })() : Promise.resolve({ myMeetups: [], signupsByMeetup: {} });
-
-  const pSignupIds = cleanPh ? (async () => {
-    const { data: userSignups } = await client
-      .from("signups")
-      .select("id")
-      .eq("phone", cleanPh);
-    return (userSignups || []).map(s => String(s.id));
-  })() : Promise.resolve([]);
-
-  const pFallbackRating = cleanPh ? (async () => {
-    const { data: recentSignups } = await client
-      .from("signups")
-      .select("rating")
-      .eq("phone", cleanPh)
-      .not("rating", "is", null)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    return (recentSignups && recentSignups.length > 0 && recentSignups[0].rating) ? recentSignups[0].rating : null;
-  })() : Promise.resolve(null);
+  const pPickups = Promise.resolve({ myMeetups: [], signupsByMeetup: {} });
+  const pSignupIds = Promise.resolve([]);
+  const pFallbackRating = Promise.resolve(currentSystemMember.rating || 1000);
 
   const [clubMembers, upcomingSignups, pickupsData, userSignupIds, fallbackRating] = await Promise.all([
     pClubs,
@@ -2061,33 +2904,22 @@ async function loadMemberDashboard() {
           <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 12px;">
             <div style="display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1;">
               <!-- Circle Initials Icon -->
-              <div style="width: 38px; height: 38px; border-radius: 50%; background: ${isActive ? 'rgba(16, 185, 129, 0.08)' : '#f1f5f9'}; border: 1px solid ${isActive ? 'rgba(16, 185, 129, 0.2)' : '#e2e8f0'}; display: flex; align-items: center; justify-content: center; color: ${isActive ? '#059669' : '#64748b'}; font-weight: 900; font-size: 15px; flex-shrink: 0;">
+              <div style="width: 38px; height: 38px; border-radius: 50%; background: ${isActive ? 'rgba(37, 99, 235, 0.08)' : '#f1f5f9'}; border: 1px solid ${isActive ? 'rgba(37, 99, 235, 0.2)' : '#e2e8f0'}; display: flex; align-items: center; justify-content: center; color: ${isActive ? '#2563eb' : '#64748b'}; font-weight: 900; font-size: 15px; flex-shrink: 0;">
                 ${escapeHtml(clubName.charAt(0))}
               </div>
               <div style="display: flex; flex-direction: column; min-width: 0;">
                 <span style="font-weight: 900; font-size: 16px; color: ${isActive ? '#0f172a' : '#64748b'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(clubName)}</span>
-                <span style="font-size: 11px; color: ${isActive ? '#10b981' : '#94a3b8'}; font-weight: 700; margin-top: 2px;">${isActive ? '🟢 使用中' : '⚪ 已停用'}</span>
+                <span style="font-size: 11px; color: ${isActive ? '#2563eb' : '#94a3b8'}; font-weight: 700; margin-top: 2px;">${isActive ? '🔵 使用中' : '⚪ 已停用'}</span>
               </div>
             </div>
           </div>
           
-          <!-- Split Grid (2 columns) -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 12px 0; width: 100%;">
-            <!-- Left: Balance -->
-            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border-right: 1px solid #f1f5f9; min-width: 0;">
-              <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">儲值餘額</span>
-              <span style="font-size: 17px; font-weight: 900; color: #059669; white-space: nowrap;">
-                ${balanceVal} <span style="font-size: 11.5px; font-weight: 700; color: #94a3b8;">點</span>
-              </span>
-            </div>
-            <!-- Right: Rating -->
-            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; min-width: 0;">
-              <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">戰力評級</span>
-              <span style="font-size: 17px; font-weight: 900; color: #d97706; display: flex; align-items: baseline; gap: 2px; white-space: nowrap;">
-                ${ratingVal}
-                <span style="font-size: 10px; font-weight: 700; color: #94a3b8;">(D:${duprVal})</span>
-              </span>
-            </div>
+          <!-- Balance Row -->
+          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 14px 0; width: 100%;">
+            <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">儲值餘額</span>
+            <span style="font-size: 20px; font-weight: 900; color: #2563eb; white-space: nowrap;">
+              ${balanceVal} <span style="font-size: 12px; font-weight: 700; color: #94a3b8;">點</span>
+            </span>
           </div>
 
           ${isLow ? `
@@ -2113,93 +2945,64 @@ async function loadMemberDashboard() {
   const upcomingList = $("userBookingsList");
   if (upcomingList) {
     let bookingCount = 0;
-    if (cleanPh) {
-      upcomingList.innerHTML = "";
-      if (upcomingSignups && upcomingSignups.length > 0) {
-        bookingCount = upcomingSignups.length;
-        upcomingSignups.forEach(s => {
-          const dateStr = s.reservation_date;
-          const meetupName = s.meetups?.name || "匹克球活動";
-          const timeStr = s.meetups?.start_time ? s.meetups.start_time.slice(0, 5) : "";
-          const statusLabel = s.status === 'confirmed' ? '✓ 正取' : (s.is_tentative ? '⏳ 彈性候補' : '⏳ 備取');
-          const arrivedLabel = s.arrived_count > 0 ? ' (已簽到已扣點)' : '';
+    if (currentSystemMember?.id || cleanPh) {
+      const rawList = upcomingSignups || [];
+      const now = new Date();
+      
+      const processed = rawList.map(s => {
+        const dateStr = s.reservation_date || "";
+        const meetup = s.meetup || s.meetups || {};
+        const meetupName = meetup.name || "匹克球活動";
+        const startTime = meetup.start_time ? meetup.start_time.slice(0, 5) : "";
+        const endTime = meetup.end_time ? meetup.end_time.slice(0, 5) : "";
+        
+        let isPast = false;
+        if (dateStr) {
+          const [yr, mo, dy] = dateStr.split("-").map(Number);
+          const timeToCheck = (meetup.end_time || meetup.start_time || "23:59").slice(0, 5);
+          const [h, min] = timeToCheck.split(":").map(Number);
+          const sessionEnd = new Date(yr, mo - 1, dy, isNaN(h) ? 23 : h, isNaN(min) ? 59 : min, 0);
+          isPast = now > sessionEnd;
+        }
+        
+        const blockCheck = isCancelBlocked(meetup, dateStr);
+        const isAttended = s.arrived_count > 0 || s.status === "attended";
+        
+        return {
+          ...s,
+          dateStr,
+          meetup,
+          meetups: meetup,
+          meetupName,
+          startTime,
+          endTime,
+          isPast,
+          blockCheck,
+          isAttended
+        };
+      });
 
-          const div = document.createElement("div");
-          div.className = "booking-item-card";
-          
-          const badgeClass = s.status === 'confirmed' ? 'confirmed' : 'pending';
-          const blockCheck = isCancelBlocked(s.meetups, dateStr);
-          
-          if (s.status === 'waitlist' && s.is_tentative) {
-            div.style.flexDirection = "column";
-            div.style.alignItems = "stretch";
-            
-            let actionButtonsHtml = "";
-            if (!blockCheck.blocked && s.arrived_count === 0) {
-              actionButtonsHtml += `
-                <button type="button" class="btn-ghost" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; color: var(--red); border: 1px solid var(--red); background: transparent; transition: all 0.2s ease; margin-right: 8px;" onclick="cancelMemberDashboardSignup('${s.id}', '${escapeHtml(meetupName)}')">
-                  取消預約
-                </button>
-              `;
-            }
-            actionButtonsHtml += `
-              <button type="button" class="btn-secondary" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); transition: all 0.2s ease;" onclick="promoteTentative('${s.id}')">
-                確認出席轉正 ➔
-              </button>
-            `;
-            
-            div.innerHTML = `
-              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div>
-                  <span style="font-weight: 800; font-size: 14.5px; color: var(--text);">${escapeHtml(dateStr)} ${timeStr}</span>
-                  <p style="font-size: 12.5px; color: var(--muted); margin-top: 4px; font-weight: 600;">
-                    ${escapeHtml(meetupName)}${arrivedLabel ? ' <span style="color: var(--primary); font-weight: 800; font-size: 11.5px;">(已簽到已扣點)</span>' : ''}
-                  </p>
-                </div>
-                <span class="status-badge pending">⏳ 彈性候補</span>
-              </div>
-              <div style="width: 100%; margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; justify-content: flex-end;">
-                ${actionButtonsHtml}
-              </div>
-            `;
-          } else {
-            let cancelBtnHtml = "";
-            if (!blockCheck.blocked && s.arrived_count === 0) {
-              cancelBtnHtml = `
-                <div style="width: 100%; margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; justify-content: flex-end;">
-                  <button type="button" class="btn-ghost" style="font-size: 12.5px; font-weight: 800; height: 32px; padding: 0 12px; border-radius: 8px; cursor: pointer; color: var(--red); border: 1px solid var(--red); background: transparent; transition: all 0.2s ease;" onclick="cancelMemberDashboardSignup('${s.id}', '${escapeHtml(meetupName)}')">
-                    取消預約
-                  </button>
-                </div>
-              `;
-              div.style.flexDirection = "column";
-              div.style.alignItems = "stretch";
-            }
-            
-            div.innerHTML = `
-              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div>
-                  <span style="font-weight: 800; font-size: 14.5px; color: var(--text);">${escapeHtml(dateStr)} ${timeStr}</span>
-                  <p style="font-size: 12.5px; color: var(--muted); margin-top: 4px; font-weight: 600;">
-                    ${escapeHtml(meetupName)}${arrivedLabel ? ' <span style="color: var(--primary); font-weight: 800; font-size: 11.5px;">(已簽到已扣點)</span>' : ''}
-                  </p>
-                </div>
-                <span class="status-badge ${badgeClass}">${statusLabel}</span>
-              </div>
-              ${cancelBtnHtml}
-            `;
-          }
-          upcomingList.appendChild(div);
-        });
-      } else {
-        upcomingList.innerHTML = `
-          <div class="empty-view-box">
-            <span class="empty-icon">📅</span>
-            <div class="empty-title">目前無任何預約紀錄</div>
-            <div class="empty-desc">歡迎至「立即預約」挑選心儀場次進行報名！</div>
-          </div>
-        `;
+      // Sort upcoming chronologically (soonest first), past reverse-chronologically (newest first)
+      const upcomingItems = processed
+        .filter(s => !s.isPast)
+        .sort((a, b) => (a.dateStr + a.startTime).localeCompare(b.dateStr + b.startTime));
+      const pastItems = processed
+        .filter(s => s.isPast)
+        .sort((a, b) => (b.dateStr + b.startTime).localeCompare(a.dateStr + a.startTime));
+        
+      window._allMemberBookings = {
+        all: [...upcomingItems, ...pastItems],
+        upcoming: upcomingItems,
+        past: pastItems
+      };
+      
+      bookingCount = processed.length;
+      
+      if (!window._currentBookingFilter) {
+        window._currentBookingFilter = upcomingItems.length > 0 ? "upcoming" : "all";
       }
+      
+      window.renderMemberBookingsUI(upcomingList);
     } else {
       upcomingList.innerHTML = `
         <div class="empty-view-box">
@@ -2275,7 +3078,7 @@ async function loadMemberDashboard() {
                 <div>
                   <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                     <span class="badge pickup-badge" style="font-size: 11px; padding: 2px 6px;">我的自揪</span>
-                    ${m.join_password ? `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 密碼: ${escapeHtml(m.join_password)}</span>` : `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">🌐 公開團</span>`}
+                    ${m.join_password ? `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 密碼: ${escapeHtml(m.join_password)}</span>` : `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">🌐 公開團</span>`}
                     <strong style="font-size: 15px; color: var(--text);">${escapeHtml(m.name)}</strong>
                   </div>
                   <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">
@@ -2285,7 +3088,7 @@ async function loadMemberDashboard() {
                 ${statusBadge}
               </div>
               <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px; flex-wrap: wrap;">
-                <button type="button" class="btn-secondary copy-link-btn" data-url="${escapeHtml(shareUrl)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #ecfdf5; border: 1px solid #a7f3d0; color: #059669;">
+                <button type="button" class="btn-secondary copy-link-btn" data-url="${escapeHtml(shareUrl)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
                   🔗 複製連結
                 </button>
                 <button type="button" class="btn-secondary copy-roster-btn" data-roster="${escapeHtml(rosterText)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800;">
@@ -2382,36 +3185,46 @@ async function loadMemberDashboard() {
     });
   }
 
-  if (allUserIds.length > 0) {
-    const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
-    const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
-    
+  cachedMemberUserIds = allUserIds;
+  if (activeMemberTab === "stats" && allUserIds.length > 0) {
+    let matches = [];
     try {
-      const { data: matches, error: matchesError } = await client
-        .from("session_match_records")
-        .select(`
-          id,
-          meetup_id,
-          reservation_date,
-          court_number,
-          player_a1_id,
-          player_a1_type,
-          player_a2_id,
-          player_a2_type,
-          player_b1_id,
-          player_b1_type,
-          player_b2_id,
-          player_b2_type,
-          score_a,
-          score_b,
-          rating_change,
-          created_at,
-          meetups(name, organizers(name))
-        `)
-        .or(orFilter)
+      const orFilterV2 = allUserIds.map(id => `team_a_user_ids.cs.{${id}},team_b_user_ids.cs.{${id}}`).join(",");
+      const { data: v2Data } = await client
+        .from("session_matches")
+        .select("id, court_number, team_a_user_ids, team_b_user_ids, score_a, score_b, winner, rating_change, created_at, session:sessions(session_date, meetup_id, meetups(name, organizers(name)))")
+        .or(orFilterV2)
         .order("created_at", { ascending: true });
 
-      if (matchesError) throw matchesError;
+      if (v2Data && v2Data.length > 0) {
+        matches = v2Data.map(m => ({
+          id: m.id,
+          meetup_id: m.session?.meetup_id,
+          reservation_date: m.session?.session_date,
+          court_number: m.court_number,
+          player_a1_id: m.team_a_user_ids?.[0],
+          player_a2_id: m.team_a_user_ids?.[1],
+          player_b1_id: m.team_b_user_ids?.[0],
+          player_b2_id: m.team_b_user_ids?.[1],
+          score_a: m.score_a,
+          score_b: m.score_b,
+          rating_change: m.rating_change,
+          created_at: m.created_at,
+          meetups: m.session?.meetups
+        }));
+      } else {
+        const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
+        const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
+        const { data: v1Data } = await client
+          .from("session_match_records")
+          .select(`id, meetup_id, reservation_date, court_number, player_a1_id, player_a2_id, player_b1_id, player_b2_id, score_a, score_b, rating_change, created_at, meetups(name, organizers(name))`)
+          .or(orFilter)
+          .order("created_at", { ascending: true });
+        if (v1Data) matches = v1Data;
+      }
+    } catch (err) {
+      console.warn("Matches fetch notice:", err);
+    }
 
       if (matches && matches.length > 0) {
         // Process matches to compute ELO trend & win rate stats
@@ -2436,33 +3249,22 @@ async function loadMemberDashboard() {
         const isUuid = (id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id || "").trim());
         const isInt = (id) => /^\d+$/.test(String(id || "").trim());
 
-        const memberIdsQuery = [...uniquePlayerIds].filter(isUuid);
-        const signupIdsQuery = [...uniquePlayerIds].filter(isInt).map(id => parseInt(id, 10));
+        const playerIdsQuery = [...uniquePlayerIds].filter(isUuid);
 
-        // For non-UUID and non-numeric IDs (e.g. test dummy players), assign fallback names directly
+        // For non-UUID IDs (e.g. test dummy players), assign fallback names directly
         uniquePlayerIds.forEach(id => {
-          if (!isUuid(id) && !isInt(id)) {
+          if (!isUuid(id)) {
             if (!playerNamesMap.has(id)) {
-              playerNamesMap.set(id, id.toLowerCase().includes("dummy") ? "練習球友" : id);
+              playerNamesMap.set(id, String(id).toLowerCase().includes("dummy") ? "練習球友" : id);
             }
           }
         });
 
-        // 並行查詢球友姓名 (members 與 signups 同時並發)
-        const [memNamesRes, sigNamesRes] = await Promise.all([
-          memberIdsQuery.length > 0 ? client.from("members").select("id, name").in("id", memberIdsQuery) : Promise.resolve({ data: [] }),
-          signupIdsQuery.length > 0 ? client.from("signups").select("id, nickname").in("id", signupIdsQuery) : Promise.resolve({ data: [] })
-        ]);
-
-        if (memNamesRes?.data) {
-          memNamesRes.data.forEach(x => {
-            if (!playerNamesMap.has(x.id)) playerNamesMap.set(x.id, x.name);
-          });
-        }
-        if (sigNamesRes?.data) {
-          sigNamesRes.data.forEach(x => {
-            const key = String(x.id);
-            if (!playerNamesMap.has(key)) playerNamesMap.set(key, x.nickname);
+        // 查詢球友姓名 (users)
+        if (playerIdsQuery.length > 0) {
+          const { data: usersData } = await client.from("users").select("id, name").in("id", playerIdsQuery);
+          (usersData || []).forEach(x => {
+            playerNamesMap.set(x.id, x.name);
           });
         }
 
@@ -2499,8 +3301,8 @@ async function loadMemberDashboard() {
             calcWins++;
             currentElo += m.rating_change;
             changeSymbol = `+${m.rating_change}`;
-            badgeStyle = "background-color:#dcfce7; color:#166534; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900;";
-            changeColor = "#15803d";
+            badgeStyle = "background-color:#eff6ff; color:#1d4ed8; padding:3px 8px; border-radius:8px; font-size:11.5px; font-weight:900; border:1px solid #bfdbfe;";
+            changeColor = "#2563eb";
           } else if (myScore < oppScore) {
             outcome = "LOSS";
             calcLosses++;
@@ -2572,7 +3374,9 @@ async function loadMemberDashboard() {
         drawEloChart([]);
       }
     } catch (err) {
-      console.error("Failed to query match records:", err);
+      if (err?.code !== "PGRST205" && !String(err?.message || "").includes("schema cache")) {
+        console.warn("Match records notice:", err?.message || err);
+      }
     }
   } else {
     lastEloTrend = [];
@@ -2604,40 +3408,48 @@ async function loadMemberDashboard() {
 window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
   if (!confirm(`確定要取消「${meetupName}」的預約嗎？`)) return;
   try {
-    const { data: signup, error: getError } = await client
-      .from("signups")
-      .select("meetup_id, reservation_date, phone")
-      .eq("id", parseInt(signupId))
+    const { data: part, error: getError } = await client
+      .from("session_participants")
+      .select("id, status, session:sessions(id, meetup_id, session_date)")
+      .eq("id", signupId)
       .single();
     if (getError) throw getError;
 
-    const { data, error } = await client.rpc("cancel_signup_by_phone", {
-      p_meetup_id: signup.meetup_id,
-      p_reservation_date: signup.reservation_date,
-      p_phone: signup.phone,
-      p_cancel_people_count: 999
-    });
-    if (error) throw error;
-    const result = Array.isArray(data) ? data[0] : data;
-    if (result && result.ok === false) {
-      alert(result.message || "取消失敗。");
-    } else {
-      const actionType = result?.action_type;
-      const successMessage = actionType === "member_absence_created"
-        ? "已完成會員請假，當天不會列入名單，名額已釋出。"
-        : (result?.message || "已成功取消預約！");
-      alert(successMessage);
-      notifyCancelSignup({
-        meetupId: signup.meetup_id,
-        reservationDate: signup.reservation_date,
-        nickname: currentSystemMember?.nickname || signup.phone,
-        meetupName: meetupName
-      });
-      if (typeof loadMemberDashboard === "function") {
-        await loadMemberDashboard();
+    const { error: cancelErr } = await client
+      .from("session_participants")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("id", signupId);
+    if (cancelErr) throw cancelErr;
+
+    // Auto-promote first waitlisted participant if status was confirmed
+    if (part.status === "confirmed" && part.session?.id) {
+      const { data: waitlist } = await client
+        .from("session_participants")
+        .select("id")
+        .eq("session_id", part.session.id)
+        .eq("status", "waitlist")
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      if (waitlist && waitlist.length > 0) {
+        await client
+          .from("session_participants")
+          .update({ status: "confirmed", updated_at: new Date().toISOString() })
+          .eq("id", waitlist[0].id);
       }
-      await refreshAll(true);
     }
+
+    alert("已成功取消預約！");
+    notifyCancelSignup({
+      meetupId: part.session?.meetup_id,
+      reservationDate: part.session?.session_date,
+      nickname: currentSystemMember?.nickname || "球友",
+      meetupName: meetupName
+    });
+    if (typeof loadMemberDashboard === "function") {
+      await loadMemberDashboard();
+    }
+    await refreshAll(true);
   } catch (err) {
     alert("取消失敗：" + (err.message || String(err)));
   }
@@ -2646,20 +3458,16 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
 window.promoteTentative = async function(signupId) {
   if (!confirm("確定要將此預約轉為正式席位嗎？")) return;
   try {
-    const { data, error } = await client.rpc("promote_tentative_signup", {
-      p_signup_id: parseInt(signupId)
-    });
+    const { error } = await client
+      .from("session_participants")
+      .update({ status: "confirmed", updated_at: new Date().toISOString() })
+      .eq("id", signupId);
     if (error) throw error;
-    const result = Array.isArray(data) ? data[0] : data;
-    if (result && result.ok === false) {
-      alert(result.message || "無法手動轉正。");
-    } else {
-      alert(result?.message || "已成功轉為正式正取席位！");
-      if (typeof loadMemberDashboard === "function") {
-        await loadMemberDashboard();
-      }
-      await refreshAll(true);
+    alert("已成功轉為正式正取席位！");
+    if (typeof loadMemberDashboard === "function") {
+      await loadMemberDashboard();
     }
+    await refreshAll(true);
   } catch (err) {
     alert("操作失敗：" + (err.message || String(err)));
   }
@@ -2668,22 +3476,18 @@ window.promoteTentative = async function(signupId) {
 window.promoteTentativeGuest = async function(signupId) {
   if (!confirm("確定要將此預約轉為正式席位嗎？")) return;
   try {
-    const { data, error } = await client.rpc("promote_tentative_signup", {
-      p_signup_id: parseInt(signupId)
-    });
+    const { error } = await client
+      .from("session_participants")
+      .update({ status: "confirmed", updated_at: new Date().toISOString() })
+      .eq("id", signupId);
     if (error) throw error;
-    const result = Array.isArray(data) ? data[0] : data;
-    if (result && result.ok === false) {
-      alert(result.message || "無法手動轉正。");
-    } else {
-      alert(result?.message || "已成功轉為正式正取席位！");
-      $("cancelFormSecondStep").style.display = "none";
-      $("queryResultText").textContent = "";
-      if (typeof loadMemberDashboard === "function") {
-        await loadMemberDashboard();
-      }
-      await refreshAll(true);
+    alert("已成功轉為正式正取席位！");
+    $("cancelFormSecondStep").style.display = "none";
+    $("queryResultText").textContent = "";
+    if (typeof loadMemberDashboard === "function") {
+      await loadMemberDashboard();
     }
+    await refreshAll(true);
   } catch (err) {
     alert("操作失敗：" + (err.message || String(err)));
   }
@@ -2703,8 +3507,8 @@ window.showTransactions = async function(memberId, clubName, payerMemberId) {
   try {
     const { data, error } = await client
       .from("wallet_transactions")
-      .select("id, amount, type, reservation_date, notes, created_at")
-      .eq("member_id", targetId)
+      .select("id, amount, type, notes, created_at")
+      .eq("organizer_member_id", targetId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -2715,17 +3519,17 @@ window.showTransactions = async function(memberId, clubName, payerMemberId) {
     }
 
     container.innerHTML = data.map(t => {
-      const typeLabel = t.type === 'topup' ? '儲值' : (t.type === 'checkin' ? '出席扣款' : '取消退款');
-      const amountColor = t.amount >= 0 ? '#16A34A' : '#EF4444';
-      const amountLabel = t.amount >= 0 ? `+${t.amount} 點` : `-${Math.abs(t.amount)} 點`;
-      const dateText = t.reservation_date ? ` (${t.reservation_date})` : '';
+      const typeLabel = t.type === 'topup' ? '儲值' : (t.type === 'checkin' ? '出席扣款' : (t.type === 'refund' ? '退款' : '手動調整'));
+      const numAmount = Number(t.amount || 0);
+      const amountColor = numAmount >= 0 ? '#16A34A' : '#EF4444';
+      const amountLabel = numAmount >= 0 ? `+${numAmount} 點` : `${numAmount} 點`;
       const notesText = t.notes ? `<p style="font-size: 11px; color: var(--muted); margin-top: 2px;">${escapeHtml(t.notes)}</p>` : '';
       const timeStr = new Date(t.created_at).toLocaleString();
 
       return `
         <div style="border-bottom: 1px solid var(--line); padding: 12px 6px; display: flex; justify-content: space-between; align-items: center;">
           <div>
-            <span style="font-weight: 800; font-size: 13.5px; color: var(--text);">${typeLabel}${dateText}</span>
+            <span style="font-weight: 800; font-size: 13.5px; color: var(--text);">${typeLabel}</span>
             <p style="font-size: 11px; color: var(--muted); margin-top: 2px;">時間: ${timeStr}</p>
             ${notesText}
           </div>
@@ -2801,43 +3605,29 @@ async function handleBindPhoneSubmit(e) {
   try {
     setMessage(msgEl, "正在為您綁定並連結球館資料...", true);
 
-    // 1. Update system_members
+    // 1. Update users
     const { data: updatedMember, error: updateErr } = await client
-      .from("system_members")
+      .from("users")
       .update({
-        nickname,
+        name: nickname,
         phone,
         skill_level: skillLevel,
         is_beginner: isBeginner,
-        created_at: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
-      .eq("id", currentUser.id)
+      .eq("id", currentSystemMember?.id || currentUser.id)
       .select()
       .single();
 
     if (updateErr) throw updateErr;
 
-    // 2. Auto-link to any existing club records in members table where phone matches
-    try {
-      await client
-        .from("members")
-        .update({
-          system_member_id: currentUser.id,
-          updated_at: new Date().toISOString()
-        })
-        .eq("phone", phone)
-        .is("system_member_id", null);
-    } catch (linkErr) {
-      console.warn("Auto-link members error:", linkErr);
-    }
-
-    currentSystemMember = updatedMember;
+    currentSystemMember = { ...updatedMember, nickname: updatedMember.name };
     sessionStorage.removeItem("skip_bind_phone");
     closeBindPhoneModal(false);
 
-    alert("🎉 手機號碼綁定成功！已自動為您連結會員資料與開團紀錄。");
+    alert("🎉 手機號碼綁定成功！已為您連結會員資料。");
 
-    // 3. Refresh views
+    // 2. Refresh views
     toggleAuthView(true);
     if ($("memberDashboard")) loadMemberDashboard();
     await refreshMeetupListOnly();
@@ -2865,27 +3655,14 @@ async function handleUpdateProfile(e) {
   try {
     setMessage(msgEl, "更新中...", true);
     const { data, error } = await client
-      .from("system_members")
-      .update({ nickname, phone, skill_level, is_beginner, created_at: new Date().toISOString() })
-      .eq("id", currentUser.id)
+      .from("users")
+      .update({ name: nickname, phone, skill_level, is_beginner, updated_at: new Date().toISOString() })
+      .eq("id", currentSystemMember?.id || currentUser.id)
       .select()
       .single();
 
     if (error) throw error;
-    currentSystemMember = data;
-
-    // Auto-link members table if phone is provided
-    if (phone) {
-      try {
-        await client
-          .from("members")
-          .update({ system_member_id: currentUser.id, updated_at: new Date().toISOString() })
-          .eq("phone", phone)
-          .is("system_member_id", null);
-      } catch (linkErr) {
-        console.warn("Auto-link members error:", linkErr);
-      }
-    }
+    currentSystemMember = { ...data, nickname: data.name };
 
     setMessage(msgEl, "個人資料更新成功！", true);
     toggleAuthView(true);
@@ -2953,6 +3730,11 @@ async function handleAuthSubmit(e) {
 }
 
 async function handleLineLogin() {
+  const lineBtn = $("lineLoginBtn");
+  if (lineBtn) {
+    if (lineBtn.disabled) return;
+    lineBtn.disabled = true;
+  }
   const loadingContainer = $("memberLoading");
   const authContainer = $("authContainer");
   if (authContainer) authContainer.style.display = "none";
@@ -2962,19 +3744,14 @@ async function handleLineLogin() {
     if (textEl) textEl.textContent = "正在跳轉至 LINE 登入頁面...";
   }
 
-  const { data, error } = await client.auth.signInWithOAuth({
-    provider: 'custom:line',
-    options: {
-      redirectTo: window.location.origin + window.location.pathname,
-      queryParams: {
-        bot_prompt: 'aggressive'
-      }
-    }
-  });
-  if (error) {
-    alert("LINE 登入啟動失敗：" + error.message);
-    toggleAuthView(false);
-  }
+  // 採用後端直通架構：直接導向 LINE 官方授權端點
+  const clientId = "2010841175";
+  const redirectUri = window.location.origin + "/api/auth/line/callback";
+  const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
+  sessionStorage.setItem("line_login_state", state);
+
+  const authUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;
+  window.location.href = authUrl;
 }
 
 function toggleAuthView(isLoggedIn) {
@@ -2987,12 +3764,22 @@ function toggleAuthView(isLoggedIn) {
   const welcomeEl = $("headerWelcome");
   if (welcomeEl) {
     if (isLoggedIn) {
-      const name = currentSystemMember?.nickname || currentUser?.email || "球友";
+      let name = currentSystemMember?.nickname || currentSystemMember?.name;
+      if (!name || name === "球友") {
+        name = currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || "";
+      }
+      if (!name) {
+        if (currentUser?.email && !currentUser.email.startsWith("line_")) {
+          name = currentUser.email.split("@")[0];
+        } else {
+          name = "球友";
+        }
+      }
       let phoneWarningHtml = "";
       if (!currentSystemMember?.phone) {
         phoneWarningHtml = `<span style="background-color:#FFFBEB;color:#D97706;font-size:11.5px;font-weight:900;padding:2px 8px;border-radius:999px;margin-left:6px;border:1px solid #FDE68A;display:inline-flex;align-items:center;gap:3px;vertical-align:middle;">⚠️ 設定手機</span>`;
       }
-      welcomeEl.innerHTML = `👋 您好，<span style="color:#15803d;margin-left:2px">${name}</span>！${phoneWarningHtml}`;
+      welcomeEl.innerHTML = `👋 您好，<span style="color:#2563eb;margin-left:2px">${name}</span>！${phoneWarningHtml}`;
       welcomeEl.style.display = "inline-flex";
     } else {
       welcomeEl.style.display = "none";
@@ -3039,7 +3826,7 @@ $("phone")?.addEventListener("input", async (e) => {
   if (/^09\d{8}$/.test(cleanPh)) {
     try {
       const { data } = await client
-        .from("signups")
+        .from("users")
         .select("skill_level")
         .eq("phone", cleanPh)
         .order("created_at", { ascending: false })
@@ -3062,7 +3849,7 @@ $("deleteAccountBtn")?.addEventListener("click", async () => {
   if (!confirm("確定要註銷並刪除您的會員資料嗎？此操作將解除綁定並清除所有登入資訊，且無法復原。")) return;
   try {
     if (currentSystemMember?.id) {
-      await client.from("system_members").delete().eq("id", currentSystemMember.id);
+      await client.from("users").delete().eq("id", currentSystemMember.id);
     }
     sessionStorage.setItem("user_logged_out", "true");
     await client.auth.signOut();
@@ -3102,6 +3889,18 @@ document.querySelectorAll("[data-open-tab]").forEach(link => {
 if ($("cityFilter")) renderCityFilter();
 if ($("pickupCity") || $("editPickupCity")) initPickupModal();
 if ($("knowledgeList")) renderStaticContent();
+
+// 全局委託監聽：點擊任何知識卡片圖片或帶有 data-knowledge-idx 的元素直接觸發放大燈箱
+document.addEventListener("click", (e) => {
+  const wrap = e.target.closest(".knowledge-img-wrap");
+  if (wrap && wrap.dataset.knowledgeIdx !== undefined) {
+    const idx = parseInt(wrap.dataset.knowledgeIdx, 10);
+    const item = knowledgeItems[idx];
+    if (item) {
+      openImageLightbox(item.image?.src, item.title, item.desc);
+    }
+  }
+});
 
 (async function init() {
   if ($("announcementList")) loadAnnouncements().catch(console.error);
@@ -3145,10 +3944,37 @@ if ($("knowledgeList")) renderStaticContent();
   });
 
   try {
+    // 若網址 Hash 含有剛換發之 access_token 與 refresh_token，直接呼叫 setSession
+    if (window.location.hash.includes("access_token")) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { data: setSessionData } = await client.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+        if (setSessionData?.session?.user) {
+          await syncUserAuth(setSessionData.session.user);
+          try {
+            history.replaceState(null, null, window.location.pathname + window.location.search);
+          } catch (e) {}
+        }
+      }
+    }
+
     const { data: { session } } = await client.auth.getSession();
     if (session?.user) {
       syncUserAuth(session.user);
     } else {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const rawError = searchParams.get("error_description") || hashParams.get("error_description") || searchParams.get("error");
+      if (rawError && $("authMessage")) {
+        const errorText = decodeURIComponent(rawError.replace(/\+/g, " "));
+        setMessage($("authMessage"), `⚠️ LINE 驗證未完成：${errorText}`, false);
+      }
+
       const isLineBrowser = /Line/i.test(navigator.userAgent);
       const hasAuthParams = window.location.hash.includes("access_token") || 
                             window.location.hash.includes("error") || 

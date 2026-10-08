@@ -31,44 +31,33 @@ export default function MemberPage() {
             <span style={{ fontSize: "14px", color: "var(--sub)", fontWeight: "700", animation: "pulse 1.5s ease-in-out infinite", letterSpacing: "0.5px" }}>會員登入驗證中，請稍候...</span>
           </div>
 
-          {/* Auth Form (Hidden if logged in) */}
-          <div id="authContainer" className="booking-card" style={{ maxWidth: "480px", margin: "0 auto", padding: "24px", display: "none" }}>
-            <div className="auth-tabs" style={{ display: "flex", borderBottom: "2px solid var(--line)", marginBottom: "20px" }}>
-              <button id="authTabLogin" className="auth-tab-btn active" style={{ flex: 1, padding: "12px", fontWeight: "800", background: "none", border: "none", cursor: "pointer", color: "var(--accent)", borderBottom: "2px solid var(--accent)" }}>登入</button>
-              <button id="authTabRegister" className="auth-tab-btn" style={{ flex: 1, padding: "12px", fontWeight: "800", background: "none", border: "none", cursor: "pointer", color: "var(--sub)" }}>註冊</button>
+          {/* Auth Form (Hidden if logged in) - 純 LINE 一鍵登入與註冊 */}
+          <div id="authContainer" className="booking-card" style={{ maxWidth: "480px", margin: "0 auto", padding: "36px 24px", display: "none", textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "16px" }}>
+              <img src="/logo.png" alt="Pickleball App Icon" width="80" height="80" style={{ borderRadius: "22px", boxShadow: "0 10px 25px rgba(37, 99, 235, 0.22)" }} />
             </div>
-            
-            <form id="authForm" className="form">
-              <div id="registerFields" style={{ display: "none", gap: "12px", flexDirection: "column" }}>
-                <label>姓名/暱稱
-                  <input id="authNickname" placeholder="例如：小明" />
-                </label>
-                <label>手機號碼
-                  <input id="authPhone" placeholder="0912345678" inputMode="numeric" />
-                </label>
-              </div>
-              <label style={{ marginTop: "10px" }}>電子信箱
-                <input id="authEmail" type="email" placeholder="example@email.com" autoComplete="email" />
-              </label>
-              <label>密碼
-                <input id="authPassword" type="password" placeholder="請輸入密碼 (至少 6 位)" autoComplete="current-password" />
-              </label>
-              
-              <button className="btn-primary" id="authSubmitBtn" type="submit" style={{ marginTop: "12px", width: "100%" }}>確認</button>
-              
-              <div style={{ textAlign: "center", margin: "16px 0", color: "var(--muted)", fontSize: "13px" }}>或使用快速登入</div>
-              
-              <button className="btn-secondary" id="lineLoginBtn" type="button" style={{ width: "100%", background: "#06C755", color: "#fff", borderColor: "#06C755", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-                <span style={{ fontWeight: "900", fontSize: "16px" }}>LINE</span> LINE 快速登入 (免費)
-              </button>
-            </form>
+            <h3 style={{ fontSize: "22px", fontWeight: "900", color: "var(--primary)", marginBottom: "8px" }}>
+              會員 LINE 一鍵登入 / 註冊
+            </h3>
+            <p style={{ fontSize: "14px", color: "var(--sub)", lineHeight: "1.6", marginBottom: "24px" }}>
+              無須記憶密碼！使用 LINE 一鍵快速綁定，享有個人 1 鍵快速報名、儲值扣點與出席紀錄查詢。
+            </p>
+
+            <button className="btn-secondary" id="lineLoginBtn" type="button" style={{ width: "100%", background: "#06C755", color: "#fff", borderColor: "#06C755", display: "flex", alignItems: "center", justifyContent: "center", gap: "10px", padding: "16px", borderRadius: "16px", fontSize: "17px", fontWeight: "900", cursor: "pointer", boxShadow: "0 4px 14px rgba(6,199,85,0.25)" }}>
+              <span style={{ fontWeight: "900", fontSize: "20px" }}>LINE</span> LINE 一鍵登入 / 註冊 (免費)
+            </button>
+
+            <div style={{ marginTop: "24px", padding: "14px 16px", background: "#eff6ff", borderRadius: "14px", border: "1px solid #bfdbfe", fontSize: "13px", color: "var(--sub)", textAlign: "left", lineHeight: "1.6" }}>
+              💡 <strong>散客溫馨提醒：</strong>如您只是臨時打球，<strong>無須註冊會員</strong>！直接前往「<a href="/" style={{ color: "var(--primary)", fontWeight: "800", textDecoration: "underline" }}>線上預約</a>」選擇場次並填寫姓名電話即可快速報名。
+            </div>
+
             <div id="authMessage" className="message" style={{ marginTop: "12px" }}></div>
           </div>
           
           {/* Member Dashboard (Hidden if logged out) */}
           <div id="memberDashboard" style={{ display: "none", flexDirection: "column", gap: "20px" }}>
             {/* Profile Summary Card */}
-            <div className="member-profile-card" style={{ background: "linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)", color: "#ffffff", flexDirection: "column", alignItems: "stretch" }}>
+            <div className="member-profile-card" style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%)", color: "#ffffff", flexDirection: "column", alignItems: "stretch" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: "16px", flexWrap: "wrap" }}>
                 <div className="profile-main-info" style={{ flex: 1, minWidth: "240px" }}>
                   <div className="profile-text-group" style={{ alignItems: "flex-start" }}>
@@ -133,10 +122,10 @@ export default function MemberPage() {
                     <label>預設程度等級</label>
                     <input type="hidden" id="profileSkillLevel" defaultValue="normal" />
                     <div className="skill-chips-row" id="skillChipsRow">
-                      <button type="button" className="skill-chip-btn" data-value="first_time">第一次體驗</button>
-                      <button type="button" className="skill-chip-btn" data-value="beginner">初學</button>
-                      <button type="button" className="skill-chip-btn active" data-value="normal">一般</button>
-                      <button type="button" className="skill-chip-btn" data-value="advanced">進階</button>
+                      <button type="button" className="skill-chip-btn" data-value="first_time">需教學 (&lt;2.0)</button>
+                      <button type="button" className="skill-chip-btn" data-value="beginner">初學 (2.0-2.5)</button>
+                      <button type="button" className="skill-chip-btn active" data-value="normal">一般 (2.5-3.0)</button>
+                      <button type="button" className="skill-chip-btn" data-value="advanced">進階 (3.0+)</button>
                     </div>
                   </div>
                 </div>
@@ -162,7 +151,7 @@ export default function MemberPage() {
                 <span className="tab-label">我的自揪團</span>
                 <span className="member-tab-badge" id="badgePickupsCount" style={{ display: "none" }}>0</span>
               </button>
-              <button type="button" className="member-tab-btn" data-tab="stats" id="tabBtnStats">
+              <button type="button" className="member-tab-btn" data-tab="stats" id="tabBtnStats" style={{ display: "none" }}>
                 <span className="tab-icon">⚔️</span>
                 <span className="tab-label">戰績與積分</span>
               </button>
@@ -197,7 +186,7 @@ export default function MemberPage() {
               <div className="dashboard-panel-card" style={{ width: "100%" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
                   <h4 className="panel-header-title" style={{ margin: 0 }}>🏓 我發起的自揪團</h4>
-                  <a href="/#createPickupModal" id="memberCenterCreatePickupBtn" className="btn-secondary" style={{ fontSize: "13px", padding: "6px 14px", textDecoration: "none", borderRadius: "10px", fontWeight: "800", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <a href="/#createPickupModal" id="memberCenterCreatePickupBtn" className="btn-secondary" style={{ fontSize: "13px", padding: "6px 14px", textDecoration: "none", borderRadius: "10px", fontWeight: "800", background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "4px" }}>
                     ➕ 發起新揪團
                   </a>
                 </div>
@@ -223,7 +212,7 @@ export default function MemberPage() {
               <div className="dashboard-panel-card" style={{ width: "100%" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
                   <h4 className="panel-header-title" style={{ margin: 0 }}>⚔️ 近期對戰戰績紀錄</h4>
-                  <span id="matchStatsSummary" style={{ fontSize: "13px", fontWeight: "800", color: "#059669", background: "#ecfdf5", border: "1px solid #a7f3d0", padding: "3px 12px", borderRadius: "100px" }}>0 場 ｜ 0勝 0敗 (勝率 0%)</span>
+                  <span id="matchStatsSummary" style={{ fontSize: "13px", fontWeight: "800", color: "#1d4ed8", background: "#eff6ff", border: "1px solid #bfdbfe", padding: "3px 12px", borderRadius: "100px" }}>0 場 ｜ 0勝 0敗 (勝率 0%)</span>
                 </div>
                 <div id="matchHistoryList" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                   <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>目前尚無任何積分對戰紀錄</p>

@@ -1,68 +1,11 @@
-import crypto from "crypto";
-
 export const runtime = "nodejs";
 
-const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
+import { supabase } from "@/lib/supabase";
+import { sendLineReply, verifyLineSignature } from "@/lib/line";
 
 // The main organizer ID (東東) for this bot
 const TARGET_ORGANIZER_ID = "6405ca2f-cd47-496c-a31b-a622651b198b";
 
-// Helper to query Supabase REST API
-async function querySupabase(endpoint, queryParams = {}) {
-  const queryString = new URLSearchParams(queryParams).toString();
-  const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? "?" + queryString : ""}`;
-  
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Supabase query failed: ${response.statusText}`);
-  }
-  return await response.json();
-}
-
-// Verify LINE signature
-function verifySignature(bodyStr, channelSecret, signature) {
-  if (!channelSecret || !signature) return true; // Skip verification if not configured
-  const hash = crypto
-    .createHmac("sha256", channelSecret)
-    .update(bodyStr)
-    .digest("base64");
-  return hash === signature;
-}
-
-// Send reply message to LINE
-async function sendLineReply(replyToken, messages) {
-  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!channelAccessToken) {
-    console.error("Missing LINE_CHANNEL_ACCESS_TOKEN env variable");
-    return;
-  }
-
-  const response = await fetch("https://api.line.me/v2/bot/message/reply", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${channelAccessToken}`
-    },
-    body: JSON.stringify({
-      replyToken: replyToken,
-      messages: messages
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("Failed to send LINE reply:", response.status, errorBody);
-  }
-}
 
 export async function POST(request) {
   const channelSecret = process.env.LINE_CHANNEL_SECRET ? process.env.LINE_CHANNEL_SECRET.trim() : null;
@@ -80,7 +23,7 @@ export async function POST(request) {
     }
     
     // Verify signature for real events if secret is configured
-    if (channelSecret && !verifySignature(rawBody, channelSecret, signature)) {
+    if (channelSecret && !verifyLineSignature(rawBody, channelSecret, signature)) {
       console.warn("⚠️ LINE Webhook Signature verification failed. Check if LINE_CHANNEL_SECRET is correct. Proceeding for debugging...");
     }
     
@@ -110,13 +53,13 @@ export async function POST(request) {
 // Handler for 查詢餘額
 async function handleQueryBalance(replyToken, lineUserId) {
   try {
-    // 1. Find system member by LINE user ID
-    const systemMembers = await querySupabase("system_members", {
-      line_user_id: `eq.${lineUserId}`,
-      select: "id,nickname,phone"
-    });
+    // 1. Find user by LINE user ID
+    const { data: users } = await supabase
+      .from("users")
+      .select("id,name,phone")
+      .eq("line_user_id", lineUserId);
     
-    if (!systemMembers || systemMembers.length === 0) {
+    if (!users || users.length === 0) {
       await sendLineReply(replyToken, [
         {
           type: "text",
@@ -126,19 +69,20 @@ async function handleQueryBalance(replyToken, lineUserId) {
       return;
     }
     
-    const sysMember = systemMembers[0];
+    const user = users[0];
     
-    // 2. Find all member profiles linked to this system member (across all organizers)
-    const members = await querySupabase("members", {
-      system_member_id: `eq.${sysMember.id}`,
-      select: "id,balance,name,organizers(name)"
-    });
+    // 2. Find all member profiles linked to this user (across all organizers)
+    const { data: members } = await supabase
+      .from("organizer_members")
+      .select("id,balance,status,organizers(name)")
+      .eq("user_id", user.id);
+
     
     if (!members || members.length === 0) {
       await sendLineReply(replyToken, [
         {
           type: "text",
-          text: `您好 ${sysMember.nickname || "球友"}！您已完成網站登入綁定，但您目前尚未在任何球團或俱樂部開通儲值金會員帳戶。\n\n若您有儲值需求，請提供您的姓名或手機，聯絡各球團團長在後台為您建立會員錢包！`
+          text: `您好 ${user.name || "球友"}！您已完成網站登入綁定，但您目前尚未在任何球團或俱樂部開通儲值金會員帳戶。\n\n若您有儲值需求，請提供您的姓名或手機，聯絡各球團團長在後台為您建立會員錢包！`
         }
       ]);
       return;
@@ -167,7 +111,7 @@ async function handleQueryBalance(replyToken, lineUserId) {
             type: "box",
             layout: "horizontal",
             contents: [
-              { type: "text", text: `球友姓名：${m.name}`, color: "#e5e7eb", size: "sm" },
+              { type: "text", text: `球友姓名：${user.name || "會員"}`, color: "#e5e7eb", size: "sm" },
               { type: "text", text: `${balanceAmount.toLocaleString()} 點`, color: "#4ade80", size: "md", align: "end", weight: "bold" }
             ]
           }
@@ -224,7 +168,7 @@ async function handleQueryBalance(replyToken, lineUserId) {
               layout: "horizontal",
               contents: [
                 { type: "text", text: "綁定手機", color: "#9ca3af", size: "xs" },
-                { type: "text", text: sysMember.phone || "無", color: "#ffffff", size: "xs", align: "end" }
+                { type: "text", text: user.phone || "無", color: "#ffffff", size: "xs", align: "end" }
               ]
             },
             {
@@ -269,13 +213,13 @@ async function handleQueryBalance(replyToken, lineUserId) {
 // Handler for 使用紀錄
 async function handleQueryHistory(replyToken, lineUserId) {
   try {
-    // 1. Find system member
-    const systemMembers = await querySupabase("system_members", {
-      line_user_id: `eq.${lineUserId}`,
-      select: "id,nickname"
-    });
+    // 1. Find user
+    const { data: users } = await supabase
+      .from("users")
+      .select("id,name")
+      .eq("line_user_id", lineUserId);
     
-    if (!systemMembers || systemMembers.length === 0) {
+    if (!users || users.length === 0) {
       await sendLineReply(replyToken, [
         {
           type: "text",
@@ -285,13 +229,13 @@ async function handleQueryHistory(replyToken, lineUserId) {
       return;
     }
     
-    const sysMember = systemMembers[0];
+    const user = users[0];
     
     // 2. Find member profiles across all organizers
-    const members = await querySupabase("members", {
-      system_member_id: `eq.${sysMember.id}`,
-      select: "id,payer_member_id,organizers(name)"
-    });
+    const { data: members } = await supabase
+      .from("organizer_members")
+      .select("id,organizers(name)")
+      .eq("user_id", user.id);
     
     if (!members || members.length === 0) {
       await sendLineReply(replyToken, [
@@ -303,22 +247,20 @@ async function handleQueryHistory(replyToken, lineUserId) {
       return;
     }
     
-    // Map target member IDs (incorporating shared wallets) to organizer names
     const memberIdToOrgName = {};
-    const memberIds = [];
-    members.forEach(m => {
-      const targetId = m.payer_member_id || m.id;
-      memberIds.push(targetId);
-      memberIdToOrgName[targetId] = m.organizers?.name || "未知團主";
+    const memberIds = members.map(m => {
+      memberIdToOrgName[m.id] = m.organizers?.name || "未知團主";
+      return m.id;
     });
     
     // 3. Query transactions (limit 10, desc order)
-    const transactions = await querySupabase("wallet_transactions", {
-      member_id: `in.(${[...new Set(memberIds)].join(",")})`,
-      order: "created_at.desc",
-      limit: "10",
-      select: "id,type,amount,notes,created_at,reservation_date,member_id"
-    });
+    const { data: transactions } = await supabase
+      .from("wallet_transactions")
+      .select("id,type,amount,notes,created_at,organizer_member_id")
+      .in("organizer_member_id", memberIds)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
     
     if (!transactions || transactions.length === 0) {
       await sendLineReply(replyToken, [
@@ -339,7 +281,7 @@ async function handleQueryHistory(replyToken, lineUserId) {
     
     const bubbleContents = transactions.map((t, idx) => {
       const typeInfo = typeLabelMap[t.type] || { label: "交易", color: "#ffffff", sign: "" };
-      const orgName = memberIdToOrgName[t.member_id] || "未知團主";
+      const orgName = memberIdToOrgName[t.organizer_member_id] || "未知團主";
       const notesText = `[${orgName}] ${t.notes || (t.type === "checkin" ? "簽到出席扣款" : t.type === "topup" ? "帳戶儲值" : "取消退款")}`;
       
       const utcDate = new Date(t.created_at);
@@ -478,12 +420,13 @@ async function handleQueryHistory(replyToken, lineUserId) {
 // Handler for 查詢ID
 async function handleQueryId(replyToken, lineUserId) {
   try {
-    const systemMembers = await querySupabase("system_members", {
-      line_user_id: `eq.${lineUserId}`,
-      select: "id,nickname"
-    });
+    const { data: users } = await supabase
+      .from("users")
+      .select("id,name")
+      .eq("line_user_id", lineUserId);
     
-    if (!systemMembers || systemMembers.length === 0) {
+    if (!users || users.length === 0) {
+
       await sendLineReply(replyToken, [
         {
           type: "text",
@@ -493,12 +436,12 @@ async function handleQueryId(replyToken, lineUserId) {
       return;
     }
     
-    const sysMember = systemMembers[0];
+    const user = users[0];
     
     await sendLineReply(replyToken, [
       {
         type: "text",
-        text: `【 系統會員 ID 查詢 】\n\n球友您好：${sysMember.nickname || ""}\n\n您的系統會員 ID 為：\n${sysMember.id}\n\n（您可以長按複製此 ID 提供給團長，以便在管理後台將您的儲值金帳戶與此 ID 進行手動綁定！）`
+        text: `【 系統會員 ID 查詢 】\n\n球友您好：${user.name || ""}\n\n您的系統會員 ID 為：\n${user.id}\n\n（您可以長按複製此 ID 提供給團長，以便在管理後台將您的儲值金帳戶與此 ID 進行手動綁定！）`
       }
     ]);
   } catch (error) {

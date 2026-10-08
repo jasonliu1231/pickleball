@@ -93,12 +93,12 @@ export default function Page() {
             </label>
             <label>你的程度
               <select id="skillLevel">
-                <option value="first_time">第一次需要教學</option>
-                <option value="beginner" defaultValue="beginner">初學</option>
-                <option value="normal">一般</option>
-                <option value="advanced">進階</option>
+                <option value="first_time">需教學 (2.0 以下)</option>
+                <option value="beginner" defaultValue="beginner">初學 (2.0 - 2.5)</option>
+                <option value="normal">一般 (2.5 - 3.0)</option>
+                <option value="advanced">進階 (3.0 以上)</option>
               </select>
-              <span className="muted" style={{ fontSize: "13px" }}>讓發起人更好安排分組。</span>
+              <span className="muted" style={{ fontSize: "13px" }}>讓發起人更好安排分組與實力平衡。</span>
             </label>
             <label style={{ display: "none" }}>預約人數
               <select id="peopleCount" defaultValue="1">

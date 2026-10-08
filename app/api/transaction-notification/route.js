@@ -1,61 +1,7 @@
 export const runtime = "nodejs";
 
-const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
-
-// Helper to query Supabase REST API
-async function querySupabase(endpoint, queryParams = {}) {
-  const queryString = new URLSearchParams(queryParams).toString();
-  const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? "?" + queryString : ""}`;
-  
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Supabase query failed: ${response.statusText}`);
-  }
-  return await response.json();
-}
-
-// Helper to send LINE Push Flex Notification
-async function sendLinePushFlex(lineUserId, flexContents, altText) {
-  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!channelAccessToken) {
-    console.error("Missing LINE_CHANNEL_ACCESS_TOKEN env variable");
-    return false;
-  }
-
-  const response = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${channelAccessToken}`
-    },
-    body: JSON.stringify({
-      to: lineUserId,
-      messages: [
-        {
-          type: "flex",
-          altText: altText,
-          contents: flexContents
-        }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("Failed to send LINE push notification:", response.status, errorBody);
-    return false;
-  }
-  return true;
-}
+import { supabase } from "@/lib/supabase";
+import { sendLinePushFlex, fetchTokensForUser, sendExpoPush } from "@/lib/line";
 
 export async function POST(request) {
   try {
@@ -66,35 +12,33 @@ export async function POST(request) {
       return Response.json({ ok: false, message: "Missing member_id" }, { status: 400 });
     }
     
-    // 1. Fetch member details, balance, and organizer name
-    const members = await querySupabase("members", {
-      id: `eq.${member_id}`,
-      select: "system_member_id,balance,name,organizers(name)"
-    });
+    // 1. Fetch organizer member details with user and organizer
+    const { data: members } = await supabase
+      .from("organizer_members")
+      .select("id, user_id, balance, organizers(name), user:users(id, name, line_user_id, expo_push_token)")
+      .eq("id", member_id);
     
-    if (!members || members.length === 0 || !members[0].system_member_id) {
-      console.log(`No member profile found for member_id: ${member_id}`);
-      return Response.json({ ok: true, message: "No system member linked to this member" });
+    if (!members || members.length === 0) {
+      return Response.json({ ok: false, message: "Member not found" }, { status: 404 });
     }
     
     const member = members[0];
+    const userObj = member.user;
+    const lineUserId = userObj?.line_user_id;
+    const appPushTokens = await fetchTokensForUser(supabase, {
+      userId: member.user_id,
+      phone: userObj?.phone
+    });
+    
+    if (!lineUserId && appPushTokens.length === 0) {
+      console.log(`No LINE user ID or App push token linked for organizer_member: ${member_id}`);
+      return Response.json({ ok: true, message: "No LINE ID or App push token linked to this member" });
+    }
+    
     const balanceAmount = Number(member.balance || 0);
     const amountVal = Number(amount || 0);
     const orgName = member.organizers?.name || "未知團主";
-    
-    // 2. Fetch system_members details to get line_user_id
-    const systemMembers = await querySupabase("system_members", {
-      id: `eq.${member.system_member_id}`,
-      select: "line_user_id"
-    });
-    
-    if (!systemMembers || systemMembers.length === 0 || !systemMembers[0].line_user_id) {
-      console.log(`No LINE user ID linked to system_member_id: ${member.system_member_id}`);
-      return Response.json({ ok: true, message: "No LINE ID linked to this member" });
-    }
-    
-    const lineUserId = systemMembers[0].line_user_id;
-    const playerNickname = member.name || "會員";
+    const playerNickname = member.user?.name || "會員";
     const typeLabel = type || "checkin";
 
     // 3. Format header and labels based on transaction type
@@ -293,10 +237,41 @@ export async function POST(request) {
       }
     };
     
-    // 4. Send LINE Push Message
-    const success = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - ${headerTitle}`);
+    // 4. Send App Push (Expo Push)
+    let appPushSuccess = false;
+    if (appPushTokens.length > 0) {
+      try {
+        const appMessages = appPushTokens.map((token) => ({
+          to: token,
+          title: `💰 ${headerTitle}`,
+          body: `【${orgName}】${headerTitle}：${amountSign}$${Math.abs(amountVal)} 點，目前最新餘額 $${balanceAmount.toLocaleString()} 點。`,
+          sound: "default",
+          channelId: "pickleball-alerts",
+          data: {
+            type: "transaction",
+            transaction_type: typeLabel,
+            amount: amountVal,
+            balance: balanceAmount,
+          },
+        }));
+        const expoRes = await sendExpoPush(appMessages);
+        appPushSuccess = !!expoRes.ok;
+      } catch (expoErr) {
+        console.warn("Failed to send Expo App transaction push:", expoErr);
+      }
+    }
+
+    // 5. Send LINE Push Message (if linked)
+    let lineSuccess = false;
+    if (lineUserId) {
+      lineSuccess = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - ${headerTitle}`);
+    }
     
-    return Response.json({ ok: true, sent: success });
+    return Response.json({
+      ok: true,
+      sent_line: lineSuccess,
+      sent_app: appPushSuccess
+    });
   } catch (error) {
     console.error("Transaction notification error:", error);
     return Response.json({ ok: false, error: error.message }, { status: 500 });

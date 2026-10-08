@@ -1,51 +1,6 @@
 export const runtime = "nodejs";
 
-const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
-
-// Helper to query Supabase REST API
-async function querySupabase(endpoint, queryParams = {}) {
-  const queryString = new URLSearchParams(queryParams).toString();
-  const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? "?" + queryString : ""}`;
-  
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    }
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Query ${endpoint} failed: ${response.status} ${errText}`);
-  }
-  return await response.json();
-}
-
-// Helper to perform Supabase mutation (PATCH / POST)
-async function mutateSupabase(endpoint, method, body, queryParams = {}) {
-  const queryString = new URLSearchParams(queryParams).toString();
-  const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? "?" + queryString : ""}`;
-  
-  const response = await fetch(url, {
-    method: method,
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json",
-      "Prefer": "return=representation"
-    },
-    body: JSON.stringify(body)
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Mutation ${method} ${endpoint} failed: ${response.status} ${errText}`);
-  }
-  return await response.json();
-}
+import { supabase } from "@/lib/supabase";
 
 function makeHtmlResponse(success, title, message) {
   return `
@@ -69,13 +24,13 @@ function makeHtmlResponse(success, title, message) {
             padding: 20px; 
           }
           .card { 
-            background-color: ${success ? "#064e3b" : "#7f1d1d"}; 
+            background-color: ${success ? "#1e3a8a" : "#7f1d1d"}; 
             border-radius: 24px; 
             padding: 34px 28px; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.4); 
             max-width: 420px; 
             width: 100%; 
-            border: 1px solid ${success ? "#047857" : "#b91c1c"}; 
+            border: 1px solid ${success ? "#2563eb" : "#b91c1c"}; 
             box-sizing: border-box;
           }
           .icon {
@@ -83,14 +38,14 @@ function makeHtmlResponse(success, title, message) {
             margin-bottom: 16px;
           }
           h1 { 
-            color: ${success ? "#34d399" : "#fca5a5"}; 
+            color: ${success ? "#93c5fd" : "#fca5a5"}; 
             font-size: 24px; 
             margin-top: 0; 
             margin-bottom: 12px;
             font-weight: 800;
           }
           p { 
-            color: ${success ? "#a7f3d0" : "#fecaca"}; 
+            color: ${success ? "#dbeafe" : "#fecaca"}; 
             line-height: 1.6; 
             font-size: 15px; 
             margin-bottom: 28px; 
@@ -98,7 +53,7 @@ function makeHtmlResponse(success, title, message) {
           }
           .btn { 
             display: inline-block; 
-            background-color: ${success ? "#059669" : "#dc2626"}; 
+            background-color: ${success ? "#2563eb" : "#dc2626"}; 
             color: #fff; 
             text-decoration: none; 
             padding: 13px 26px; 
@@ -108,7 +63,7 @@ function makeHtmlResponse(success, title, message) {
             transition: background-color 0.2s; 
           }
           .btn:hover { 
-            background-color: ${success ? "#047857" : "#b91c1c"}; 
+            background-color: ${success ? "#1d4ed8" : "#b91c1c"}; 
           }
         </style>
       </head>
@@ -137,35 +92,38 @@ export async function GET(request) {
         });
       }
       
-      // 1. Fetch signup details
-      const signups = await querySupabase("signups", {
-        id: `eq.${signupId}`,
-        select: "reservation_date,meetup_id,status,meetups(name)"
-      });
+      // 1. Fetch participant details
+      const { data: participants } = await supabase
+        .from("session_participants")
+        .select("id, status, session:sessions(session_date, meetup:meetups(name))")
+        .eq("id", signupId);
       
-      if (!signups || signups.length === 0) {
+      if (!participants || participants.length === 0) {
         return new Response(makeHtmlResponse(false, "取消失敗", "找不到此筆預約紀錄。"), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
         });
       }
       
-      const signup = signups[0];
-      const meetupName = signup.meetups?.name || "活動";
-      const dateStr = signup.reservation_date || "";
+      const part = participants[0];
+      const meetupName = part.session?.meetup?.name || "活動";
+      const dateStr = part.session?.session_date || "";
       
-      if (signup.status === "cancelled") {
+      if (part.status === "cancelled") {
         return new Response(makeHtmlResponse(true, "已取消預約", `此筆預約項目先前已成功取消。<br>活動：${meetupName}<br>日期：${dateStr}`), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
         });
       }
       
       // 2. Perform cancellation
-      await mutateSupabase("signups", "PATCH", {
-        status: "cancelled",
-        updated_at: new Date().toISOString()
-      }, {
-        id: `eq.${signupId}`
-      });
+      const { error: cancelError } = await supabase
+        .from("session_participants")
+        .update({
+          status: "cancelled",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", signupId);
+      
+      if (cancelError) throw cancelError;
       
       return new Response(makeHtmlResponse(true, "取消預約成功！", `已成功為您取消此場活動的預約。<br>活動：${meetupName}<br>日期：${dateStr}`), {
         headers: { "Content-Type": "text/html; charset=utf-8" }
@@ -183,14 +141,15 @@ export async function GET(request) {
       }
       
       // 1. Fetch details
-      const members = await querySupabase("members", {
-        id: `eq.${memberId}`,
-        select: "name"
-      });
-      const meetups = await querySupabase("meetups", {
-        id: `eq.${meetupId}`,
-        select: "name"
-      });
+      const { data: members } = await supabase
+        .from("organizer_members")
+        .select("id, user_id, user:users(name)")
+        .eq("id", memberId);
+
+      const { data: meetups } = await supabase
+        .from("meetups")
+        .select("name")
+        .eq("id", meetupId);
       
       if (!members || members.length === 0 || !meetups || meetups.length === 0) {
         return new Response(makeHtmlResponse(false, "取消失敗", "找不到此筆會員或活動資料。"), {
@@ -198,29 +157,41 @@ export async function GET(request) {
         });
       }
       
-      const memberName = members[0].name;
+      const member = members[0];
+      const memberName = member.user?.name || "會員";
       const meetupName = meetups[0].name;
-      
-      // Check if already absent
-      const absences = await querySupabase("member_absences", {
-        member_id: `eq.${memberId}`,
-        meetup_id: `eq.${meetupId}`,
-        reservation_date: `eq.${date}`
-      });
-      
-      if (absences && absences.length > 0) {
-        return new Response(makeHtmlResponse(true, "已登錄請假", `您之前已成功登錄此場次請假。<br>活動：${meetupName}<br>日期：${date}`), {
-          headers: { "Content-Type": "text/html; charset=utf-8" }
-        });
+
+      // Find or create session
+      let { data: session } = await supabase
+        .from("sessions")
+        .select("id")
+        .eq("meetup_id", meetupId)
+        .eq("session_date", date)
+        .maybeSingle();
+
+      if (!session) {
+        const { data: newS } = await supabase
+          .from("sessions")
+          .insert({ meetup_id: meetupId, session_date: date, status: "open" })
+          .select("id")
+          .single();
+        session = newS;
       }
-      
-      // 2. Perform absence insertion (equivalent to member cancellation)
-      await mutateSupabase("member_absences", "POST", {
-        member_id: memberId,
-        meetup_id: meetupId,
-        reservation_date: date,
-        reason: "LINE行前提醒自主取消"
-      });
+
+      if (session) {
+        await supabase
+          .from("session_participants")
+          .upsert(
+            {
+              session_id: session.id,
+              user_id: member.user_id,
+              status: "absent",
+              note: "LINE行前提醒自主請假",
+              updated_at: new Date().toISOString()
+            },
+            { onConflict: "session_id,user_id" }
+          );
+      }
       
       return new Response(makeHtmlResponse(true, "取消預約成功！", `已成功為會員【${memberName}】完成該場次請假，釋出正取名額。<br>活動：${meetupName}<br>日期：${date}`), {
         headers: { "Content-Type": "text/html; charset=utf-8" }

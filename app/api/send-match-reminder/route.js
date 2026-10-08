@@ -1,92 +1,7 @@
 export const runtime = "nodejs";
 
-const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
-
-// Helper to query Supabase REST API
-async function querySupabase(endpoint, queryParams = {}) {
-  const queryString = new URLSearchParams(queryParams).toString();
-  const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? "?" + queryString : ""}`;
-  
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    }
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Query ${endpoint} failed: ${response.status} ${errText}`);
-  }
-  return await response.json();
-}
-
-// Helper to call Supabase RPC via REST API
-async function callSupabaseRpc(rpcName, rpcParams = {}) {
-  const url = `${SUPABASE_URL}/rest/v1/rpc/${rpcName}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(rpcParams)
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`RPC ${rpcName} failed: ${response.status} ${errText}`);
-  }
-  return await response.json();
-}
-
-// Helper to send LINE Push Flex Notification
-async function sendLinePushFlex(lineUserId, flexContents, altText) {
-  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!channelAccessToken) {
-    console.error("Missing LINE_CHANNEL_ACCESS_TOKEN env variable");
-    return false;
-  }
-
-  const response = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${channelAccessToken}`
-    },
-    body: JSON.stringify({
-      to: lineUserId,
-      messages: [
-        {
-          type: "flex",
-          altText: altText,
-          contents: flexContents
-        }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("Failed to send LINE push notification:", response.status, errorBody);
-    return false;
-  }
-  return true;
-}
-
-// Helper to clean/normalize phone number
-function normalizePhone(phone) {
-  if (!phone) return "";
-  let clean = phone.replace(/[^0-9]/g, "");
-  if (clean.startsWith("886")) {
-    clean = "0" + clean.slice(3);
-  }
-  return clean;
-}
+import { supabase } from "@/lib/supabase";
+import { sendLinePushFlex, normalizePhone, fetchTokensForUser, sendExpoPush } from "@/lib/line";
 
 export async function POST(request) {
   try {
@@ -98,10 +13,10 @@ export async function POST(request) {
     }
     
     // 1. Fetch meetup details, organizer_id and location
-    const meetups = await querySupabase("meetups", {
-      id: `eq.${meetup_id}`,
-      select: "name,organizer_id,city,address,organizers(name)"
-    });
+    const { data: meetups } = await supabase
+      .from("meetups")
+      .select("name,organizer_id,city,address,organizers(name)")
+      .eq("id", meetup_id);
     
     if (!meetups || meetups.length === 0) {
       return Response.json({ ok: false, error: "Meetup not found" }, { status: 404 });
@@ -113,69 +28,43 @@ export async function POST(request) {
     const orgName = meetup.organizers?.name || "未知團主";
     const meetupLocation = [meetup.city, meetup.address].filter(Boolean).join(" ") || "未設定地點";
     
-    // 2. Fetch all general confirmed signups
-    const signups = await querySupabase("signups", {
-      meetup_id: `eq.${meetup_id}`,
-      reservation_date: `eq.${date}`,
-      status: `eq.confirmed`
-    });
+    // 2. Fetch session for this meetup and date
+    const { data: session } = await supabase
+      .from("sessions")
+      .select("id, status")
+      .eq("meetup_id", meetup_id)
+      .eq("session_date", date)
+      .maybeSingle();
 
-    // 3. Fetch all subscribed members for this meetup
-    const subscriptions = await querySupabase("member_meetup_subscriptions", {
-      meetup_id: `eq.${meetup_id}`,
-      select: "member_id,members(id,name,phone,status)"
-    });
-
-    // Filter active members
-    const subscribedMembers = (subscriptions || [])
-      .map(s => s.members)
-      .filter(m => m && m.status === 'active');
-
-    // Fetch absences for this meetup and date
-    const absences = await querySupabase("member_absences", {
-      meetup_id: `eq.${meetup_id}`,
-      reservation_date: `eq.${date}`,
-      select: "member_id"
-    });
-    const absentMemberIds = new Set((absences || []).map(a => a.member_id));
-
-    // Filter out absent members
-    const attendingMembers = subscribedMembers.filter(m => !absentMemberIds.has(m.id));
-    
-    // 4. Combine all attending players
-    const combinedPlayersMap = new Map();
-    
-    // Process general signups
-    (signups || []).forEach(s => {
-      const cleanPh = normalizePhone(s.phone);
-      if (cleanPh) {
-        combinedPlayersMap.set(cleanPh, {
-          phone: cleanPh,
-          nickname: s.nickname || "球友",
-          type: "signup",
-          id: s.id
-        });
-      }
-    });
-    
-    // Process fixed members
-    attendingMembers.forEach(m => {
-      const cleanPh = normalizePhone(m.phone);
-      if (cleanPh) {
-        combinedPlayersMap.set(cleanPh, {
-          phone: cleanPh,
-          nickname: m.name || "會員",
-          type: "member",
-          id: m.id
-        });
-      }
-    });
-    
-    const playersToRemind = Array.from(combinedPlayersMap.values());
-    if (playersToRemind.length === 0) {
-      return Response.json({ ok: true, sent_count: 0, skipped_count: 0, message: "當天沒有報名的球友或固定出席會員。" });
+    if (!session || session.status === "cancelled") {
+      return Response.json({ ok: true, sent_count: 0, skipped_count: 0, message: "當天場次未開放或已停開。" });
     }
-    
+
+    // 3. Fetch confirmed participants with user info
+    const { data: participants } = await supabase
+      .from("session_participants")
+      .select("id, status, user:users(id, name, phone, line_user_id, expo_push_token)")
+      .eq("session_id", session.id)
+      .in("status", ["confirmed", "attended"]);
+
+    const playersToRemind = (participants || [])
+      .map(p => {
+        const cleanPh = normalizePhone(p.user?.phone);
+        return {
+          id: p.id,
+          userId: p.user?.id,
+          phone: cleanPh,
+          nickname: p.user?.name || "球友",
+          line_user_id: p.user?.line_user_id,
+          expo_push_token: p.user?.expo_push_token
+        };
+      })
+      .filter(p => !!p.line_user_id || !!p.expo_push_token);
+
+    if (playersToRemind.length === 0) {
+      return Response.json({ ok: true, sent_count: 0, skipped_count: 0, message: "當天沒有已綁定 LINE 或 App 推播的確認名單。" });
+    }
+
     // Format date from YYYY-MM-DD to MM/DD
     let formattedDate = date || "";
     if (date && date.includes("-")) {
@@ -184,52 +73,53 @@ export async function POST(request) {
         formattedDate = `${Number(parts[1])}/${Number(parts[2])}`;
       }
     }
-    
+
     let sentCount = 0;
     let skippedCount = 0;
-    
-    // 5. Broadcast to each player who has a linked LINE ID
+    const appPushMessages = [];
+
+    // 4. Broadcast to each player who has a linked LINE ID or App Push Token
     for (const player of playersToRemind) {
-      // Find system member by phone number
-      const systemMembers = await querySupabase("system_members", {
-        phone: `eq.${player.phone}`,
-        select: "line_user_id,nickname"
-      });
-      
-      if (!systemMembers || systemMembers.length === 0 || !systemMembers[0].line_user_id) {
-        skippedCount++;
-        continue; // Skip players without LINE linked
+      const lineUserId = player.line_user_id;
+      const playerNickname = player.nickname || "球友";
+      const cancelUrl = `https://pickleball.jason1231.com/api/cancel-match-booking?type=signup&id=${player.id}`;
+
+      // A. Collect App Push Notification
+      if (player.expo_push_token) {
+        appPushMessages.push({
+          to: player.expo_push_token,
+          title: "⏰ 明日球聚行前提醒",
+          body: `哈囉 ${playerNickname}！提醒您明天 ${formattedDate || date} 有預約「${meetupName}」，地點：${meetupLocation}，期待在球場相見！`,
+          sound: "default",
+          channelId: "pickleball-alerts",
+          data: {
+            type: "match_reminder",
+            meetup_id,
+            date
+          }
+        });
       }
-      
-      const lineUserId = systemMembers[0].line_user_id;
-      const playerNickname = player.nickname || systemMembers[0].nickname || "球友";
-      
-      const cancelUrl = player.type === "signup"
-        ? `https://pickleball.jason1231.com/api/cancel-match-booking?type=signup&id=${player.id}`
-        : `https://pickleball.jason1231.com/api/cancel-match-booking?type=member&member_id=${player.id}&meetup_id=${meetup_id}&date=${date}`;
+
+      // B. If no LINE user ID, skip LINE part
+      if (!lineUserId) {
+        continue;
+      }
       
       // Deduct 1 point from organizer quota
       if (organizerId) {
         try {
-          const deductResult = await callSupabaseRpc("deduct_organizer_message_quota", {
+          const { data: deductResult } = await supabase.rpc("deduct_organizer_message_quota", {
             p_organizer_id: organizerId,
             p_message_type: "reminder",
             p_recipient_phone: player.phone,
             p_content: `行前提醒: ${playerNickname} - ${formattedDate || date} - ${meetupName}`,
             p_cost: 1,
-            p_allow_overdraft: false // strict blocking
+            p_allow_overdraft: true // 加點累計制：不阻擋發送
           });
           
           const deductRes = Array.isArray(deductResult) ? deductResult[0] : deductResult;
-          if (deductRes && deductRes.ok === false) {
-            console.warn(`[Quota Blocked] Organizer (${organizerId}) has insufficient quota: ${deductRes.message}`);
-            return Response.json({ 
-              ok: true, 
-              sent_count: sentCount, 
-              skipped_count: skippedCount, 
-              status: "quota_exceeded", 
-              error: "推播額度不足，部分發送失敗。" 
-            });
+          if (deductRes && deductRes.ok) {
+            console.log(`[Usage Recorded] Organizer (${organizerId}) cumulative push count: ${deductRes.new_quota}`);
           }
         } catch (deductErr) {
           console.error("Failed to deduct message quota:", deductErr);
@@ -243,13 +133,13 @@ export async function POST(request) {
         size: "giga",
         styles: {
           header: {
-            backgroundColor: "#064e3b" // Deep Forest Green
+            backgroundColor: "#0f172a" // Deep Midnight Navy
           },
           body: {
-            backgroundColor: "#022c22" // Emerald dark
+            backgroundColor: "#1e3a8a" // Deep Sapphire Blue
           },
           footer: {
-            backgroundColor: "#064e3b"
+            backgroundColor: "#0f172a"
           }
         },
         header: {
@@ -260,13 +150,13 @@ export async function POST(request) {
               type: "text",
               text: "打球行前提醒 🔔",
               weight: "bold",
-              color: "#34d399", // Emerald light accent
+              color: "#93c5fd", // Sapphire light accent
               size: "lg"
             },
             {
               type: "text",
               text: "別忘了您的匹克球球局約定喔！",
-              color: "#a7f3d0",
+              color: "#dbeafe",
               size: "xs",
               margin: "xs"
             }
@@ -285,7 +175,7 @@ export async function POST(request) {
                 {
                   type: "text",
                   text: "團主",
-                  color: "#a7f3d0",
+                  color: "#93c5fd",
                   size: "sm",
                   flex: 2
                 },
@@ -307,7 +197,7 @@ export async function POST(request) {
                 {
                   type: "text",
                   text: "球友姓名",
-                  color: "#a7f3d0",
+                  color: "#93c5fd",
                   size: "sm",
                   flex: 2
                 },
@@ -323,7 +213,7 @@ export async function POST(request) {
             },
             {
               type: "separator",
-              color: "#047857",
+              color: "#2563eb",
               margin: "md"
             },
             {
@@ -334,7 +224,7 @@ export async function POST(request) {
                 {
                   type: "text",
                   text: "活動項目",
-                  color: "#a7f3d0",
+                  color: "#93c5fd",
                   size: "sm",
                   flex: 2
                 },
@@ -356,7 +246,7 @@ export async function POST(request) {
                 {
                   type: "text",
                   text: "活動日期",
-                  color: "#a7f3d0",
+                  color: "#93c5fd",
                   size: "sm",
                   flex: 2
                 },
@@ -377,7 +267,7 @@ export async function POST(request) {
                 {
                   type: "text",
                   text: "球場地點",
-                  color: "#a7f3d0",
+                  color: "#93c5fd",
                   size: "sm",
                   flex: 2
                 },
@@ -407,7 +297,7 @@ export async function POST(request) {
                 uri: "https://pickleball.jason1231.com/member"
               },
               style: "primary",
-              color: "#059669",
+              color: "#2563eb",
               flex: 1
             },
             {
@@ -432,8 +322,26 @@ export async function POST(request) {
         skippedCount++;
       }
     }
+
+    // 5. Send App Push Notifications in batch
+    let sentAppCount = 0;
+    if (appPushMessages.length > 0) {
+      try {
+        const expoRes = await sendExpoPush(appPushMessages);
+        if (expoRes.ok) {
+          sentAppCount = appPushMessages.length;
+        }
+      } catch (expoErr) {
+        console.warn("Failed to send Expo push reminders:", expoErr);
+      }
+    }
     
-    return Response.json({ ok: true, sent_count: sentCount, skipped_count: skippedCount });
+    return Response.json({
+      ok: true,
+      sent_count: sentCount,
+      sent_app_count: sentAppCount,
+      skipped_count: skippedCount
+    });
   } catch (error) {
     console.error("Broadcast reminder error:", error);
     return Response.json({ ok: false, error: error.message }, { status: 500 });

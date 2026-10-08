@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
-const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
+import { supabase } from "@/lib/supabase";
+import { normalizeTokens, fetchTokensForMeetup, sendExpoPush } from "@/lib/line";
 
 const skillTextMap = {
   first_time: "第一次參加",
@@ -10,53 +10,6 @@ const skillTextMap = {
   advanced: "進階",
 };
 
-function normalizeTokens(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.filter(Boolean);
-  if (typeof value === "string") return [value].filter(Boolean);
-  return [];
-}
-
-async function fetchTokensForMeetup(meetupId) {
-  if (!meetupId) return { tokens: [], name: "" };
-  try {
-    const meetupRes = await fetch(`${SUPABASE_URL}/rest/v1/meetups?id=eq.${meetupId}&select=id,name,organizer_id,creator_member_id`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-    });
-    if (!meetupRes.ok) return { tokens: [], name: "" };
-    const meetups = await meetupRes.json();
-    const meetup = meetups?.[0];
-    if (!meetup) return { tokens: [], name: "" };
-
-    const tokens = [];
-    if (meetup.organizer_id) {
-      const orgRes = await fetch(`${SUPABASE_URL}/rest/v1/organizer_push_tokens?organizer_id=eq.${meetup.organizer_id}&is_active=eq.true&select=expo_push_token`, {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
-      if (orgRes.ok) {
-        const orgTokens = await orgRes.json();
-        tokens.push(...(orgTokens || []).map(t => t.expo_push_token));
-      }
-    }
-    if (meetup.creator_member_id) {
-      const memRes = await fetch(`${SUPABASE_URL}/rest/v1/system_member_push_tokens?member_id=eq.${meetup.creator_member_id}&select=expo_push_token`, {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }
-      });
-      if (memRes.ok) {
-        const memTokens = await memRes.json();
-        tokens.push(...(memTokens || []).map(t => t.expo_push_token));
-      }
-    }
-    return {
-      tokens: Array.from(new Set(tokens.filter(Boolean))),
-      name: meetup.name || ""
-    };
-  } catch (e) {
-    console.error("fetchTokensForMeetup error:", e);
-    return { tokens: [], name: "" };
-  }
-}
-
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -64,7 +17,7 @@ export async function POST(request) {
     let resolvedMeetupName = body.meetupName;
 
     if (!pushTokens.length && body.meetupId) {
-      const fetched = await fetchTokensForMeetup(body.meetupId);
+      const fetched = await fetchTokensForMeetup(supabase, body.meetupId);
       pushTokens = fetched.tokens;
       if (!resolvedMeetupName && fetched.name) {
         resolvedMeetupName = fetched.name;
@@ -102,22 +55,16 @@ export async function POST(request) {
       },
     }));
 
-    const expoResponse = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(messages.length === 1 ? messages[0] : messages),
-    });
+    const expoResult = await sendExpoPush(messages);
 
-    const expoResult = await expoResponse.json().catch(() => null);
-
-    if (!expoResponse.ok) {
+    if (!expoResult.ok) {
       return Response.json(
-        { ok: false, message: "Expo 推播 API 回傳錯誤", result: expoResult },
-        { status: expoResponse.status }
+        { ok: false, message: "Expo 推播 API 回傳錯誤", result: expoResult.data || expoResult.error },
+        { status: 500 }
       );
     }
 
-    return Response.json({ ok: true, result: expoResult });
+    return Response.json({ ok: true, result: expoResult.data });
   } catch (error) {
     return Response.json(
       { ok: false, message: error?.message || "通知發送失敗" },

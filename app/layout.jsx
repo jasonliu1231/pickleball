@@ -16,14 +16,16 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.5.0";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.6.6";
 
 export default function RootLayout({ children }) {
   return (
     <html lang="zh-Hant">
       <head>
-        <link rel="preconnect" href="https://vurcntmcpemioybqqrcx.supabase.co" crossOrigin="" />
-        <link rel="dns-prefetch" href="https://vurcntmcpemioybqqrcx.supabase.co" />
+        <link rel="icon" type="image/png" href="/logo.png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="preconnect" href="https://jynbpziqitriicruwqlz.supabase.co" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://jynbpziqitriicruwqlz.supabase.co" />
       </head>
       <body>
         {/* 本機打包之 Supabase Client，安全可靠且不依賴外部 CDN */}
@@ -32,11 +34,11 @@ export default function RootLayout({ children }) {
         <main className="page">
           <header className="topbar">
             <a className="brand" href="/" aria-label="回到首頁">
-              <span className="logo">🏓</span>
-              <span>匹克球同樂會</span>
+              <img src="/logo.png" alt="匹克球同樂會 Logo" className="brand-logo" width="38" height="38" />
+              <span className="brand-title">匹克球同樂會</span>
             </a>
             
-            <a id="headerWelcome" href="/member" style={{ display: "none", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "800", color: "#0d9488", textDecoration: "none", padding: "6px 14px", background: "#f0fdf4", borderRadius: "100px", border: "1px solid #bbf7d0", transition: "all 0.2s ease" }}></a>
+            <a id="headerWelcome" href="/member" style={{ display: "none", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "800", color: "#1d4ed8", textDecoration: "none", padding: "6px 14px", background: "#eff6ff", borderRadius: "100px", border: "1px solid #bfdbfe", transition: "all 0.2s ease" }}></a>
 
             <Navbar />
           </header>
@@ -65,10 +67,10 @@ export default function RootLayout({ children }) {
                 </label>
                 <label>球技程度
                   <select id="bindSkillLevel" defaultValue="normal">
-                    <option value="first_time">第一次 (需要教學)</option>
-                    <option value="beginner">初學 (已會基本規則)</option>
-                    <option value="normal">一般 (能流暢來回對打)</option>
-                    <option value="advanced">進階 (有戰術強攻能力)</option>
+                    <option value="first_time">需教學 (2.0 以下)</option>
+                    <option value="beginner">初學 (2.0 - 2.5)</option>
+                    <option value="normal">一般 (2.5 - 3.0)</option>
+                    <option value="advanced">進階 (3.0 以上)</option>
                   </select>
                 </label>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "8px" }}>

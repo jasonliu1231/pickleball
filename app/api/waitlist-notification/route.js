@@ -1,82 +1,7 @@
 export const runtime = "nodejs";
 
-const SUPABASE_URL = "https://vurcntmcpemioybqqrcx.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Z9nUlOsBQ3cIi37lr00vcw_VdBEDo3o";
-
-// Helper to query Supabase REST API
-async function querySupabase(endpoint, queryParams = {}) {
-  const queryString = new URLSearchParams(queryParams).toString();
-  const url = `${SUPABASE_URL}/rest/v1/${endpoint}${queryString ? "?" + queryString : ""}`;
-  
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    }
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Query ${endpoint} failed: ${response.status} ${errText}`);
-  }
-  return await response.json();
-}
-
-// Helper to call Supabase RPC via REST API
-async function callSupabaseRpc(rpcName, rpcParams = {}) {
-  const url = `${SUPABASE_URL}/rest/v1/rpc/${rpcName}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "apikey": SUPABASE_ANON_KEY,
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(rpcParams)
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`RPC ${rpcName} failed: ${response.status} ${errText}`);
-  }
-  return await response.json();
-}
-
-// Helper to send LINE Push Flex Notification
-async function sendLinePushFlex(lineUserId, flexContents, altText) {
-  const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-  if (!channelAccessToken) {
-    console.error("Missing LINE_CHANNEL_ACCESS_TOKEN env variable");
-    return false;
-  }
-
-  const response = await fetch("https://api.line.me/v2/bot/message/push", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${channelAccessToken}`
-    },
-    body: JSON.stringify({
-      to: lineUserId,
-      messages: [
-        {
-          type: "flex",
-          altText: altText,
-          contents: flexContents
-        }
-      ]
-    })
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error("Failed to send LINE push notification:", response.status, errorBody);
-    return false;
-  }
-  return true;
-}
+import { supabase } from "@/lib/supabase";
+import { sendLinePushFlex, normalizePhone, fetchTokensForUser, sendExpoPush } from "@/lib/line";
 
 export async function POST(request) {
   try {
@@ -88,37 +13,45 @@ export async function POST(request) {
     }
     
     // Normalize phone number (strip spaces/dashes)
-    const normalizedPhone = phone.replace(/[^0-9]/g, "");
+    const normalizedPhone = normalizePhone(phone);
     
-    // 1. Find system member by phone number
-    const systemMembers = await querySupabase("system_members", {
-      phone: `eq.${normalizedPhone}`,
-      select: "line_user_id,nickname"
+    // 1. Find user by phone number
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, line_user_id, name, expo_push_token")
+      .eq("phone", normalizedPhone);
+    
+    const userObj = users && users.length > 0 ? users[0] : null;
+    const lineUserId = userObj?.line_user_id;
+    const playerNickname = nickname || userObj?.name || "球友";
+    
+    // Check if user has App Push Tokens
+    const appPushTokens = await fetchTokensForUser(supabase, {
+      phone: normalizedPhone,
+      userId: userObj?.id
     });
     
-    if (!systemMembers || systemMembers.length === 0 || !systemMembers[0].line_user_id) {
-      console.log(`No LINE user found for phone: ${normalizedPhone}`);
-      return Response.json({ ok: true, message: "No LINE ID linked to this phone" });
+    if (!lineUserId && appPushTokens.length === 0) {
+      console.log(`No LINE user or App push token found for phone: ${normalizedPhone}`);
+      return Response.json({ ok: true, message: "No LINE ID or App Push Token linked to this phone" });
     }
-    
-    const lineUserId = systemMembers[0].line_user_id;
-    const playerNickname = nickname || systemMembers[0].nickname || "球友";
     
     // 2. Fetch meetup details, organizer_id and organizer name
     let meetupName = "球團活動";
     let orgName = "未知團主";
     let organizerId = null;
     if (meetup_id) {
-      const meetups = await querySupabase("meetups", {
-        id: `eq.${meetup_id}`,
-        select: "name,organizer_id,organizers(name)"
-      });
+      const { data: meetups } = await supabase
+        .from("meetups")
+        .select("name,organizer_id,organizers(name)")
+        .eq("id", meetup_id);
       if (meetups && meetups.length > 0) {
         meetupName = meetups[0].name;
         organizerId = meetups[0].organizer_id;
         orgName = meetups[0].organizers?.name || "未知團主";
       }
     }
+
     
     // Format date from YYYY-MM-DD to MM/DD
     let formattedDate = reservation_date || "";
@@ -304,38 +237,71 @@ export async function POST(request) {
       }
     };
     
-    // 4. If this is a member pickup game (no organizerId), skip LINE Push to prevent incurring cost!
+    // 4. Send App Push (Expo Push Notifications)
+    let appPushSuccess = false;
+    if (appPushTokens.length > 0) {
+      try {
+        const appMessages = appPushTokens.map((token) => ({
+          to: token,
+          title: "🎉 備取遞補成功！",
+          body: `恭喜您！${formattedDate ? formattedDate + " " : ""}「${meetupName}」已為您成功遞補為正取，期待球場見！`,
+          sound: "default",
+          channelId: "pickleball-alerts",
+          data: {
+            type: "waitlist_promoted",
+            meetup_id,
+            reservation_date,
+          },
+        }));
+        const expoRes = await sendExpoPush(appMessages);
+        appPushSuccess = !!expoRes.ok;
+      } catch (expoErr) {
+        console.warn("Failed to send Expo App push:", expoErr);
+      }
+    }
+
+    // 5. If this is a member pickup game (no organizerId), skip LINE Push to prevent incurring cost!
     if (!organizerId) {
-      console.log(`[Member Pickup] Skipped LINE push notification for meetup ${meetupId} (no organizer)`);
-      return Response.json({ ok: true, skipped: "會員自揪團不發送 LINE 官方推播以節省費用。" });
+      console.log(`[Member Pickup] Skipped LINE push notification for meetup ${meetup_id} (no organizer)`);
+      return Response.json({
+        ok: true,
+        sent_line: false,
+        sent_app: appPushSuccess,
+        skipped_line: "會員自揪團不發送 LINE 官方推播以節省費用。"
+      });
     }
 
     // Deduct LINE push quota from organizer balance
-    if (organizerId) {
+    if (lineUserId) {
       try {
-        const deductResult = await callSupabaseRpc("deduct_organizer_message_quota", {
+        const { data: deductResult } = await supabase.rpc("deduct_organizer_message_quota", {
           p_organizer_id: organizerId,
           p_message_type: "waitlist",
           p_recipient_phone: normalizedPhone,
           p_content: `遞補成功: ${playerNickname} - ${formattedDate || reservation_date} - ${meetupName}`,
           p_cost: 1,
-          p_allow_overdraft: false // strict blocking
+          p_allow_overdraft: true // 加點累計制：不阻擋發送
         });
         
         const deductRes = Array.isArray(deductResult) ? deductResult[0] : deductResult;
-        if (deductRes && deductRes.ok === false) {
-          console.warn(`[Quota Blocked] Organizer ${orgName} (${organizerId}) has insufficient quota: ${deductRes.message}`);
-          return Response.json({ ok: false, error: deductRes.message || "推播額度不足，發送失敗。" }, { status: 403 });
+        if (deductRes && deductRes.ok) {
+          console.log(`[Usage Recorded] Organizer ${orgName} (${organizerId}) cumulative push count: ${deductRes.new_quota}`);
         }
       } catch (deductErr) {
         console.error("Failed to deduct message quota:", deductErr);
-        // Fail-safe: if DB RPC call throws error, proceed to send the message anyway so we don't break service
       }
     }
     
-    const success = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - 備取遞補成功！`);
+    let lineSuccess = false;
+    if (lineUserId) {
+      lineSuccess = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - 備取遞補成功！`);
+    }
     
-    return Response.json({ ok: true, sent: success });
+    return Response.json({
+      ok: true,
+      sent_line: lineSuccess,
+      sent_app: appPushSuccess
+    });
   } catch (error) {
     console.error("Waitlist notification error:", error);
     return Response.json({ ok: false, error: error.message }, { status: 500 });
