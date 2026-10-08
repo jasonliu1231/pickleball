@@ -2125,30 +2125,36 @@ async function loadMemberMatchRecords(targetIds) {
 
   let matches = [];
   try {
-    const orFilterV2 = allUserIds.map(id => `team_a_user_ids.cs.{${id}},team_b_user_ids.cs.{${id}}`).join(",");
-    const { data: v2Data } = await client
-      .from("session_matches")
-      .select("id, court_number, team_a_user_ids, team_b_user_ids, score_a, score_b, winner, rating_change, created_at, session:sessions(session_date, meetup_id, meetups(name, organizers(name)))")
-      .or(orFilterV2)
-      .order("created_at", { ascending: true });
+    try {
+      const orFilterV2 = allUserIds.map(id => `team_a_user_ids.cs.{${id}},team_b_user_ids.cs.{${id}}`).join(",");
+      const { data: v2Data } = await client
+        .from("session_matches")
+        .select("id, court_number, team_a_user_ids, team_b_user_ids, score_a, score_b, winner, rating_change, created_at, session:sessions(session_date, meetup_id, meetups(name, organizers(name)))")
+        .or(orFilterV2)
+        .order("created_at", { ascending: true });
 
-    if (v2Data && v2Data.length > 0) {
-      matches = v2Data.map(m => ({
-        id: m.id,
-        meetup_id: m.session?.meetup_id,
-        reservation_date: m.session?.session_date,
-        court_number: m.court_number,
-        player_a1_id: m.team_a_user_ids?.[0],
-        player_a2_id: m.team_a_user_ids?.[1],
-        player_b1_id: m.team_b_user_ids?.[0],
-        player_b2_id: m.team_b_user_ids?.[1],
-        score_a: m.score_a,
-        score_b: m.score_b,
-        rating_change: m.rating_change,
-        created_at: m.created_at,
-        meetups: m.session?.meetups
-      }));
-    } else {
+      if (v2Data && v2Data.length > 0) {
+        matches = v2Data.map(m => ({
+          id: m.id,
+          meetup_id: m.session?.meetup_id,
+          reservation_date: m.session?.session_date,
+          court_number: m.court_number,
+          player_a1_id: m.team_a_user_ids?.[0],
+          player_a2_id: m.team_a_user_ids?.[1],
+          player_b1_id: m.team_b_user_ids?.[0],
+          player_b2_id: m.team_b_user_ids?.[1],
+          score_a: m.score_a,
+          score_b: m.score_b,
+          rating_change: m.rating_change,
+          created_at: m.created_at,
+          meetups: m.session?.meetups
+        }));
+      }
+    } catch (errV2) {
+      console.warn("V2 matches fetch notice:", errV2);
+    }
+
+    if (!matches || matches.length === 0) {
       const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
       const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
       const { data: v1Data } = await client
@@ -2158,9 +2164,6 @@ async function loadMemberMatchRecords(targetIds) {
         .order("created_at", { ascending: true });
       if (v1Data) matches = v1Data;
     }
-  } catch (err) {
-    console.warn("Matches fetch notice:", err);
-  }
 
     if (matches && matches.length > 0) {
       let currentElo = 1000;
@@ -3189,30 +3192,36 @@ async function loadMemberDashboard() {
   if (activeMemberTab === "stats" && allUserIds.length > 0) {
     let matches = [];
     try {
-      const orFilterV2 = allUserIds.map(id => `team_a_user_ids.cs.{${id}},team_b_user_ids.cs.{${id}}`).join(",");
-      const { data: v2Data } = await client
-        .from("session_matches")
-        .select("id, court_number, team_a_user_ids, team_b_user_ids, score_a, score_b, winner, rating_change, created_at, session:sessions(session_date, meetup_id, meetups(name, organizers(name)))")
-        .or(orFilterV2)
-        .order("created_at", { ascending: true });
+      try {
+        const orFilterV2 = allUserIds.map(id => `team_a_user_ids.cs.{${id}},team_b_user_ids.cs.{${id}}`).join(",");
+        const { data: v2Data } = await client
+          .from("session_matches")
+          .select("id, court_number, team_a_user_ids, team_b_user_ids, score_a, score_b, winner, rating_change, created_at, session:sessions(session_date, meetup_id, meetups(name, organizers(name)))")
+          .or(orFilterV2)
+          .order("created_at", { ascending: true });
 
-      if (v2Data && v2Data.length > 0) {
-        matches = v2Data.map(m => ({
-          id: m.id,
-          meetup_id: m.session?.meetup_id,
-          reservation_date: m.session?.session_date,
-          court_number: m.court_number,
-          player_a1_id: m.team_a_user_ids?.[0],
-          player_a2_id: m.team_a_user_ids?.[1],
-          player_b1_id: m.team_b_user_ids?.[0],
-          player_b2_id: m.team_b_user_ids?.[1],
-          score_a: m.score_a,
-          score_b: m.score_b,
-          rating_change: m.rating_change,
-          created_at: m.created_at,
-          meetups: m.session?.meetups
-        }));
-      } else {
+        if (v2Data && v2Data.length > 0) {
+          matches = v2Data.map(m => ({
+            id: m.id,
+            meetup_id: m.session?.meetup_id,
+            reservation_date: m.session?.session_date,
+            court_number: m.court_number,
+            player_a1_id: m.team_a_user_ids?.[0],
+            player_a2_id: m.team_a_user_ids?.[1],
+            player_b1_id: m.team_b_user_ids?.[0],
+            player_b2_id: m.team_b_user_ids?.[1],
+            score_a: m.score_a,
+            score_b: m.score_b,
+            rating_change: m.rating_change,
+            created_at: m.created_at,
+            meetups: m.session?.meetups
+          }));
+        }
+      } catch (errV2) {
+        console.warn("V2 matches fetch notice:", errV2);
+      }
+
+      if (!matches || matches.length === 0) {
         const idsFilter = allUserIds.map(id => `"${id}"`).join(",");
         const orFilter = `player_a1_id.in.(${idsFilter}),player_a2_id.in.(${idsFilter}),player_b1_id.in.(${idsFilter}),player_b2_id.in.(${idsFilter})`;
         const { data: v1Data } = await client
@@ -3222,9 +3231,6 @@ async function loadMemberDashboard() {
           .order("created_at", { ascending: true });
         if (v1Data) matches = v1Data;
       }
-    } catch (err) {
-      console.warn("Matches fetch notice:", err);
-    }
 
       if (matches && matches.length > 0) {
         // Process matches to compute ELO trend & win rate stats
