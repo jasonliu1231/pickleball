@@ -417,12 +417,8 @@ async function loadAvailableWeekdays(forceRefresh = false) {
 function hasAvailableMeetupOnDate(dateStr) {
   if (!availableRules || !availableRules.length) return false;
   const weekday = dateFromISO(dateStr).getDay();
-  const targetCity = normalizeCity(selectedCity);
 
   return availableRules.some((rule) => {
-    const ruleCity = normalizeCity(rule.city || "台中市");
-    if (targetCity && targetCity !== "all" && ruleCity !== targetCity) return false;
-    
     // Check one-off vs recurring
     if (rule.is_one_off) {
       if (rule.one_off_date !== dateStr) return false;
@@ -515,12 +511,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         const m = s.meetup || {};
         if (m.is_active === false) return;
 
-        // 城市篩選
         const meetupCity = getMeetupCity(m);
-        const targetCity = normalizeCity(selectedCity);
-        if (targetCity && targetCity !== "all" && normalizeCity(meetupCity) !== targetCity) {
-          return;
-        }
 
         const cap = s.capacity_override ?? m.capacity ?? 0;
         const mId = String(s.meetup_id || m.id);
@@ -556,12 +547,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
       activeMeetups.forEach((m) => {
         if (sessionMeetupIds.has(String(m.id))) return;
 
-        // 城市篩選
         const meetupCity = getMeetupCity(m);
-        const targetCity = normalizeCity(selectedCity);
-        if (targetCity && targetCity !== "all" && normalizeCity(meetupCity) !== targetCity) {
-          return;
-        }
 
         const matchesWeekday = !m.is_one_off && (m.weekdays || []).includes(weekday);
         const matchesOneOff = m.is_one_off && m.one_off_date === dateStr;

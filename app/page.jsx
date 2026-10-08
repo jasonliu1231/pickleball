@@ -24,7 +24,7 @@ export default function Page() {
                 <p className="section-sub">選擇日期後，就能看到當天可報名的團。</p>
               </div>
               <div className="booking-controls">
-                <label className="city-filter-label">城市
+                <label className="city-filter-label" style={{ display: "none" }}>城市
                   <select id="cityFilter" className="city-filter-select" aria-label="篩選城市">
                     <option value="all">全部城市</option>
                   </select>
