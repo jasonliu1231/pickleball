@@ -182,17 +182,17 @@ const taiwanCities = [
 ];
 let selectedCity = "all";
 const skillLabels = {
-  first_time: "需教學 (<2.0)",
-  "2.0": "需教學 (<2.0)",
-  beginner: "初學 (2.0-2.5)",
-  "2.5": "初學 (2.0-2.5)",
-  normal: "一般 (2.5-3.0)",
-  "3.0": "一般 (2.5-3.0)",
-  advanced: "進階 (3.0+)",
-  "3.5": "進階 (3.0+)"
+  first_time: "需教學",
+  "2.0": "需教學",
+  beginner: "初學",
+  "2.5": "初學",
+  normal: "一般",
+  "3.0": "一般",
+  advanced: "進階",
+  "3.5": "進階"
 };
 function skillLabel(value, isBeginner) {
-  return skillLabels[value] || (isBeginner ? "初學 (2.0-2.5)" : "初學 (2.0-2.5)");
+  return skillLabels[value] || (isBeginner ? "初學" : "一般");
 }
 function isBeginnerSkill(value) {
   return value === "first_time" || value === "beginner" || value === "2.0" || value === "2.5";
@@ -984,13 +984,25 @@ async function toggleRoster(meetup) {
     const waitlistRows = rows.filter((r) => r.status === "waitlist");
     const renderPerson = (r, idx) => {
       const countSuffix = (r.people_count > 1) ? ` (+${r.people_count - 1}人)` : '';
+      const skillName = skillLabel(r.skill_level, r.is_beginner);
+      let skillBadgeStyle = "background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;"; // default 初學
+      if (skillName === "初學") {
+        skillBadgeStyle = "background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;";
+      } else if (skillName === "需教學") {
+        skillBadgeStyle = "background: #fffbeb; color: #d97706; border: 1px solid #fde68a;";
+      } else if (skillName === "一般") {
+        skillBadgeStyle = "background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe;";
+      } else if (skillName === "進階") {
+        skillBadgeStyle = "background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff;";
+      }
+
       return `
       <div class="person">
         <div class="person-main">
-          <div class="person-name">${idx + 1}. ${escapeHtml(r.display_name || r.nickname || "球友")}${countSuffix} ${r.source === "member" ? "<span class=\"pill\">會員</span>" : ""}</div>
+          <div class="person-name">${idx + 1}. ${escapeHtml(r.display_name || r.nickname || "球友")}${countSuffix} ${r.source === "member" ? "<span class=\"pill member-pill\" style=\"background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;font-size:10.5px;padding:1px 6px;margin-left:4px;\">會員</span>" : ""}</div>
           ${r.note ? `<div class="person-note">${escapeHtml(r.note)}</div>` : ""}
         </div>
-        <span class="pill">${escapeHtml(skillLabel(r.skill_level, r.is_beginner))}</span>
+        <span class="pill" style="${skillBadgeStyle}; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 99px;">${escapeHtml(skillName)}</span>
       </div>`;
     };
     el.innerHTML = `
