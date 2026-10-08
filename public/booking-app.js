@@ -330,6 +330,33 @@ function renderCityFilter() {
   select.value = selectedCity;
 }
 
+function normalizeCity(cityStr) {
+  if (!cityStr) return "";
+  const c = String(cityStr).trim().replace("臺", "台");
+  if (c.length === 2) {
+    if (["台北", "新北", "桃園", "台中", "台南", "高雄", "基隆", "新竹", "嘉義"].includes(c)) {
+      return c + "市";
+    }
+    return c + "縣";
+  }
+  return c;
+}
+
+function getMeetupCity(m) {
+  if (m?.city) {
+    const norm = normalizeCity(m.city);
+    if (norm) return norm;
+  }
+  const addr = ((m?.street_address || "") + " " + (m?.address || "") + " " + (m?.name || "")).replace("臺", "台");
+  for (const c of taiwanCities) {
+    const prefix = c.slice(0, 2);
+    if (addr.includes(prefix)) {
+      return c;
+    }
+  }
+  return "台中市";
+}
+
 function applyCityFilter(query) {
   if (selectedCity && selectedCity !== "all") {
     return query.eq("city", selectedCity);
@@ -343,26 +370,27 @@ async function loadAvailableWeekdays(forceRefresh = false) {
   }
   let query = client
     .from("meetups")
-    .select("id, city, weekdays, is_one_off, one_off_date, is_active")
+    .select("id, city, address, name, weekdays, is_one_off, one_off_date, is_active, start_date")
     .eq("is_active", true);
-  query = applyCityFilter(query);
 
   try {
     const [meetupsRes, cancelSessRes] = await Promise.all([
       query,
-      client.from("sessions").select("meetup_id, session_date").eq("status", "cancelled")
+      client.from("sessions").select("meetup_id, session_date").in("status", ["cancelled", "closed"])
     ]);
     if (meetupsRes.error) throw meetupsRes.error;
 
     const rules = [];
     (meetupsRes.data || []).forEach((m) => {
+      const city = getMeetupCity(m);
       if (m.is_one_off) {
         rules.push({
           id: m.id,
           weekday: m.one_off_date ? dateFromISO(m.one_off_date).getDay() : 0,
           is_one_off: true,
           one_off_date: m.one_off_date,
-          city: m.city || null
+          city: city,
+          start_date: m.start_date || null
         });
       } else {
         (m.weekdays || []).forEach((w) => {
@@ -371,7 +399,8 @@ async function loadAvailableWeekdays(forceRefresh = false) {
             weekday: Number(w),
             is_one_off: false,
             one_off_date: null,
-            city: m.city || null
+            city: city,
+            start_date: m.start_date || null
           });
         });
       }
@@ -388,12 +417,23 @@ async function loadAvailableWeekdays(forceRefresh = false) {
 }
 
 function hasAvailableMeetupOnDate(dateStr) {
+  if (!availableRules || !availableRules.length) return false;
   const weekday = dateFromISO(dateStr).getDay();
+  const targetCity = normalizeCity(selectedCity);
+
   return availableRules.some((rule) => {
-    if (Number(rule.weekday) !== weekday) return false;
+    const ruleCity = normalizeCity(rule.city || "台中市");
+    if (targetCity && targetCity !== "all" && ruleCity !== targetCity) return false;
+    
+    // Check one-off vs recurring
+    if (rule.is_one_off) {
+      if (rule.one_off_date !== dateStr) return false;
+    } else {
+      if (Number(rule.weekday) !== weekday) return false;
+    }
+
     if (rule.start_date && dateStr < rule.start_date) return false;
-    if (rule.is_one_off && rule.one_off_date !== dateStr) return false;
-    const isExcluded = exclusions.some(ex => String(ex.meetup_id) === String(rule.id) && ex.exclude_date === dateStr);
+    const isExcluded = (exclusions || []).some(ex => String(ex.meetup_id) === String(rule.id) && ex.exclude_date === dateStr);
     if (isExcluded) return false;
     return true;
   });
@@ -422,33 +462,32 @@ const CACHE_TTL = 90 * 1000;
 const inFlightMeetupRequests = new Map();
 
 async function loadMeetupsByDate(dateStr, forceRefresh = false) {
-  const cached = MEETUP_CACHE.get(dateStr);
+  const cacheKey = `${selectedCity || "all"}_${dateStr}`;
+  const cached = MEETUP_CACHE.get(cacheKey);
   const now = Date.now();
   if (cached && !forceRefresh && (now - cached.timestamp < CACHE_TTL)) {
     return cached.data; // 0ms 極速秒開！
   }
 
   // 若相同日期的請求正在進行中，共用同一個 Promise，避免重複發送請求
-  if (inFlightMeetupRequests.has(dateStr)) {
-    return inFlightMeetupRequests.get(dateStr);
+  if (inFlightMeetupRequests.has(cacheKey)) {
+    return inFlightMeetupRequests.get(cacheKey);
   }
 
   const fetchPromise = (async () => {
     try {
       const weekday = dateFromISO(dateStr).getDay();
 
-      let mQuery = client
-        .from("meetups")
-        .select("*, organizer:organizers(name, line_id, phone)")
-        .eq("is_active", true);
-      mQuery = applyCityFilter(mQuery);
-
       const [sessionRes, meetupRes, subsRes] = await Promise.all([
         client
           .from("sessions")
           .select("*, meetup:meetups(*, organizer:organizers(name, line_id, phone)), participants:session_participants(user_id, status)")
           .eq("session_date", dateStr),
-        mQuery.order("start_time", { ascending: true }),
+        client
+          .from("meetups")
+          .select("*, organizer:organizers(name, line_id, phone)")
+          .eq("is_active", true)
+          .order("start_time", { ascending: true }),
         client
           .from("member_meetup_subscriptions")
           .select("meetup_id, organizer_member_id, organizer_member:organizer_members(id, user_id, status)")
@@ -477,6 +516,15 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
       sessionRows.forEach((s) => {
         if (s.status === "cancelled") return;
         const m = s.meetup || {};
+        if (m.is_active === false) return;
+
+        // 城市篩選
+        const meetupCity = getMeetupCity(m);
+        const targetCity = normalizeCity(selectedCity);
+        if (targetCity && targetCity !== "all" && normalizeCity(meetupCity) !== targetCity) {
+          return;
+        }
+
         const cap = s.capacity_override ?? m.capacity ?? 0;
         const mId = String(s.meetup_id || m.id);
         const subs = subsByMeetup.get(mId) || [];
@@ -488,6 +536,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
 
         rows.push({
           ...m,
+          city: meetupCity,
           session_id: s.id,
           session_date: s.session_date,
           capacity_override: s.capacity_override,
@@ -509,6 +558,14 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
       // 2. 虛擬場次合成 (常態性每週開團但尚未有預約之日)
       activeMeetups.forEach((m) => {
         if (sessionMeetupIds.has(String(m.id))) return;
+
+        // 城市篩選
+        const meetupCity = getMeetupCity(m);
+        const targetCity = normalizeCity(selectedCity);
+        if (targetCity && targetCity !== "all" && normalizeCity(meetupCity) !== targetCity) {
+          return;
+        }
+
         const matchesWeekday = !m.is_one_off && (m.weekdays || []).includes(weekday);
         const matchesOneOff = m.is_one_off && m.one_off_date === dateStr;
         if (matchesWeekday || matchesOneOff) {
@@ -518,6 +575,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
           const realConfirmed = memberCount;
           rows.push({
             ...m,
+            city: meetupCity,
             session_id: null,
             session_date: dateStr,
             capacity: cap,
@@ -557,17 +615,17 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         return String(a.start_time).localeCompare(String(b.start_time));
       });
 
-      MEETUP_CACHE.set(dateStr, {
+      MEETUP_CACHE.set(cacheKey, {
         timestamp: Date.now(),
         data: rows
       });
       return rows;
     } finally {
-      inFlightMeetupRequests.delete(dateStr);
+      inFlightMeetupRequests.delete(cacheKey);
     }
   })();
 
-  inFlightMeetupRequests.set(dateStr, fetchPromise);
+  inFlightMeetupRequests.set(cacheKey, fetchPromise);
   return fetchPromise;
 }
 
@@ -653,6 +711,7 @@ async function fetchRoster(meetupId, dateStr) {
 function clearRosterCache() {
   rosterCache.clear();
   MEETUP_CACHE.clear();
+  inFlightMeetupRequests.clear();
 }
 
 function renderCalendar() {
@@ -1763,7 +1822,8 @@ async function refreshAll(showLoading = true) {
   if (dateEl) dateEl.textContent = formatDate(selectedDate);
   
   const meetupEl = $("meetupList");
-  const cached = MEETUP_CACHE.get(selectedDate);
+  const cacheKey = `${selectedCity || "all"}_${selectedDate}`;
+  const cached = MEETUP_CACHE.get(cacheKey);
   const now = Date.now();
   const isFresh = cached && (now - cached.timestamp < CACHE_TTL);
 
@@ -3834,12 +3894,16 @@ function toggleAuthView(isLoggedIn) {
 
 $("prevMonth")?.addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, -1); renderCalendar(); });
 $("nextMonth")?.addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, 1); renderCalendar(); });
-$("refreshBtn")?.addEventListener("click", async () => { clearRosterCache(); await loadAvailableWeekdays(); refreshAll(); });
+$("refreshBtn")?.addEventListener("click", async () => {
+  clearRosterCache();
+  await loadAvailableWeekdays(true);
+  await refreshAll(true);
+});
 $("cityFilter")?.addEventListener("change", async (e) => {
   selectedCity = e.target.value || "all";
   clearRosterCache();
-  await loadAvailableWeekdays();
-  refreshAll();
+  renderCalendar();
+  await refreshAll(true);
 });
 $("closeModal")?.addEventListener("click", closeSignup);
 $("closeCancelModal")?.addEventListener("click", closeCancel);

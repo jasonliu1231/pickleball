@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.6.6";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.6.7";
 
 export default function RootLayout({ children }) {
   return (
