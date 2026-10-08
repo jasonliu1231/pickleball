@@ -66,7 +66,7 @@ export default function RootLayout({ children }) {
                   <span className="muted" style={{ fontSize: "12.5px" }}>電話僅作為球館儲值金對接、取消預約識別與遞補通知使用。</span>
                 </label>
                 <label>球技程度
-                  <select id="bindSkillLevel" defaultValue="normal">
+                  <select id="bindSkillLevel" defaultValue="beginner">
                     <option value="first_time">需教學 (2.0 以下)</option>
                     <option value="beginner">初學 (2.0 - 2.5)</option>
                     <option value="normal">一般 (2.5 - 3.0)</option>

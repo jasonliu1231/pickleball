@@ -120,11 +120,11 @@ export default function MemberPage() {
                   </div>
                   <div className="modern-input-group" style={{ gridColumn: "1 / -1" }}>
                     <label>預設程度等級</label>
-                    <input type="hidden" id="profileSkillLevel" defaultValue="normal" />
+                    <input type="hidden" id="profileSkillLevel" defaultValue="beginner" />
                     <div className="skill-chips-row" id="skillChipsRow">
                       <button type="button" className="skill-chip-btn" data-value="first_time">需教學 (&lt;2.0)</button>
-                      <button type="button" className="skill-chip-btn" data-value="beginner">初學 (2.0-2.5)</button>
-                      <button type="button" className="skill-chip-btn active" data-value="normal">一般 (2.5-3.0)</button>
+                      <button type="button" className="skill-chip-btn active" data-value="beginner">初學 (2.0-2.5)</button>
+                      <button type="button" className="skill-chip-btn" data-value="normal">一般 (2.5-3.0)</button>
                       <button type="button" className="skill-chip-btn" data-value="advanced">進階 (3.0+)</button>
                     </div>
                   </div>

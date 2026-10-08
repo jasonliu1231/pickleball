@@ -183,15 +183,19 @@ const taiwanCities = [
 let selectedCity = "all";
 const skillLabels = {
   first_time: "需教學 (<2.0)",
+  "2.0": "需教學 (<2.0)",
   beginner: "初學 (2.0-2.5)",
+  "2.5": "初學 (2.0-2.5)",
   normal: "一般 (2.5-3.0)",
-  advanced: "進階 (3.0+)"
+  "3.0": "一般 (2.5-3.0)",
+  advanced: "進階 (3.0+)",
+  "3.5": "進階 (3.0+)"
 };
 function skillLabel(value, isBeginner) {
-  return skillLabels[value] || (isBeginner ? "初學" : "一般");
+  return skillLabels[value] || (isBeginner ? "初學 (2.0-2.5)" : "初學 (2.0-2.5)");
 }
 function isBeginnerSkill(value) {
-  return value === "first_time" || value === "beginner";
+  return value === "first_time" || value === "beginner" || value === "2.0" || value === "2.5";
 }
 
 function normalizePushTokens(value) {
@@ -602,8 +606,8 @@ async function fetchRoster(meetupId, dateStr) {
         nickname: om.user?.name || "固定會員",
         display_name: om.user?.name || "固定會員",
         phone: om.user?.phone || "",
-        is_beginner: om.user?.is_beginner || false,
-        skill_level: om.user?.skill_level || "3.0",
+        is_beginner: om.user?.is_beginner ?? true,
+        skill_level: om.user?.skill_level || "beginner",
         rating: om.user?.rating || 1000,
         people_count: 1,
         status: "confirmed",
@@ -626,8 +630,8 @@ async function fetchRoster(meetupId, dateStr) {
         nickname: x.user?.name || "球友",
         display_name: x.user?.name || "球友",
         phone: x.user?.phone || "",
-        is_beginner: x.user?.is_beginner || false,
-        skill_level: x.user?.skill_level || "3.0",
+        is_beginner: x.user?.is_beginner ?? true,
+        skill_level: x.user?.skill_level || "beginner",
         rating: x.user?.rating || 1000,
         people_count: x.people_count || 1,
         status: x.status === "attended" ? "confirmed" : x.status,
@@ -1029,8 +1033,15 @@ function openSignup(meetup, initialPwd = null) {
     $("nickname").value = currentSystemMember.nickname || "";
     $("phone").value = currentSystemMember.phone || "";
     if ($("skillLevel")) {
-      $("skillLevel").value = currentSystemMember.skill_level || "normal";
+      let s = currentSystemMember.skill_level || "beginner";
+      if (s === "2.0") s = "first_time";
+      else if (s === "2.5") s = "beginner";
+      else if (s === "3.0") s = "normal";
+      else if (s === "3.5") s = "advanced";
+      $("skillLevel").value = s;
     }
+  } else {
+    if ($("skillLevel")) $("skillLevel").value = "beginner";
   }
   $("nickname").readOnly = false;
   $("phone").readOnly = false;
@@ -1556,8 +1567,8 @@ async function handleQuickSignup(meetup, btn) {
   const originalText = btn.innerHTML;
   btn.innerHTML = "⏳ 傳送中...";
   try {
-    const isBeginnerVal = currentSystemMember.is_beginner || false;
-    const skillLevelVal = currentSystemMember.skill_level || "normal";
+    const isBeginnerVal = currentSystemMember.is_beginner ?? true;
+    const skillLevelVal = currentSystemMember.skill_level || "beginner";
     const phone = cleanPhone(currentSystemMember.phone);
 
     // 1. Find or create user
@@ -2724,8 +2735,11 @@ async function loadMemberDashboard() {
   }
   
   if ($("profileNickname")) $("profileNickname").value = currentSystemMember.nickname || "";
-  if ($("profilePhone")) $("profilePhone").value = currentSystemMember.phone || "";
-  const userSkill = currentSystemMember.skill_level || "normal";
+  let userSkill = currentSystemMember.skill_level || "beginner";
+  if (userSkill === "2.0") userSkill = "first_time";
+  else if (userSkill === "2.5") userSkill = "beginner";
+  else if (userSkill === "3.0") userSkill = "normal";
+  else if (userSkill === "3.5") userSkill = "advanced";
   if ($("profileSkillLevel")) $("profileSkillLevel").value = userSkill;
   document.querySelectorAll("#skillChipsRow .skill-chip-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.value === userSkill);
@@ -3568,7 +3582,12 @@ function openBindPhoneModal(customNotice) {
     $("bindPhone").value = currentSystemMember?.phone || "";
   }
   if ($("bindSkillLevel")) {
-    $("bindSkillLevel").value = currentSystemMember?.skill_level || "normal";
+    let s = currentSystemMember?.skill_level || "beginner";
+    if (s === "2.0") s = "first_time";
+    else if (s === "2.5") s = "beginner";
+    else if (s === "3.0") s = "normal";
+    else if (s === "3.5") s = "advanced";
+    $("bindSkillLevel").value = s;
   }
   const msgEl = $("bindPhoneMessage");
   if (msgEl) {
@@ -3594,7 +3613,7 @@ async function handleBindPhoneSubmit(e) {
   const nickname = $("bindNickname")?.value?.trim() || "球友";
   const phoneVal = $("bindPhone")?.value || "";
   const phone = cleanPhone(phoneVal);
-  const skillLevel = $("bindSkillLevel")?.value || "normal";
+  const skillLevel = $("bindSkillLevel")?.value || "beginner";
   const isBeginner = (skillLevel === "first_time" || skillLevel === "beginner");
   const msgEl = $("bindPhoneMessage");
 
@@ -3652,7 +3671,7 @@ async function handleUpdateProfile(e) {
   if (!currentUser || !currentSystemMember) return;
   const nickname = $("profileNickname").value.trim();
   const phone = cleanPhone($("profilePhone").value);
-  const skill_level = $("profileSkillLevel")?.value || "normal";
+  const skill_level = $("profileSkillLevel")?.value || "beginner";
   const is_beginner = (skill_level === "first_time" || skill_level === "beginner");
   const msgEl = $("profileMessage");
   if (!nickname) return setMessage(msgEl, "請填寫姓名或暱稱", false);
