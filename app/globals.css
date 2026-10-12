@@ -225,6 +225,118 @@ a {
   filter: brightness(1.05);
 }
 
+/* ==========================================================================
+   🏓 Quiz Home Banner (Responsive Web Design)
+   ========================================================================== */
+.quiz-home-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #d1fae5 100%);
+  border: 1.5px solid #a7f3d0;
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  margin-bottom: 20px;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: inherit;
+  animation: fadeIn 0.35s ease-out;
+}
+
+.quiz-home-banner:hover {
+  transform: translateY(-2px);
+  border-color: #6ee7b7;
+  box-shadow: 0 8px 22px rgba(16, 185, 129, 0.18);
+}
+
+.quiz-banner-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+.quiz-banner-icon {
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #d1fae5;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.12);
+}
+
+.quiz-banner-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.quiz-banner-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.quiz-banner-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #065f46;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+
+.quiz-banner-badge {
+  background: #059669;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.3px;
+}
+
+.quiz-banner-desc {
+  font-size: 12.5px;
+  color: #047857;
+  margin-top: 2px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quiz-banner-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 16px;
+  border-radius: 99px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(5, 150, 105, 0.28);
+  transition: all 0.2s ease;
+}
+
+.quiz-home-banner:hover .quiz-banner-btn {
+  background: #065f46;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4);
+}
+
 .create-pickup-inline-btn {
   padding: 6px 12px;
   font-size: 13px;
@@ -2006,6 +2118,66 @@ body:has(.modal.show) {
   .btn-pickup-trigger {
     padding: 6px 12px;
     font-size: 12px;
+  }
+
+  .quiz-home-banner {
+    padding: 10px 14px;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .quiz-banner-main {
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .quiz-banner-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 20px;
+    border-radius: 10px;
+  }
+
+  .quiz-banner-title-line {
+    gap: 6px;
+  }
+
+  .quiz-banner-title {
+    font-size: 13.5px;
+    white-space: nowrap;
+  }
+
+  .quiz-banner-badge {
+    font-size: 10.5px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .quiz-banner-desc {
+    font-size: 11.5px;
+    margin-top: 1px;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .quiz-banner-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  @media (max-width: 380px) {
+    .quiz-btn-text {
+      display: none;
+    }
+    .quiz-banner-btn {
+      padding: 6px 10px;
+      font-size: 14px;
+    }
   }
   
   .tabs {
