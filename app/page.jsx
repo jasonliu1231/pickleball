@@ -14,6 +14,41 @@ export default function Page() {
         </button>
       </div>
 
+      {/* Quiz Entry Banner (No Login Required) */}
+      <div style={{ maxWidth: "1000px", margin: "12px auto 0", padding: "0 16px" }}>
+        <a
+          href="/quiz"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+            border: "1px solid #bfdbfe",
+            borderRadius: "14px",
+            padding: "12px 18px",
+            textDecoration: "none",
+            boxShadow: "0 2px 8px rgba(37, 99, 235, 0.08)",
+            transition: "all 0.2s ease"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "24px" }}>🏓</span>
+            <div>
+              <div style={{ fontSize: "14px", fontWeight: "800", color: "#1e3a8a", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>匹克球程度自測 (30秒)</span>
+                <span style={{ background: "#2563eb", color: "#fff", fontSize: "11px", fontWeight: "800", padding: "1px 6px", borderRadius: "4px" }}>免登入</span>
+              </div>
+              <div style={{ fontSize: "12.5px", color: "#3b82f6", marginTop: "2px" }}>
+                不確定自己打哪種團？5 題快速評估適合自己的開團級別
+              </div>
+            </div>
+          </div>
+          <span style={{ fontSize: "14px", fontWeight: "800", color: "#2563eb", whiteSpace: "nowrap" }}>
+            開始自測 →
+          </span>
+        </a>
+      </div>
+
       <div className="tab-shell">
         <div className="tab-panel active">
           <section id="booking" className="section">

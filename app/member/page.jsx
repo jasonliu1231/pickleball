@@ -119,26 +119,7 @@ export default function MemberPage() {
                     <input id="profilePhone" className="modern-text-input" placeholder="0912345678" inputMode="numeric" />
                   </div>
                   <div className="modern-input-group" style={{ gridColumn: "1 / -1" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <label style={{ margin: 0 }}>預設程度等級</label>
-                      <a
-                        href="/quiz"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: "12px",
-                          color: "#2563eb",
-                          backgroundColor: "#eff6ff",
-                          border: "1px solid #bfdbfe",
-                          padding: "2px 8px",
-                          borderRadius: "6px",
-                          textDecoration: "none",
-                          fontWeight: "700"
-                        }}
-                      >
-                        ❓ 30秒程度自測
-                      </a>
-                    </div>
+                    <label style={{ margin: "0 0 6px 0", display: "block" }}>預設程度等級</label>
                     <input type="hidden" id="profileSkillLevel" defaultValue="beginner" />
                     <div className="skill-chips-row" id="skillChipsRow">
                       <button type="button" className="skill-chip-btn" data-value="first_time">需教學 (&lt;2.0)</button>

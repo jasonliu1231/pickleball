@@ -179,7 +179,7 @@ export default function QuizPage() {
             </p>
 
             {/* Options */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {currentQ.options.map((opt, i) => {
                 const selected = answers[currentQ.id] === opt.score;
                 return (
@@ -187,38 +187,31 @@ export default function QuizPage() {
                     key={i}
                     onClick={() => handleSelect(opt.score)}
                     style={{
-                      padding: "14px 16px",
-                      borderRadius: "12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "14px",
+                      padding: "16px 18px",
+                      borderRadius: "14px",
                       border: selected ? "2px solid #2563eb" : "1.5px solid #e2e8f0",
                       backgroundColor: selected ? "#eff6ff" : "#ffffff",
                       cursor: "pointer",
                       transition: "all 0.15s ease",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <span style={{
-                        display: "inline-block",
-                        padding: "2px 8px",
-                        borderRadius: "6px",
-                        fontSize: "12px",
-                        fontWeight: "800",
-                        backgroundColor: selected ? "#dbeafe" : "#f1f5f9",
-                        color: selected ? "#2563eb" : "#64748b",
-                      }}>
-                        {opt.tag}
-                      </span>
-                      <span style={{
-                        width: "18px",
-                        height: "18px",
-                        borderRadius: "50%",
-                        border: selected ? "5px solid #2563eb" : "2px solid #cbd5e1",
-                        display: "inline-block",
-                        boxSizing: "border-box"
-                      }} />
-                    </div>
-                    <div style={{ fontSize: "14px", color: selected ? "#1e3a8a" : "#1e293b", fontWeight: selected ? "600" : "400", lineHeight: "1.5" }}>
+                    <div style={{ fontSize: "14.5px", color: selected ? "#1e3a8a" : "#1e293b", fontWeight: selected ? "600" : "400", lineHeight: "1.5", flex: 1 }}>
                       {opt.label}
                     </div>
+                    <span style={{
+                      width: "20px",
+                      height: "20px",
+                      minWidth: "20px",
+                      borderRadius: "50%",
+                      border: selected ? "6px solid #2563eb" : "2px solid #cbd5e1",
+                      display: "inline-block",
+                      boxSizing: "border-box",
+                      backgroundColor: selected ? "#ffffff" : "transparent"
+                    }} />
                   </div>
                 );
               })}
@@ -319,23 +312,6 @@ export default function QuizPage() {
               </div>
             </div>
 
-            {/* Breakdown */}
-            <div style={{ backgroundColor: "#f8fafc", borderRadius: "12px", padding: "16px", marginBottom: "24px", textAlign: "left" }}>
-              <div style={{ fontSize: "13px", fontWeight: "800", color: "#0f172a", marginBottom: "10px" }}>
-                各項技能評估明細：
-              </div>
-              {QUIZ_QUESTIONS.map((q) => {
-                const s = answers[q.id] || 2.0;
-                return (
-                  <div key={q.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: "13px" }}>
-                    <span style={{ color: "#475569" }}>{q.title.split(" ")[1]}</span>
-                    <span style={{ fontWeight: "700", color: "#0f172a", backgroundColor: "#ffffff", padding: "2px 8px", borderRadius: "4px", border: "1px solid #e2e8f0" }}>
-                      {s.toFixed(1)} 級
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <Link
