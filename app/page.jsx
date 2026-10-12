@@ -91,7 +91,30 @@ export default function Page() {
               <input id="phone" placeholder="0912345678" inputMode="numeric" autoComplete="tel" />
               <span className="muted" style={{ fontSize: "13px" }}>電話僅作為取消預約或會員請假識別使用，不作其他用途。</span>
             </label>
-            <label>你的程度
+            <label>
+              <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>你的程度</span>
+                <a
+                  href="/quiz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: "12px",
+                    color: "#2563eb",
+                    backgroundColor: "#eff6ff",
+                    border: "1px solid #bfdbfe",
+                    padding: "2px 8px",
+                    borderRadius: "6px",
+                    textDecoration: "none",
+                    fontWeight: "700",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px"
+                  }}
+                >
+                  ❓ 不確定程度？30秒自測
+                </a>
+              </span>
               <select id="skillLevel" defaultValue="beginner">
                 <option value="first_time">需教學 (2.0 以下)</option>
                 <option value="beginner">初學 (2.0 - 2.5)</option>

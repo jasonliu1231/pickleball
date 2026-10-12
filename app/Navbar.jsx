@@ -15,6 +15,10 @@ export default function Navbar() {
         <span className="nav-icon">⏱️</span>
         <span className="nav-text">賽程排班</span>
       </a>
+      <a href="/quiz" className={pathname === "/quiz" ? "active" : ""}>
+        <span className="nav-icon">🏓</span>
+        <span className="nav-text">程度自測</span>
+      </a>
       <a href="/notice" className={pathname === "/notice" ? "active" : ""}>
         <span className="nav-icon">📢</span>
         <span className="nav-text">公告</span>
