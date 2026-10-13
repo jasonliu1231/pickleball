@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.1";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.2";
 
 export default function RootLayout({ children }) {
   return (
@@ -33,12 +33,14 @@ export default function RootLayout({ children }) {
         
         <main className="page">
           <header className="topbar">
-            <a className="brand" href="/" aria-label="回到首頁">
-              <img src="/logo.png" alt="匹克球同樂會 Logo" className="brand-logo" width="38" height="38" />
-              <span className="brand-title">匹克球同樂會</span>
-            </a>
-            
-            <a id="headerWelcome" href="/member" style={{ display: "none", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "800", color: "#1d4ed8", textDecoration: "none", padding: "6px 14px", background: "#eff6ff", borderRadius: "100px", border: "1px solid #bfdbfe", transition: "all 0.2s ease" }}></a>
+            <div className="topbar-brand-row">
+              <a className="brand" href="/" aria-label="回到首頁">
+                <img src="/logo.png" alt="匹克球同樂會 Logo" className="brand-logo" width="38" height="38" />
+                <span className="brand-title">匹克球同樂會</span>
+              </a>
+              
+              <a id="headerWelcome" href="/member" style={{ display: "none", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "800", color: "#1d4ed8", textDecoration: "none", padding: "6px 14px", background: "#eff6ff", borderRadius: "100px", border: "1px solid #bfdbfe", transition: "all 0.2s ease" }}></a>
+            </div>
 
             <Navbar />
           </header>

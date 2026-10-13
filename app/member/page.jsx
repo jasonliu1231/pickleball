@@ -109,7 +109,7 @@ export default function MemberPage() {
             <div className="edit-profile-section">
               <h4 style={{ fontSize: "16px", fontWeight: "900", marginBottom: "16px" }}>✏️ 編輯個人資料</h4>
               <form id="updateProfileForm" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div className="modern-form-row" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "16px", maxWidth: "100%" }}>
+                <div className="modern-form-row">
                   <div className="modern-input-group">
                     <label htmlFor="profileNickname">修改暱稱 / 姓名</label>
                     <input id="profileNickname" className="modern-text-input" placeholder="請輸入姓名或暱稱" />
@@ -129,7 +129,7 @@ export default function MemberPage() {
                     </div>
                   </div>
                 </div>
-                <button className="btn-primary" type="submit" style={{ alignSelf: "flex-start", minWidth: "120px", padding: "10px 24px", borderRadius: "12px" }}>儲存修改</button>
+                <button className="btn-primary save-profile-btn" type="submit">儲存修改</button>
               </form>
               <div id="profileMessage" className="message" style={{ marginTop: "8px" }}></div>
             </div>
