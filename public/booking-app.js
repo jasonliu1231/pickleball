@@ -2790,6 +2790,7 @@ async function loadMemberDashboard() {
   }
   
   if ($("profileNickname")) $("profileNickname").value = currentSystemMember.nickname || "";
+  if ($("profilePhone")) $("profilePhone").value = currentSystemMember.phone || "";
   let userSkill = currentSystemMember.skill_level || "beginner";
   if (userSkill === "2.0") userSkill = "first_time";
   else if (userSkill === "2.5") userSkill = "beginner";
@@ -3725,7 +3726,8 @@ async function handleUpdateProfile(e) {
   e.preventDefault();
   if (!currentUser || !currentSystemMember) return;
   const nickname = $("profileNickname").value.trim();
-  const phone = cleanPhone($("profilePhone").value);
+  const rawPhone = $("profilePhone") ? $("profilePhone").value.trim() : "";
+  const phone = rawPhone ? cleanPhone(rawPhone) : (currentSystemMember.phone || "");
   const skill_level = $("profileSkillLevel")?.value || "beginner";
   const is_beginner = (skill_level === "first_time" || skill_level === "beginner");
   const msgEl = $("profileMessage");
