@@ -65,9 +65,6 @@ export default function MemberPage() {
                       👋 哈囉，<span id="dashboardNickname">球友</span>
                     </h3>
                     <div className="profile-badges-row">
-                      <span className="info-pill" style={{ color: "rgba(255, 255, 255, 0.95)" }}>
-                        📱 <span id="dashboardPhone">未設定</span>
-                      </span>
                       <span className="info-pill info-pill-id" style={{ color: "rgba(255, 255, 255, 0.95)", display: "inline-flex", alignItems: "center", gap: "6px" }}>
                         🆔 ID: <span id="dashboardMemberId" style={{ maxWidth: "120px", display: "inline-block", verticalAlign: "middle", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>--</span>
                         <button id="copyIdBtn" type="button" className="copy-btn-sleek">複製 ID</button>
@@ -84,11 +81,11 @@ export default function MemberPage() {
               </div>
 
               {/* Bottom Actions Row: Delete Account & Logout */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginTop: "14px", borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: "12px" }}>
+              <div className="member-card-footer-actions">
                 <button className="delete-account-btn-sleek" id="deleteAccountBtn" type="button">
                   註銷帳號
                 </button>
-                <button className="logout-btn-sleek" id="logoutBtn" type="button" style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.3)", backgroundColor: "rgba(255, 255, 255, 0.12)", padding: "6px 14px", fontSize: "13px" }}>
+                <button className="logout-btn-sleek" id="logoutBtn" type="button">
                   登出帳號
                 </button>
               </div>
@@ -111,11 +108,16 @@ export default function MemberPage() {
               <form id="updateProfileForm" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div className="modern-form-row">
                   <div className="modern-input-group">
-                    <label htmlFor="profileNickname">修改暱稱 / 姓名</label>
-                    <input id="profileNickname" className="modern-text-input" placeholder="請輸入姓名或暱稱" />
+                    <label htmlFor="profileLineName">LINE 設定名稱 <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "normal" }}>🔒 登入時自動覆蓋，不給修改</span></label>
+                    <input id="profileLineName" className="modern-text-input" disabled readOnly style={{ background: "#f1f5f9", color: "#64748b", cursor: "not-allowed", opacity: 0.9 }} placeholder="尚未綁定 LINE" />
                   </div>
                   <div className="modern-input-group">
-                    <label htmlFor="profilePhone">修改手機號碼</label>
+                    <label htmlFor="profileDisplayName">自訂名稱 <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "normal" }}>（留空時預設顯示 LINE 名稱）</span></label>
+                    <input id="profileDisplayName" className="modern-text-input" placeholder="例如：莎拉、Mars（留空則顯示 LINE 名稱）" />
+                    <input type="hidden" id="profileNickname" />
+                  </div>
+                  <div className="modern-input-group">
+                    <label htmlFor="profilePhone">手機號碼 <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "normal" }}>（供教練與團主辨識）</span></label>
                     <input id="profilePhone" className="modern-text-input" placeholder="0912345678" inputMode="numeric" />
                   </div>
                   <div className="modern-input-group" style={{ gridColumn: "1 / -1" }}>

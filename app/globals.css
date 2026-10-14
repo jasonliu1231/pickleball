@@ -2988,7 +2988,7 @@ body:has(.modal.show) {
 
 .modern-form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 16px;
   width: 100%;
   margin-bottom: 16px;
@@ -3059,9 +3059,18 @@ body:has(.modal.show) {
     justify-content: center;
   }
   
-  .logout-btn-sleek {
-    align-self: center;
+  .member-card-footer-actions {
+    gap: 10px;
     width: 100%;
+  }
+  
+  .delete-account-btn-sleek,
+  .logout-btn-sleek {
+    flex: 1;
+    width: auto;
+    font-size: 13px;
+    padding: 0 10px;
+    white-space: nowrap;
     text-align: center;
   }
   
@@ -3355,23 +3364,67 @@ body:has(.modal.show) {
   line-height: 1.6;
 }
 
-/* Delete Account Button */
+/* Member Card Footer Actions */
+.member-card-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 14px;
+}
+
 .delete-account-btn-sleek {
-  padding: 8px 14px;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(252, 165, 165, 0.3);
-  color: #fca5a5;
-  border-radius: 10px;
-  font-weight: 700;
-  font-size: 12.5px;
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 0 16px;
+  background: rgba(239, 68, 68, 0.16);
+  border: 1px solid rgba(252, 165, 165, 0.35);
+  color: #fecaca;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 13.5px;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 
 .delete-account-btn-sleek:hover {
   background: #ef4444;
   color: #ffffff;
   border-color: #ef4444;
+}
+
+.logout-btn-sleek {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  padding: 0 16px;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 13.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.logout-btn-sleek:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 

@@ -190,29 +190,64 @@ export async function GET(request) {
       try {
         const { data: existingUser } = await admin
           .from("users")
-          .select("id, name")
+          .select("*")
           .eq("line_user_id", lineUserId)
           .maybeSingle();
 
+        const lineDisplayName = displayName || "LINE 球友";
+
         if (existingUser) {
-          // 已有該球友，更新名稱為 LINE 最新名稱
-          await admin
+          // 檢查是否已設定自訂顯示名稱
+          const customDisplayName =
+            existingUser.display_name && existingUser.display_name.trim() !== ""
+              ? existingUser.display_name.trim()
+              : null;
+
+          // 核心規則：
+          // 1. 若未設定顯示名稱 (display_name 為空)，顯示名稱預設為 LINE 最新名稱，每次登入覆蓋一次
+          // 2. 若有設定顯示名稱 (display_name 不為空)，則保留自訂顯示名稱，登入絕不覆蓋
+          const effectiveName = customDisplayName || lineDisplayName || existingUser.name || "球友";
+
+          const updatePayload = {
+            name: effectiveName,
+            line_name: lineDisplayName,
+            updated_at: new Date().toISOString(),
+          };
+
+          let { error: updateErr } = await admin
             .from("users")
-            .update({
-              name: displayName || existingUser.name,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updatePayload)
             .eq("id", existingUser.id);
+
+          // 若資料庫尚未執行 SQL patch 增加 line_name，自動降級排除 line_name
+          if (updateErr && updateErr.message?.includes("line_name")) {
+            delete updatePayload.line_name;
+            await admin
+              .from("users")
+              .update(updatePayload)
+              .eq("id", existingUser.id);
+          }
         } else {
           // 尚無該球友，建立新紀錄
-          await admin.from("users").upsert(
-            {
-              id: finalUserId,
-              name: displayName,
-              line_user_id: lineUserId,
-            },
-            { onConflict: "id" }
-          );
+          const insertPayload = {
+            id: finalUserId,
+            name: lineDisplayName,
+            line_name: lineDisplayName,
+            display_name: null,
+            line_user_id: lineUserId,
+          };
+
+          let { error: insertErr } = await admin
+            .from("users")
+            .upsert(insertPayload, { onConflict: "id" });
+
+          if (insertErr) {
+            if (insertErr.message?.includes("line_name")) delete insertPayload.line_name;
+            if (insertErr.message?.includes("display_name")) delete insertPayload.display_name;
+            await admin
+              .from("users")
+              .upsert(insertPayload, { onConflict: "id" });
+          }
         }
       } catch (upsertErr) {
         console.warn("Users upsert warning:", upsertErr);

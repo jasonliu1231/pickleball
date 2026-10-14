@@ -2097,7 +2097,7 @@ async function ensureSystemMember(user) {
   let data = null;
   const { data: userById } = await client
     .from("users")
-    .select("id, name, phone, line_user_id, skill_level, is_beginner, rating")
+    .select("id, name, phone, line_user_id, skill_level, is_beginner, rating, line_name, display_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -2107,7 +2107,7 @@ async function ensureSystemMember(user) {
     // 2. 若以 ID 查無資料，但有 LINE User ID，比對既有已匯入/已綁定的球友 (防止 duplicate key 衝突)
     const { data: userByLine } = await client
       .from("users")
-      .select("id, name, phone, line_user_id, skill_level, is_beginner, rating")
+      .select("id, name, phone, line_user_id, skill_level, is_beginner, rating, line_name, display_name")
       .eq("line_user_id", lineUserId)
       .maybeSingle();
     if (userByLine) {
@@ -2128,7 +2128,7 @@ async function ensureSystemMember(user) {
       if (insertError.code === "23505" && lineUserId) {
         const { data: retryUser } = await client
           .from("users")
-          .select("id, name, phone, line_user_id, skill_level, is_beginner, rating")
+          .select("id, name, phone, line_user_id, skill_level, is_beginner, rating, line_name, display_name")
           .eq("line_user_id", lineUserId)
           .maybeSingle();
         if (retryUser) return { ...retryUser, nickname: retryUser.name };
@@ -2789,7 +2789,12 @@ async function loadMemberDashboard() {
     avatarEl.textContent = firstChar;
   }
   
-  if ($("profileNickname")) $("profileNickname").value = currentSystemMember.nickname || "";
+  if ($("profileLineName")) {
+    const lName = currentSystemMember.line_name || (currentSystemMember.line_user_id ? (currentSystemMember.name || "") : "");
+    $("profileLineName").value = lName ? `${lName}` : "尚未綁定 LINE";
+  }
+  if ($("profileDisplayName")) $("profileDisplayName").value = currentSystemMember.display_name || "";
+  if ($("profileNickname")) $("profileNickname").value = currentSystemMember.display_name || currentSystemMember.name || "";
   if ($("profilePhone")) $("profilePhone").value = currentSystemMember.phone || "";
   let userSkill = currentSystemMember.skill_level || "beginner";
   if (userSkill === "2.0") userSkill = "first_time";
@@ -3725,26 +3730,51 @@ async function handleBindPhoneSubmit(e) {
 async function handleUpdateProfile(e) {
   e.preventDefault();
   if (!currentUser || !currentSystemMember) return;
-  const nickname = $("profileNickname").value.trim();
+  const lineName = $("profileLineName") ? $("profileLineName").value.trim() : (currentSystemMember.line_name || "");
+  const rawDisplayName = $("profileDisplayName") ? $("profileDisplayName").value.trim() : ($("profileNickname") ? $("profileNickname").value.trim() : "");
+  const customDisplayName = rawDisplayName || null;
+  // 規則：若無自訂顯示名稱，預設顯示 LINE 名稱；若無 LINE 名稱，則維持現有名稱或「球友」
+  const effectiveName = customDisplayName || (lineName && lineName !== "尚未綁定 LINE" ? lineName : null) || currentSystemMember.name || "球友";
+
   const rawPhone = $("profilePhone") ? $("profilePhone").value.trim() : "";
   const phone = rawPhone ? cleanPhone(rawPhone) : (currentSystemMember.phone || "");
   const skill_level = $("profileSkillLevel")?.value || "beginner";
   const is_beginner = (skill_level === "first_time" || skill_level === "beginner");
   const msgEl = $("profileMessage");
-  if (!nickname) return setMessage(msgEl, "請填寫姓名或暱稱", false);
   if (phone && !validatePhone(phone)) return setMessage(msgEl, "手機格式不正確", false);
 
   try {
     setMessage(msgEl, "更新中...", true);
-    const { data, error } = await client
+    const updatePayload = {
+      name: effectiveName,
+      display_name: customDisplayName,
+      phone,
+      skill_level,
+      is_beginner,
+      updated_at: new Date().toISOString()
+    };
+
+    let { data, error } = await client
       .from("users")
-      .update({ name: nickname, phone, skill_level, is_beginner, updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("id", currentSystemMember?.id || currentUser.id)
       .select()
       .single();
 
+    if (error && error.message?.includes("display_name")) {
+      delete updatePayload.display_name;
+      const res = await client
+        .from("users")
+        .update(updatePayload)
+        .eq("id", currentSystemMember?.id || currentUser.id)
+        .select()
+        .single();
+      data = res.data;
+      error = res.error;
+    }
+
     if (error) throw error;
-    currentSystemMember = { ...data, nickname: data.name };
+    currentSystemMember = { ...data, nickname: data.name, display_name: customDisplayName, line_name: currentSystemMember.line_name };
 
     setMessage(msgEl, "個人資料更新成功！", true);
     toggleAuthView(true);
