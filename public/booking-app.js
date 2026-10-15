@@ -3897,6 +3897,20 @@ function toggleAuthView(isLoggedIn) {
       welcomeEl.style.display = "none";
     }
   }
+
+  const notifBtn = $("headerNotificationBtn");
+  if (notifBtn) {
+    if (isLoggedIn) {
+      notifBtn.style.display = "inline-flex";
+      if (currentSystemMember?.id) {
+        loadUserNotifications(currentSystemMember.id);
+      }
+    } else {
+      notifBtn.style.display = "none";
+      const notifBadge = $("headerNotificationBadge");
+      if (notifBadge) notifBadge.style.display = "none";
+    }
+  }
   
   if (isLoggedIn) {
     if (authContainer) authContainer.style.display = "none";
@@ -4109,6 +4123,11 @@ document.addEventListener("click", (e) => {
 
   if ($("authTabLogin")) initAuthTabs();
 
+  // ============================================================================
+  // 🔔 Notification Center (通知中心)
+  // ============================================================================
+  initNotificationCenter();
+
   if (window.location.hash === "#createPickupModal") {
     setTimeout(() => {
       openCreatePickupModal(selectedDate);
@@ -4116,3 +4135,206 @@ document.addEventListener("click", (e) => {
     }, 400);
   }
 })();
+
+// ============================================================================
+// 🔔 Notification Center (通知中心) 核心邏輯
+// ============================================================================
+let userNotifications = [];
+let activeNotifCategory = "all";
+
+async function loadUserNotifications(userId) {
+  if (!userId) return;
+  try {
+    const res = await fetch(`/api/user/notifications?userId=${userId}`);
+    const data = await res.json();
+    if (data.ok) {
+      userNotifications = data.notifications || [];
+      renderNotificationBadge();
+      const modal = $("notificationModal");
+      if (modal && modal.classList.contains("active")) {
+        renderNotificationList();
+      }
+    }
+  } catch (err) {
+    console.warn("loadUserNotifications error:", err);
+  }
+}
+
+function renderNotificationBadge() {
+  const badge = $("headerNotificationBadge");
+  const modalCount = $("notifModalUnreadCount");
+  const markAllBtn = $("markAllReadBtn");
+  const unreadCount = userNotifications.filter((n) => !n.is_read).length;
+
+  if (badge) {
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount > 99 ? "99+" : unreadCount;
+      badge.style.display = "inline-block";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  if (modalCount) {
+    if (unreadCount > 0) {
+      modalCount.textContent = `${unreadCount} 則未讀`;
+      modalCount.style.display = "inline-block";
+    } else {
+      modalCount.style.display = "none";
+    }
+  }
+
+  if (markAllBtn) {
+    markAllBtn.style.display = unreadCount > 0 ? "inline-block" : "none";
+  }
+}
+
+function formatNotificationTime(isoStr) {
+  if (!isoStr) return "";
+  try {
+    const d = new Date(isoStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "剛剛";
+    if (diffMins < 60) return `${diffMins} 分鐘前`;
+    if (diffHours < 24) return `${diffHours} 小時前`;
+    if (diffDays === 1) return "昨天";
+    if (diffDays < 7) return `${diffDays} 天前`;
+
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const min = String(d.getMinutes()).padStart(2, "0");
+    return `${m}/${day} ${h}:${min}`;
+  } catch {
+    return "";
+  }
+}
+
+function getCategoryBadgeHtml(category) {
+  switch (category) {
+    case "match_reminder":
+      return `<span class="notif-badge notif-badge-match">⏰ 球聚提醒</span>`;
+    case "waitlist_update":
+      return `<span class="notif-badge notif-badge-waitlist">🎉 遞補通知</span>`;
+    case "billing_balance":
+      return `<span class="notif-badge notif-badge-billing">💳 帳戶扣款</span>`;
+    case "announcement":
+      return `<span class="notif-badge notif-badge-announcement">📢 公告異動</span>`;
+    default:
+      return `<span class="notif-badge notif-badge-match">🔔 系統通知</span>`;
+  }
+}
+
+function renderNotificationList() {
+  const container = $("notifItemsWrap");
+  const emptyState = $("notifEmptyState");
+  if (!container) return;
+
+  const filtered = activeNotifCategory === "all"
+    ? userNotifications
+    : userNotifications.filter((n) => n.category === activeNotifCategory);
+
+  if (filtered.length === 0) {
+    container.innerHTML = "";
+    if (emptyState) emptyState.style.display = "block";
+    return;
+  }
+
+  if (emptyState) emptyState.style.display = "none";
+
+  container.innerHTML = filtered.map((n) => {
+    const unreadCls = !n.is_read ? "notif-card-unread" : "";
+    const badgeHtml = getCategoryBadgeHtml(n.category);
+    const timeStr = formatNotificationTime(n.created_at);
+
+    return `
+      <div class="notif-card ${unreadCls}" data-id="${n.id}">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          ${badgeHtml}
+          <span style="font-size:11.5px;color:#94a3b8;font-weight:700;">${timeStr}</span>
+        </div>
+        <div style="font-size:14px;font-weight:900;color:#0f172a;margin-top:2px;">${escapeHtml(n.title)}</div>
+        <div style="font-size:13px;color:#475569;line-height:1.45;white-space:pre-line;">${escapeHtml(n.body)}</div>
+      </div>
+    `;
+  }).join("");
+
+  // Attach card click handlers for marking as read
+  container.querySelectorAll(".notif-card").forEach((card) => {
+    card.addEventListener("click", async () => {
+      const notifId = card.getAttribute("data-id");
+      const target = userNotifications.find((x) => x.id === notifId);
+      if (target && !target.is_read) {
+        target.is_read = true;
+        renderNotificationBadge();
+        card.classList.remove("notif-card-unread");
+        try {
+          await fetch("/api/user/notifications", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ notificationId: notifId }),
+          });
+        } catch (e) {
+          console.warn("mark read error:", e);
+        }
+      }
+    });
+  });
+}
+
+function initNotificationCenter() {
+  const btn = $("headerNotificationBtn");
+  const modal = $("notificationModal");
+  const closeBtn = $("closeNotificationModal");
+  const markAllBtn = $("markAllReadBtn");
+  const categoryBar = $("notifCategoryBar");
+
+  if (!btn || !modal) return;
+
+  btn.addEventListener("click", () => {
+    modal.classList.add("active");
+    if (currentSystemMember?.id) {
+      loadUserNotifications(currentSystemMember.id);
+    }
+    renderNotificationList();
+  });
+
+  closeBtn?.addEventListener("click", () => {
+    modal.classList.remove("active");
+  });
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.classList.remove("active");
+  });
+
+  markAllBtn?.addEventListener("click", async () => {
+    if (!currentSystemMember?.id) return;
+    userNotifications.forEach((n) => { n.is_read = true; });
+    renderNotificationBadge();
+    renderNotificationList();
+    try {
+      await fetch("/api/user/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentSystemMember.id, markAll: true }),
+      });
+    } catch (e) {
+      console.warn("markAllRead error:", e);
+    }
+  });
+
+  categoryBar?.querySelectorAll(".notif-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      categoryBar.querySelectorAll(".notif-tab").forEach((t) => t.classList.remove("notif-tab-active"));
+      tab.classList.add("notif-tab-active");
+      activeNotifCategory = tab.getAttribute("data-cat") || "all";
+      renderNotificationList();
+    });
+  });
+}
+

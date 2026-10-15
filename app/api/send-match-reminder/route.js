@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { supabase } from "@/lib/supabase";
 import { sendLinePushFlex, normalizePhone, fetchTokensForUser, sendExpoPush } from "@/lib/line";
+import { logBatchUserNotifications } from "@/lib/userNotifications";
 
 export async function POST(request) {
   try {
@@ -77,6 +78,7 @@ export async function POST(request) {
     let sentCount = 0;
     let skippedCount = 0;
     const appPushMessages = [];
+    const userNotificationRows = [];
 
     // 4. Broadcast to each player who has a linked LINE ID or App Push Token
     for (const player of playersToRemind) {
@@ -84,7 +86,21 @@ export async function POST(request) {
       const playerNickname = player.nickname || "球友";
       const cancelUrl = `https://pickleball.jason1231.com/api/cancel-match-booking?type=signup&id=${player.id}`;
 
-      // A. Collect App Push Notification
+      // A. Collect Notification History & App Push Notification
+      if (player.userId) {
+        userNotificationRows.push({
+          userId: player.userId,
+          category: "match_reminder",
+          title: "⏰ 明日球聚行前提醒",
+          body: `哈囉 ${playerNickname}！提醒您明天 ${formattedDate || date} 有預約「${meetupName}」，地點：${meetupLocation}，期待在球場相見！`,
+          data: {
+            type: "match_reminder",
+            meetup_id,
+            date,
+          },
+        });
+      }
+
       if (player.expo_push_token) {
         appPushMessages.push({
           to: player.expo_push_token,
@@ -334,6 +350,11 @@ export async function POST(request) {
       } catch (expoErr) {
         console.warn("Failed to send Expo push reminders:", expoErr);
       }
+    }
+
+    // 6. Log all notifications in user_notifications table for notification center
+    if (userNotificationRows.length > 0) {
+      await logBatchUserNotifications(userNotificationRows);
     }
     
     return Response.json({

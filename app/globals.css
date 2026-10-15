@@ -3427,4 +3427,90 @@ body:has(.modal.show) {
   border-color: rgba(255, 255, 255, 0.5);
 }
 
+/* ==========================================================================
+   Notification Center (通知中心) Styles
+   ========================================================================== */
+.notif-tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+.notif-tab:hover {
+  background: #f1f5f9;
+  color: #334155;
+}
+.notif-tab-active {
+  background: #059669 !important;
+  color: #ffffff !important;
+  border-color: #059669 !important;
+}
+
+.notif-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.notif-card:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+.notif-card-unread {
+  background: #f0fdf4;
+  border-color: #a7f3d0;
+}
+.notif-card-unread::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  left: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #059669;
+}
+.notif-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  width: fit-content;
+}
+.notif-badge-match {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+.notif-badge-waitlist {
+  background: #fff7ed;
+  color: #ea580c;
+  border: 1px solid #fed7aa;
+}
+.notif-badge-billing {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+.notif-badge-announcement {
+  background: #faf5ff;
+  color: #7c3aed;
+  border: 1px solid #e9d5ff;
+}
+
 

@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { supabase } from "@/lib/supabase";
 import { sendLinePushFlex, fetchTokensForUser, sendExpoPush } from "@/lib/line";
+import { logUserNotification } from "@/lib/userNotifications";
 
 export async function POST(request) {
   try {
@@ -259,6 +260,22 @@ export async function POST(request) {
       } catch (expoErr) {
         console.warn("Failed to send Expo App transaction push:", expoErr);
       }
+    }
+
+    // Log notification in user_notifications table for notification center
+    if (member.user_id) {
+      await logUserNotification({
+        userId: member.user_id,
+        category: "billing_balance",
+        title: `💰 ${headerTitle}`,
+        body: `【${orgName}】${headerTitle}：${amountSign}$${Math.abs(amountVal)} 點，目前最新餘額 $${balanceAmount.toLocaleString()} 點。`,
+        data: {
+          type: "transaction",
+          transaction_type: typeLabel,
+          amount: amountVal,
+          balance: balanceAmount,
+        },
+      });
     }
 
     // 5. Send LINE Push Message (if linked)

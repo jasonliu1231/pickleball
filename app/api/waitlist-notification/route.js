@@ -2,6 +2,7 @@ export const runtime = "nodejs";
 
 import { supabase } from "@/lib/supabase";
 import { sendLinePushFlex, normalizePhone, fetchTokensForUser, sendExpoPush } from "@/lib/line";
+import { logUserNotification } from "@/lib/userNotifications";
 
 export async function POST(request) {
   try {
@@ -258,6 +259,21 @@ export async function POST(request) {
       } catch (expoErr) {
         console.warn("Failed to send Expo App push:", expoErr);
       }
+    }
+
+    // Log notification in user_notifications table for notification center
+    if (userObj?.id) {
+      await logUserNotification({
+        userId: userObj.id,
+        category: "waitlist_update",
+        title: "🎉 備取遞補成功！",
+        body: `恭喜您！${formattedDate ? formattedDate + " " : ""}「${meetupName}」已為您成功遞補為正取，期待球場見！`,
+        data: {
+          type: "waitlist_promoted",
+          meetup_id,
+          reservation_date,
+        },
+      });
     }
 
     // 5. If this is a member pickup game (no organizerId), skip LINE Push to prevent incurring cost!
