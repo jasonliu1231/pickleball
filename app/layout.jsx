@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.2";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.3";
 
 export default function RootLayout({ children }) {
   return (
@@ -39,50 +39,37 @@ export default function RootLayout({ children }) {
                 <span className="brand-title">匹克球同樂會</span>
               </a>
               
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              {/* 電腦版右上角功能區：小鈴鐺 + 問候膠囊 */}
+              <div className="topbar-right-desktop">
                 {/* 🔔 通知中心小鈴鐺 */}
                 <button
                   id="headerNotificationBtn"
                   type="button"
                   aria-label="通知中心"
                   title="通知中心"
-                  style={{
-                    display: "none",
-                    position: "relative",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "50%",
-                    border: "1px solid #cbd5e1",
-                    background: "#ffffff",
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    padding: 0,
-                  }}
+                  className="header-notif-btn"
                 >
                   <span style={{ fontSize: "17px", lineHeight: "1" }}>🔔</span>
                   <span
                     id="headerNotificationBadge"
-                    style={{
-                      display: "none",
-                      position: "absolute",
-                      top: "-4px",
-                      right: "-4px",
-                      background: "#ef4444",
-                      color: "#ffffff",
-                      fontSize: "10.5px",
-                      fontWeight: "900",
-                      padding: "1px 5px",
-                      borderRadius: "999px",
-                      border: "2px solid #ffffff",
-                      lineHeight: "13px",
-                    }}
+                    className="notif-badge"
+                    style={{ display: "none" }}
                   >0</span>
                 </button>
 
-                <a id="headerWelcome" href="/member" style={{ display: "none", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "800", color: "#1d4ed8", textDecoration: "none", padding: "6px 14px", background: "#eff6ff", borderRadius: "100px", border: "1px solid #bfdbfe", transition: "all 0.2s ease" }}></a>
+                <a id="headerWelcome" href="/member" style={{ display: "none" }}></a>
               </div>
+
+              {/* 手機版：漢堡選單按鈕 (含未讀紅點) */}
+              <button
+                id="hamburgerBtn"
+                type="button"
+                className="hamburger-btn"
+                aria-label="開啟功能選單"
+              >
+                <span className="hamburger-icon">☰</span>
+                <span id="hamburgerNotifDot" className="hamburger-dot" style={{ display: "none" }}></span>
+              </button>
             </div>
 
             <Navbar />
@@ -162,6 +149,65 @@ export default function RootLayout({ children }) {
                   <div style={{ fontSize: "12.5px", marginTop: "4px" }}>開賽前 2 小時提醒、遞補與扣款通知都會顯示在這裡。</div>
                 </div>
                 <div id="notifItemsWrap" style={{ display: "flex", flexDirection: "column", gap: "8px" }}></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile Navigation Drawer */}
+          <div id="mobileDrawerOverlay" className="mobile-drawer-overlay">
+            <div className="mobile-drawer-backdrop" id="drawerBackdrop"></div>
+            <div className="mobile-drawer-panel">
+              <div className="drawer-header">
+                <div id="drawerUserWelcome" className="drawer-user-info">
+                  <span className="drawer-greeting-title">👋 歡迎光臨！</span>
+                </div>
+                <button id="closeDrawerBtn" className="drawer-close-btn" type="button" aria-label="關閉選單">×</button>
+              </div>
+
+              <div className="drawer-content">
+                {/* 🔔 漢堡選單內的通知中心按鈕 */}
+                <button id="drawerNotificationBtn" type="button" className="drawer-item-notif">
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "18px" }}>🔔</span>
+                    <span style={{ fontWeight: "800", fontSize: "15px", color: "#1e3a8a" }}>通知中心</span>
+                  </div>
+                  <span id="drawerNotifBadge" className="drawer-notif-badge" style={{ display: "none" }}>0 則未讀</span>
+                </button>
+
+                <div className="drawer-divider"></div>
+
+                <nav className="drawer-nav-list">
+                  <a href="/" className="drawer-nav-link">
+                    <span className="drawer-nav-icon">📅</span>
+                    <span className="drawer-nav-text">立即預約</span>
+                  </a>
+                  <a href="/schedule" className="drawer-nav-link">
+                    <span className="drawer-nav-icon">⏱️</span>
+                    <span className="drawer-nav-text">賽程排班</span>
+                  </a>
+                  <a href="/notice" className="drawer-nav-link">
+                    <span className="drawer-nav-icon">📢</span>
+                    <span className="drawer-nav-text">最新公告</span>
+                  </a>
+                  <a href="/knowledge" className="drawer-nav-link">
+                    <span className="drawer-nav-icon">💡</span>
+                    <span className="drawer-nav-text">匹克球小知識</span>
+                  </a>
+                  <a href="/faq" className="drawer-nav-link">
+                    <span className="drawer-nav-icon">❓</span>
+                    <span className="drawer-nav-text">常見問題</span>
+                  </a>
+                  <a href="/member" className="drawer-nav-link drawer-nav-member">
+                    <span className="drawer-nav-icon">👤</span>
+                    <span className="drawer-nav-text">會員個人中心</span>
+                  </a>
+                </nav>
+              </div>
+
+              <div className="drawer-footer">
+                <button id="drawerLogoutBtn" type="button" className="drawer-logout-btn" style={{ display: "none" }}>
+                  🚪 登出帳號
+                </button>
               </div>
             </div>
           </div>

@@ -3898,6 +3898,30 @@ function toggleAuthView(isLoggedIn) {
     }
   }
 
+  // 手機版抽屜使用者名稱更新 (不顯示電話號碼)
+  const drawerWelcomeEl = $("drawerUserWelcome");
+  const drawerLogoutBtn = $("drawerLogoutBtn");
+  if (drawerWelcomeEl) {
+    if (isLoggedIn) {
+      let name = currentSystemMember?.nickname || currentSystemMember?.name;
+      if (!name || name === "球友") {
+        name = currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || "";
+      }
+      if (!name) {
+        if (currentUser?.email && !currentUser.email.startsWith("line_")) {
+          name = currentUser.email.split("@")[0];
+        } else {
+          name = "球友";
+        }
+      }
+      drawerWelcomeEl.innerHTML = `<span class="drawer-greeting-title">👋 您好，<span style="color:#2563eb;">${name}</span>！</span>`;
+      if (drawerLogoutBtn) drawerLogoutBtn.style.display = "block";
+    } else {
+      drawerWelcomeEl.innerHTML = `<span class="drawer-greeting-title">👋 歡迎球友！</span><a href="/member" style="font-size:12.5px;color:#2563eb;font-weight:800;text-decoration:none;margin-top:4px;display:inline-block;">登入 / 註冊會員 →</a>`;
+      if (drawerLogoutBtn) drawerLogoutBtn.style.display = "none";
+    }
+  }
+
   const notifBtn = $("headerNotificationBtn");
   if (notifBtn) {
     if (isLoggedIn) {
@@ -4124,9 +4148,10 @@ document.addEventListener("click", (e) => {
   if ($("authTabLogin")) initAuthTabs();
 
   // ============================================================================
-  // 🔔 Notification Center (通知中心)
+  // 🔔 Notification Center & 🍔 Mobile Drawer
   // ============================================================================
   initNotificationCenter();
+  initMobileDrawer();
 
   if (window.location.hash === "#createPickupModal") {
     setTimeout(() => {
@@ -4186,6 +4211,22 @@ function renderNotificationBadge() {
 
   if (markAllBtn) {
     markAllBtn.style.display = unreadCount > 0 ? "inline-block" : "none";
+  }
+
+  // 🍔 漢堡按鈕紅點與抽屜通知角標同步
+  const hamburgerDot = $("hamburgerNotifDot");
+  if (hamburgerDot) {
+    hamburgerDot.style.display = unreadCount > 0 ? "inline-block" : "none";
+  }
+
+  const drawerNotifBadge = $("drawerNotifBadge");
+  if (drawerNotifBadge) {
+    if (unreadCount > 0) {
+      drawerNotifBadge.textContent = `${unreadCount} 則未讀`;
+      drawerNotifBadge.style.display = "inline-block";
+    } else {
+      drawerNotifBadge.style.display = "none";
+    }
   }
 }
 
@@ -4338,3 +4379,58 @@ function initNotificationCenter() {
   });
 }
 
+// ============================================================================
+// 🍔 Mobile Navigation Drawer (手機版漢堡選單抽屜)
+// ============================================================================
+function initMobileDrawer() {
+  const hamburgerBtn = $("hamburgerBtn");
+  const drawerOverlay = $("mobileDrawerOverlay");
+  const closeBtn = $("closeDrawerBtn");
+  const backdrop = $("drawerBackdrop");
+  const drawerNotifBtn = $("drawerNotificationBtn");
+  const drawerLogoutBtn = $("drawerLogoutBtn");
+
+  const openDrawer = () => {
+    if (drawerOverlay) {
+      drawerOverlay.classList.add("active");
+      document.body.style.overflow = "hidden";
+    }
+  };
+
+  const closeDrawer = () => {
+    if (drawerOverlay) {
+      drawerOverlay.classList.remove("active");
+      document.body.style.overflow = "";
+    }
+  };
+
+  hamburgerBtn?.addEventListener("click", openDrawer);
+  closeBtn?.addEventListener("click", closeDrawer);
+  backdrop?.addEventListener("click", closeDrawer);
+
+  drawerOverlay?.querySelectorAll(".drawer-nav-link").forEach((link) => {
+    link.addEventListener("click", closeDrawer);
+  });
+
+  drawerNotifBtn?.addEventListener("click", () => {
+    closeDrawer();
+    const modal = $("notificationModal");
+    if (modal) {
+      modal.classList.add("active");
+      if (currentSystemMember?.id) {
+        loadUserNotifications(currentSystemMember.id);
+      }
+      renderNotificationList();
+    }
+  });
+
+  drawerLogoutBtn?.addEventListener("click", async () => {
+    closeDrawer();
+    sessionStorage.setItem("user_logged_out", "true");
+    await client.auth.signOut();
+    currentUser = null;
+    currentSystemMember = null;
+    toggleAuthView(false);
+    window.location.reload();
+  });
+}
