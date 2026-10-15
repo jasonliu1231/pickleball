@@ -14,6 +14,27 @@ export default function Page() {
         </button>
       </div>
 
+      {/* App Download Recommendation Banner */}
+      <div className="app-download-home-banner" id="openAppDownloadBanner">
+        <div className="app-banner-main">
+          <span className="app-banner-icon">📱</span>
+          <div className="app-banner-text">
+            <div className="app-banner-title-line">
+              <span className="app-banner-title">「匹克同樂會」App 正式上線！</span>
+              <span className="app-banner-badge-ios">🍎 iOS 官方審核通過</span>
+              <span className="app-banner-badge-android">🤖 Android 測試中</span>
+            </div>
+            <div className="app-banner-desc">
+              享有開賽前 2 小時推播提醒、候補即時推播與 1 鍵快速報名！點此查看下載說明
+            </div>
+          </div>
+        </div>
+        <div className="app-banner-btn">
+          <span className="app-btn-text">下載說明</span>
+          <span className="app-btn-arrow">→</span>
+        </div>
+      </div>
+
       {/* Quiz Entry Banner (Responsive Web Design) */}
       <a href="/quiz" className="quiz-home-banner" id="quizHomeBanner">
         <div className="quiz-banner-main">

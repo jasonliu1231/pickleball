@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.4";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.5";
 
 export default function RootLayout({ children }) {
   return (
@@ -39,8 +39,21 @@ export default function RootLayout({ children }) {
                 <span className="brand-title">匹克球同樂會</span>
               </a>
               
-              {/* 電腦版右上角功能區：小鈴鐺 + 問候膠囊 */}
+              {/* 電腦版右上角功能區：App 下載 + 小鈴鐺 + 問候膠囊 */}
               <div className="topbar-right-desktop">
+                {/* 📱 下載手機 App 按鈕 */}
+                <button
+                  id="headerAppDownloadBtn"
+                  type="button"
+                  aria-label="下載手機 App"
+                  title="下載「匹克同樂會」App (iOS / Android)"
+                  className="header-app-btn"
+                >
+                  <span style={{ fontSize: "15px", lineHeight: "1" }}>📱</span>
+                  <span className="header-app-text">App 下載</span>
+                  <span className="header-app-tag">iOS 正式版</span>
+                </button>
+
                 {/* 🔔 通知中心小鈴鐺 */}
                 <button
                   id="headerNotificationBtn"
@@ -153,6 +166,133 @@ export default function RootLayout({ children }) {
             </div>
           </div>
 
+          {/* Global App Download Modal */}
+          <div className="modal" id="appDownloadModal">
+            <div className="modal-card app-download-modal-card">
+              <div className="modal-head" style={{ paddingBottom: "12px", borderBottom: "1px solid #f1f5f9" }}>
+                <div>
+                  <h2 className="section-title" style={{ fontSize: "21px", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+                    <span>📱</span> 下載「匹克同樂會」App
+                  </h2>
+                  <p className="muted" style={{ fontSize: "13px", marginTop: "4px" }}>
+                    專為球友打造的行動體驗，享受更即時的活動與比賽推播通知！
+                  </p>
+                </div>
+                <button className="close-btn" id="closeAppDownloadModal" type="button">×</button>
+              </div>
+
+              <div className="app-download-modal-body">
+                {/* App 特色亮點 */}
+                <div className="app-benefits-grid">
+                  <div className="app-benefit-item">
+                    <span className="app-benefit-icon">⏰</span>
+                    <div>
+                      <strong>開賽前 2 小時提醒</strong>
+                      <p>手機主動推播開賽時間與球館，不怕忘記打球！</p>
+                    </div>
+                  </div>
+                  <div className="app-benefit-item">
+                    <span className="app-benefit-icon">🎉</span>
+                    <div>
+                      <strong>候補即時轉正通知</strong>
+                      <p>候補成功第一時間推播提醒，立刻鎖定上場名額。</p>
+                    </div>
+                  </div>
+                  <div className="app-benefit-item">
+                    <span className="app-benefit-icon">⚡</span>
+                    <div>
+                      <strong>1 鍵極速報名</strong>
+                      <p>綁定帳號後一鍵秒報名，查看跨場儲值金與對戰戰績！</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 雙平台下載區塊 */}
+                <div className="app-platforms-container">
+                  {/* iOS 區塊 (已審核通過上架) */}
+                  <div className="app-platform-card ios-card">
+                    <div className="app-platform-title-row">
+                      <span className="platform-icon">🍎</span>
+                      <div>
+                        <h3 className="platform-title">iOS 版本 (iPhone / iPad)</h3>
+                        <span className="platform-status-badge badge-success">官方 App Store 正式上架</span>
+                      </div>
+                    </div>
+                    <p className="platform-desc">支援 iOS 15.0 以上版本，可直接前往 App Store 免費下載安裝。</p>
+                    
+                    <div style={{ marginBottom: "12px" }}>
+                      <a 
+                        href="https://apps.apple.com/tw/app/%E5%8C%B9%E5%85%8B%E5%90%8C%E6%A8%82%E6%9C%83/id6759153714" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn-appstore"
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-1.99.6-2.61 1.34-.55.63-1.03 1.68-.9 2.7 1 .08 2.03-.51 2.59-1.19z"/>
+                        </svg>
+                        <span>前往 App Store 下載</span>
+                      </a>
+                    </div>
+
+                    <div className="app-qr-row">
+                      <img 
+                        src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=https%3A%2F%2Fapps.apple.com%2Ftw%2Fapp%2F%25E5%258C%25B9%25E5%2585%258B%25E5%2590%258C%25E6%25A8%2582%25E6%259C%2583%2Fid6759153714" 
+                        alt="iOS App Store 下載 QR Code"
+                        className="app-qr-img"
+                        width="88"
+                        height="88"
+                      />
+                      <div className="app-qr-hint">
+                        <span className="qr-badge">iPhone 掃碼下載</span>
+                        <p>拿起 iPhone 相機對準此 QR Code，即可直接秒開 App Store 下載頁面。</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Android 區塊 (測試中，引導聯絡團主) */}
+                  <div className="app-platform-card android-card">
+                    <div className="app-platform-title-row">
+                      <span className="platform-icon">🤖</span>
+                      <div>
+                        <h3 className="platform-title">Android 安卓版本</h3>
+                        <span className="platform-status-badge badge-testing">Google Play 內部測試審核中</span>
+                      </div>
+                    </div>
+                    
+                    <div className="android-notice-box">
+                      <p className="android-notice-text">
+                        Android 版本目前正在進行 Google Play 官方內部測試與最後審核！
+                        如果您是 Android 安卓手機球友，<strong>若有需要搶先安裝體驗，歡迎直接聯繫團主（Jason）</strong>，我們將優先為您開通測試權限並提供專屬安裝說明！
+                      </p>
+                    </div>
+
+                    <div className="android-contact-actions">
+                      <a 
+                        href="https://line.me/R/ti/p/%40657kasvh" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn-contact-line"
+                      >
+                        <span>💬 聯繫團主 LINE 官方客服</span>
+                      </a>
+                      <a 
+                        href="tel:0988602005"
+                        className="btn-contact-phone"
+                      >
+                        <span>📞 電話聯繫：0988-602-005</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 網頁版免安裝提示 */}
+                <div className="web-fallback-note">
+                  💡 <strong>不想下載 App 也沒問題！</strong>本預約系統網頁版手機瀏覽器皆完美相容，隨開即用！
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Mobile Navigation Drawer */}
           <div id="mobileDrawerOverlay" className="mobile-drawer-overlay">
             <div className="mobile-drawer-backdrop" id="drawerBackdrop"></div>
@@ -165,6 +305,15 @@ export default function RootLayout({ children }) {
               </div>
 
               <div className="drawer-content">
+                {/* 📱 漢堡選單內的 App 下載專區 */}
+                <button id="drawerAppDownloadBtn" type="button" className="drawer-item-app">
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "18px" }}>📱</span>
+                    <span style={{ fontWeight: "800", fontSize: "15px", color: "#047857" }}>App 下載專區</span>
+                  </div>
+                  <span className="drawer-app-badge">iOS 已上架</span>
+                </button>
+
                 {/* 🔔 漢堡選單內的通知中心按鈕 */}
                 <button id="drawerNotificationBtn" type="button" className="drawer-item-notif">
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -212,7 +361,13 @@ export default function RootLayout({ children }) {
             </div>
           </div>
 
-          <footer className="footer">匹克球同樂會｜線上預約系統</footer>
+          <footer className="footer">
+            <span>匹克球同樂會｜線上預約系統</span>
+            <span style={{ margin: "0 8px", opacity: 0.4 }}>•</span>
+            <button id="footerAppDownloadBtn" type="button" style={{ background: "none", border: "none", color: "var(--primary, #2563eb)", fontWeight: "700", cursor: "pointer", textDecoration: "underline", fontSize: "13px" }}>
+              📱 下載手機 App (iOS / Android)
+            </button>
+          </footer>
         </main>
 
         <Script

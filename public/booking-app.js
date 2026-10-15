@@ -4152,6 +4152,7 @@ document.addEventListener("click", (e) => {
   // ============================================================================
   initNotificationCenter();
   initMobileDrawer();
+  initAppDownloadModal();
 
   if (window.location.hash === "#createPickupModal") {
     setTimeout(() => {
@@ -4441,5 +4442,48 @@ function initMobileDrawer() {
     currentSystemMember = null;
     toggleAuthView(false);
     window.location.reload();
+  });
+}
+
+// ============================================================================
+// 📱 App Download Modal (App 下載說明彈窗)
+// ============================================================================
+function initAppDownloadModal() {
+  const modal = $("appDownloadModal");
+  const closeBtn = $("closeAppDownloadModal");
+  const desktopBtn = $("headerAppDownloadBtn");
+  const drawerBtn = $("drawerAppDownloadBtn");
+  const banner = $("openAppDownloadBanner");
+  const footerBtn = $("footerAppDownloadBtn");
+
+  if (!modal) return;
+
+  const openModal = (e) => {
+    if (e) e.preventDefault();
+    modal.classList.add("show", "active");
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
+  };
+
+  const closeModal = () => {
+    modal.classList.remove("show", "active");
+    modal.style.display = "none";
+    document.body.style.overflow = "";
+  };
+
+  desktopBtn?.addEventListener("click", openModal);
+  drawerBtn?.addEventListener("click", () => {
+    const drawerOverlay = $("mobileDrawerOverlay");
+    if (drawerOverlay) {
+      drawerOverlay.classList.remove("active");
+    }
+    openModal();
+  });
+  banner?.addEventListener("click", openModal);
+  footerBtn?.addEventListener("click", openModal);
+  closeBtn?.addEventListener("click", closeModal);
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeModal();
   });
 }
