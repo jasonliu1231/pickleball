@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.8";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.9";
 
 export default function RootLayout({ children }) {
   return (
@@ -262,6 +262,22 @@ export default function RootLayout({ children }) {
                     <div className="android-notice-box" style={{ marginBottom: 0 }}>
                       <p className="android-notice-text">
                         歡迎幫忙測試，請於群組找子堯。
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 團主固定開團 App 專區 */}
+                  <div className="app-platform-card organizer-card">
+                    <div className="app-platform-title-row">
+                      <span className="platform-icon">👑</span>
+                      <div>
+                        <h3 className="platform-title">團主固定開團 App</h3>
+                        <span className="platform-status-badge badge-organizer">主理人專屬</span>
+                      </div>
+                    </div>
+                    <div className="android-notice-box organizer-notice-box" style={{ marginBottom: 0 }}>
+                      <p className="android-notice-text organizer-notice-text">
+                        如果是團主，需要固定開團 App 也可以於群組找子堯。
                       </p>
                     </div>
                   </div>
