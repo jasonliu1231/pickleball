@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.9";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.8.0";
 
 export default function RootLayout({ children }) {
   return (
@@ -259,10 +259,21 @@ export default function RootLayout({ children }) {
                       </div>
                     </div>
                     
-                    <div className="android-notice-box" style={{ marginBottom: 0 }}>
+                    <div className="android-notice-box" style={{ marginBottom: "10px" }}>
                       <p className="android-notice-text">
-                        歡迎幫忙測試，請於群組找子堯。
+                        歡迎幫忙測試搶先體驗，若需安裝請私訊工程師。
                       </p>
+                    </div>
+
+                    <div className="android-contact-actions">
+                      <a 
+                        href="https://line.me/ti/p/~nagic1596" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn-contact-line"
+                      >
+                        <span>💬 私訊工程師</span>
+                      </a>
                     </div>
                   </div>
 
@@ -275,10 +286,21 @@ export default function RootLayout({ children }) {
                         <span className="platform-status-badge badge-organizer">主理人專屬</span>
                       </div>
                     </div>
-                    <div className="android-notice-box organizer-notice-box" style={{ marginBottom: 0 }}>
+                    <div className="android-notice-box organizer-notice-box" style={{ marginBottom: "10px" }}>
                       <p className="android-notice-text organizer-notice-text">
-                        如果是團主，需要固定開團 App 也可以於群組找子堯。
+                        如果是團主，需要固定開團 App 也歡迎私訊工程師。
                       </p>
+                    </div>
+
+                    <div className="android-contact-actions">
+                      <a 
+                        href="https://line.me/ti/p/~nagic1596" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn-contact-line"
+                      >
+                        <span>💬 私訊工程師</span>
+                      </a>
                     </div>
                   </div>
                 </div>
