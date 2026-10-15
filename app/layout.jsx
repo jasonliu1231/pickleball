@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.8.0";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.8.1";
 
 export default function RootLayout({ children }) {
   return (
@@ -226,6 +226,7 @@ export default function RootLayout({ children }) {
                         target="_blank" 
                         rel="noopener noreferrer"
                         className="btn-appstore"
+                        style={{ width: "100%", justifyContent: "center" }}
                       >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-1.99.6-2.61 1.34-.55.63-1.03 1.68-.9 2.7 1 .08 2.03-.51 2.59-1.19z"/>
@@ -249,59 +250,38 @@ export default function RootLayout({ children }) {
                     </div>
                   </div>
 
-                  {/* Android 區塊 (測試中) */}
-                  <div className="app-platform-card android-card">
-                    <div className="app-platform-title-row">
-                      <span className="platform-icon">🤖</span>
-                      <div>
-                        <h3 className="platform-title">Android 安卓版本</h3>
-                        <span className="platform-status-badge badge-testing">Google Play 內部測試審核中</span>
+                  {/* Android 測試 ＆ 團主開團專區 (精簡整併) */}
+                  <div className="app-platform-card other-services-card">
+                    <div className="other-services-grid">
+                      <div className="other-service-item">
+                        <div className="other-service-title">
+                          <span className="platform-icon" style={{ fontSize: "18px" }}>🤖</span>
+                          <strong>Android 安卓版</strong>
+                          <span className="platform-status-badge badge-testing">測試中</span>
+                        </div>
+                        <p className="other-service-desc">搶先體驗安裝測試</p>
+                      </div>
+
+                      <div className="other-service-divider" />
+
+                      <div className="other-service-item">
+                        <div className="other-service-title">
+                          <span className="platform-icon" style={{ fontSize: "18px" }}>👑</span>
+                          <strong>團主開團 App</strong>
+                          <span className="platform-status-badge badge-organizer">主理人</span>
+                        </div>
+                        <p className="other-service-desc">固定開團管理系統</p>
                       </div>
                     </div>
-                    
-                    <div className="android-notice-box" style={{ marginBottom: "10px" }}>
-                      <p className="android-notice-text">
-                        歡迎幫忙測試搶先體驗，若需安裝請私訊工程師。
-                      </p>
-                    </div>
 
-                    <div className="android-contact-actions">
-                      <a 
-                        href="https://line.me/ti/p/~nagic1596" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="btn-contact-line"
-                      >
-                        <span>💬 私訊工程師</span>
-                      </a>
-                    </div>
-                  </div>
-
-                  {/* 團主固定開團 App 專區 */}
-                  <div className="app-platform-card organizer-card">
-                    <div className="app-platform-title-row">
-                      <span className="platform-icon">👑</span>
-                      <div>
-                        <h3 className="platform-title">團主固定開團 App</h3>
-                        <span className="platform-status-badge badge-organizer">主理人專屬</span>
-                      </div>
-                    </div>
-                    <div className="android-notice-box organizer-notice-box" style={{ marginBottom: "10px" }}>
-                      <p className="android-notice-text organizer-notice-text">
-                        如果是團主，需要固定開團 App 也歡迎私訊工程師。
-                      </p>
-                    </div>
-
-                    <div className="android-contact-actions">
-                      <a 
-                        href="https://line.me/ti/p/~nagic1596" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="btn-contact-line"
-                      >
-                        <span>💬 私訊工程師</span>
-                      </a>
-                    </div>
+                    <a 
+                      href="https://line.me/ti/p/~nagic1596" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="btn-contact-line btn-full"
+                    >
+                      <span>💬 私訊工程師 (LINE)</span>
+                    </a>
                   </div>
                 </div>
 

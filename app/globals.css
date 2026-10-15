@@ -4142,11 +4142,6 @@ body:has(.modal.active) {
 .organizer-notice-text {
   color: #713f12 !important;
 }
-.android-contact-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .btn-contact-line {
   display: inline-flex;
   align-items: center;
@@ -4166,23 +4161,103 @@ body:has(.modal.active) {
   background: #05b34c;
   transform: translateY(-1px);
 }
-.btn-contact-phone {
-  display: inline-flex;
+.btn-contact-line.btn-full {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13.5px;
+}
+
+/* 精簡整合版：Android 測試 ＆ 團主專區 */
+.app-platform-card.other-services-card {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.other-services-grid {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 9px 14px;
-  background: #ffffff;
-  color: #1e293b;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.other-service-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.other-service-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13.5px;
   font-weight: 800;
-  text-decoration: none;
-  transition: all 0.2s;
+  color: #1e293b;
 }
-.btn-contact-phone:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+.other-service-desc {
+  font-size: 12px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+  padding-left: 24px;
+}
+.other-service-divider {
+  width: 1px;
+  height: 36px;
+  background: #e2e8f0;
+}
+
+@media (max-width: 640px) {
+  /* 手機端隱藏 QR Code，避免佔用大量空間 */
+  .app-qr-row {
+    display: none !important;
+  }
+  /* 手機端特色亮點精簡為單行標籤 */
+  .app-benefits-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+  }
+  .app-benefit-item {
+    padding: 6px 4px !important;
+    gap: 3px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-direction: column !important;
+    text-align: center !important;
+    border-radius: 8px !important;
+  }
+  .app-benefit-item p {
+    display: none !important;
+  }
+  .app-benefit-item strong {
+    font-size: 10.5px !important;
+    white-space: nowrap !important;
+  }
+  .app-benefit-icon {
+    font-size: 15px !important;
+  }
+  /* 手機端其他服務卡片緊湊排列 */
+  .other-services-grid {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .other-service-divider {
+    display: none;
+  }
+  .other-service-item {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .other-service-desc {
+    padding-left: 0;
+  }
 }
 
 .web-fallback-note {
