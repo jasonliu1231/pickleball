@@ -22,7 +22,6 @@ export default function Page() {
             <div className="app-banner-title-line">
               <span className="app-banner-title">「匹克同樂會」App 上架</span>
               <span className="app-banner-badge-ios">🍎 iOS</span>
-              <span className="app-banner-badge-android">🤖 安卓測試</span>
             </div>
           </div>
         </div>
