@@ -4337,20 +4337,27 @@ function initNotificationCenter() {
 
   if (!btn || !modal) return;
 
-  btn.addEventListener("click", () => {
-    modal.classList.add("active");
+  const openModal = () => {
+    modal.classList.add("show", "active");
+    modal.style.display = "flex";
+    document.body.style.overflow = "hidden";
     if (currentSystemMember?.id) {
       loadUserNotifications(currentSystemMember.id);
     }
     renderNotificationList();
-  });
+  };
 
-  closeBtn?.addEventListener("click", () => {
-    modal.classList.remove("active");
-  });
+  const closeModal = () => {
+    modal.classList.remove("show", "active");
+    modal.style.display = "none";
+    document.body.style.overflow = "";
+  };
+
+  btn?.addEventListener("click", openModal);
+  closeBtn?.addEventListener("click", closeModal);
 
   modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.classList.remove("active");
+    if (e.target === modal) closeModal();
   });
 
   markAllBtn?.addEventListener("click", async () => {
@@ -4416,7 +4423,9 @@ function initMobileDrawer() {
     closeDrawer();
     const modal = $("notificationModal");
     if (modal) {
-      modal.classList.add("active");
+      modal.classList.add("show", "active");
+      modal.style.display = "flex";
+      document.body.style.overflow = "hidden";
       if (currentSystemMember?.id) {
         loadUserNotifications(currentSystemMember.id);
       }

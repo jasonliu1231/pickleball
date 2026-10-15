@@ -1891,12 +1891,22 @@ a {
   box-sizing: border-box;
 }
 
-.modal.show {
-  display: flex;
+.modal.show,
+.modal.active {
+  display: flex !important;
+}
+
+#notificationModal {
+  z-index: 12000 !important;
+}
+#notificationModal.show,
+#notificationModal.active {
+  display: flex !important;
 }
 
 body.modal-open,
-body:has(.modal.show) {
+body:has(.modal.show),
+body:has(.modal.active) {
   overflow: hidden !important;
   touch-action: none;
 }
