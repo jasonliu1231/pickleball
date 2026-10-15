@@ -749,6 +749,30 @@ function formatRatingMin(val) {
   return `${num}分 (等同 DUPR ${minDupr} 以上)`;
 }
 
+function formatFeeDisplay(m) {
+  if (!m) return "現場公告";
+  const gFee = m.guest_fee ?? m.fee;
+  const mFee = m.member_fee;
+  if (gFee !== null && gFee !== undefined && gFee !== "") {
+    const gNum = Number(gFee);
+    const isGNum = !isNaN(gNum);
+    if (isGNum && gNum === 0) return "免費 / 場租平分";
+    const gStr = isGNum ? `$${gNum}` : (String(gFee).startsWith("$") ? String(gFee) : `$${gFee}`);
+    if (mFee !== null && mFee !== undefined && mFee !== "") {
+      const mNum = Number(mFee);
+      if (!isNaN(mNum) && mNum !== gNum && mNum > 0) {
+        return `臨打 ${gStr} / 會員 $${mNum}`;
+      }
+    }
+    return `${gStr} / 人`;
+  }
+  if (mFee !== null && mFee !== undefined && mFee !== "") {
+    const mNum = Number(mFee);
+    return !isNaN(mNum) ? `$${mNum} / 人` : String(mFee);
+  }
+  return "現場公告 / 場租平分";
+}
+
 function renderMeetups(meetups) {
   const dateEl = $("selectedDateText");
   const listEl = $("meetupList");
@@ -851,7 +875,7 @@ function renderMeetups(meetups) {
       <div class="info-grid">
         <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}${m.creator_member_id && currentSystemMember && String(m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
-        <div class="info"><strong>費用</strong>${escapeHtml(String(m.guest_fee !== null && m.guest_fee !== undefined ? m.guest_fee : (m.fee || "現場公告")))}</div>
+        <div class="info"><strong>費用</strong>${escapeHtml(formatFeeDisplay(m))}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
         ${waitlistCount > 0 ? `<div class="info"><strong>備取</strong>${waitlistCount} 人</div>` : ""}
         ${m.coach ? `<div class="info"><strong>教練</strong>${escapeHtml(m.coach)}</div>` : ""}
@@ -1065,7 +1089,7 @@ function openSignup(meetup, initialPwd = null) {
   $("modalSubtitle").textContent = `${formatDate(selectedDate)}｜${timeText(meetup.start_time, meetup.end_time)}`;
   
   if ($("modalFeeText")) {
-    $("modalFeeText").textContent = meetup.guest_fee !== null && meetup.guest_fee !== undefined ? meetup.guest_fee : (meetup.fee || "現場公告 / 場租平分");
+    $("modalFeeText").textContent = formatFeeDisplay(meetup);
   }
   if ($("modalAddressText")) {
     const loc = [meetup.city, meetup.address].filter(Boolean).join(" ");
