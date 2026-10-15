@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.5";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.6";
 
 export default function RootLayout({ children }) {
   return (
@@ -249,7 +249,7 @@ export default function RootLayout({ children }) {
                     </div>
                   </div>
 
-                  {/* Android 區塊 (測試中，引導聯絡團主) */}
+                  {/* Android 區塊 (測試中) */}
                   <div className="app-platform-card android-card">
                     <div className="app-platform-title-row">
                       <span className="platform-icon">🤖</span>
@@ -259,28 +259,10 @@ export default function RootLayout({ children }) {
                       </div>
                     </div>
                     
-                    <div className="android-notice-box">
+                    <div className="android-notice-box" style={{ marginBottom: 0 }}>
                       <p className="android-notice-text">
-                        Android 版本目前正在進行 Google Play 官方內部測試與最後審核！
-                        如果您是 Android 安卓手機球友，<strong>若有需要搶先安裝體驗，歡迎直接聯繫團主（Jason）</strong>，我們將優先為您開通測試權限並提供專屬安裝說明！
+                        Android 版本目前正在進行 Google Play 官方內部測試與最後審核，即將全面上架開放下載，敬請期待！
                       </p>
-                    </div>
-
-                    <div className="android-contact-actions">
-                      <a 
-                        href="https://line.me/R/ti/p/%40657kasvh" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="btn-contact-line"
-                      >
-                        <span>💬 聯繫團主 LINE 官方客服</span>
-                      </a>
-                      <a 
-                        href="tel:0988602005"
-                        className="btn-contact-phone"
-                      >
-                        <span>📞 電話聯繫：0988-602-005</span>
-                      </a>
                     </div>
                   </div>
                 </div>

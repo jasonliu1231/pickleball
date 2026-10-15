@@ -1869,7 +1869,7 @@ function updateDailyPulse(meetups) {
 
   if (currentList.length === 0) {
     iconEl.textContent = "💡";
-    textEl.innerHTML = `<b>${escapeHtml(dateFormatted)}</b> 目前尚無開團，歡迎發起今日自揪或點選月曆探索！`;
+    textEl.innerHTML = `今日尚無開團，歡迎發起自揪！`;
     return;
   }
 
@@ -1883,10 +1883,10 @@ function updateDailyPulse(meetups) {
 
   if (totalSlotsLeft > 0) {
     iconEl.textContent = "🔥";
-    textEl.innerHTML = `<b>${escapeHtml(dateFormatted)}</b> 共有 <b>${currentList.length}</b> 場球聚，尚餘 <b>${totalSlotsLeft}</b> 席熱烈報名中！`;
+    textEl.innerHTML = `今日 <b>${currentList.length}</b> 場球聚，尚餘 <b>${totalSlotsLeft}</b> 席！`;
   } else {
     iconEl.textContent = "🎉";
-    textEl.innerHTML = `<b>${escapeHtml(dateFormatted)}</b> 共有 <b>${currentList.length}</b> 場球聚，目前全部額滿（可排備取），或發起自揪！`;
+    textEl.innerHTML = `今日 <b>${currentList.length}</b> 場球聚已額滿！`;
   }
 }
 function escapeHtml(text) {

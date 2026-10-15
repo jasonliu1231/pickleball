@@ -178,18 +178,18 @@ a {
   box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
-/* Daily Pulse Banner (Replaces bulky Hero) */
+/* Daily Pulse Banner (Compact & Slim) */
 .daily-pulse-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
   background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #2563eb 100%);
   color: #fff;
-  border-radius: var(--radius);
-  padding: 12px 20px;
-  margin-bottom: 20px;
-  box-shadow: 0 10px 25px rgba(30, 58, 138, 0.2);
+  border-radius: 12px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 14px rgba(30, 58, 138, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.15);
   animation: fadeIn 0.3s ease-out;
 }
@@ -197,14 +197,26 @@ a {
 .pulse-content {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 14.5px;
+  gap: 8px;
+  font-size: 13.5px;
   font-weight: 800;
   letter-spacing: 0.2px;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pulse-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pulse-icon {
-  font-size: 20px;
+  font-size: 17px;
+  flex-shrink: 0;
   display: inline-block;
   animation: bounce 2s infinite ease-in-out;
 }
@@ -212,18 +224,19 @@ a {
 .btn-pickup-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
   color: #0f172a;
   font-weight: 900;
-  font-size: 13.5px;
-  padding: 8px 16px;
+  font-size: 12px;
+  padding: 5px 12px;
   border-radius: 99px;
   border: none;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(234, 179, 8, 0.35);
+  box-shadow: 0 2px 8px rgba(234, 179, 8, 0.3);
   transition: all 0.2s ease;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .btn-pickup-trigger:hover {
@@ -2143,23 +2156,24 @@ body:has(.modal.active) {
   }
 
   .daily-pulse-banner {
-    padding: 10px 14px;
-    gap: 8px;
-    margin-bottom: 16px;
+    padding: 6px 10px;
+    gap: 6px;
+    margin-bottom: 6px;
+    border-radius: 10px;
   }
 
   .pulse-content {
-    font-size: 13px;
+    font-size: 12px;
     gap: 6px;
   }
 
   .pulse-icon {
-    font-size: 17px;
+    font-size: 15px;
   }
 
   .btn-pickup-trigger {
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 4px 8px;
+    font-size: 11px;
   }
 
   .quiz-home-banner {
@@ -3825,35 +3839,35 @@ body:has(.modal.active) {
   border-radius: 999px;
 }
 
-/* Homepage Banner */
+/* Homepage Banner (Compact & Slim) */
 .app-download-home-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 18px;
+  gap: 10px;
+  padding: 8px 14px;
   background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%);
-  border-radius: 16px;
+  border-radius: 12px;
   color: #ffffff;
-  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.25);
-  margin-bottom: 12px;
+  box-shadow: 0 3px 12px rgba(37, 99, 235, 0.2);
+  margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
 .app-download-home-banner:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(37, 99, 235, 0.3);
 }
 .app-banner-main {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex: 1;
   min-width: 0;
 }
 .app-banner-icon {
-  font-size: 26px;
+  font-size: 18px;
   line-height: 1;
   flex-shrink: 0;
 }
@@ -3866,10 +3880,9 @@ body:has(.modal.active) {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 2px;
 }
 .app-banner-title {
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 900;
   color: #ffffff;
   letter-spacing: 0.2px;
@@ -3877,60 +3890,57 @@ body:has(.modal.active) {
 .app-banner-badge-ios {
   background: #10b981;
   color: #ffffff;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 900;
-  padding: 2px 7px;
+  padding: 1px 6px;
   border-radius: 999px;
 }
 .app-banner-badge-android {
   background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 800;
-  padding: 2px 7px;
+  padding: 1px 6px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.3);
-}
-.app-banner-desc {
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.85);
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .app-banner-btn {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   background: #ffffff;
   color: #1e3a8a;
-  padding: 7px 14px;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 11.5px;
   font-weight: 900;
   flex-shrink: 0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   transition: all 0.2s ease;
 }
 .app-download-home-banner:hover .app-banner-btn {
   background: #f8fafc;
-  transform: translateX(2px);
+  transform: translateX(1px);
 }
 
 @media (max-width: 640px) {
   .app-download-home-banner {
-    padding: 10px 14px;
+    padding: 6px 10px;
+    gap: 6px;
+    margin-bottom: 6px;
+    border-radius: 10px;
   }
-  .app-banner-desc {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    white-space: normal;
+  .app-banner-title {
+    font-size: 12px;
+  }
+  .app-banner-badge-ios,
+  .app-banner-badge-android {
+    font-size: 9.5px;
+    padding: 1px 5px;
   }
   .app-banner-btn {
-    padding: 6px 10px;
-    font-size: 12px;
+    padding: 3px 8px;
+    font-size: 11px;
   }
   .header-app-btn .header-app-tag {
     display: none;

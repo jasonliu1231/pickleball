@@ -3,35 +3,32 @@
 export default function Page() {
   return (
     <>
-      {/* Slim Daily Pulse Banner (Replaces bulky Hero) */}
+      {/* Slim Daily Pulse Banner */}
       <div className="daily-pulse-banner" id="dailyPulseBanner">
         <div className="pulse-content">
           <span className="pulse-icon" id="pulseIcon">🎾</span>
-          <span className="pulse-text" id="pulseText">正在載入今日球團概況...</span>
+          <span className="pulse-text" id="pulseText">今日球團載入中...</span>
         </div>
         <button className="btn-pickup-trigger" id="openCreatePickupBtn">
-          <span>➕</span> 我要自揪
+          <span>➕</span> 自揪
         </button>
       </div>
 
-      {/* App Download Recommendation Banner */}
+      {/* App Download Recommendation Banner (Compact & Slim) */}
       <div className="app-download-home-banner" id="openAppDownloadBanner">
         <div className="app-banner-main">
           <span className="app-banner-icon">📱</span>
           <div className="app-banner-text">
             <div className="app-banner-title-line">
-              <span className="app-banner-title">「匹克同樂會」App 正式上線！</span>
-              <span className="app-banner-badge-ios">🍎 iOS 官方審核通過</span>
-              <span className="app-banner-badge-android">🤖 Android 測試中</span>
-            </div>
-            <div className="app-banner-desc">
-              享有開賽前 2 小時推播提醒、候補即時推播與 1 鍵快速報名！點此查看下載說明
+              <span className="app-banner-title">「匹克同樂會」App 上架</span>
+              <span className="app-banner-badge-ios">🍎 iOS</span>
+              <span className="app-banner-badge-android">🤖 安卓測試</span>
             </div>
           </div>
         </div>
         <div className="app-banner-btn">
-          <span className="app-btn-text">下載說明</span>
-          <span className="app-btn-arrow">→</span>
+          <span className="app-btn-text">下載</span>
+          <span className="app-btn-arrow">›</span>
         </div>
       </div>
 
