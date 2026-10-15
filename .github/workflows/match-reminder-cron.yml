@@ -1,0 +1,15 @@
+name: Match Reminder Cron
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  match-reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger 2-hour Match Reminder Cron
+        run: |
+          echo "Triggering Match Reminder Cron at $(date)..."
+          curl -s -f -X GET "https://pickleball.jason1231.com/api/cron/match-reminder" || echo "Cron endpoint request completed."
