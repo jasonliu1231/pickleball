@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.7";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.7.8";
 
 export default function RootLayout({ children }) {
   return (
@@ -261,7 +261,7 @@ export default function RootLayout({ children }) {
                     
                     <div className="android-notice-box" style={{ marginBottom: 0 }}>
                       <p className="android-notice-text">
-                        Android 版本目前正在進行 Google Play 官方內部測試與最後審核，即將全面上架開放下載，敬請期待！
+                        歡迎幫忙測試，請於群組找子堯。
                       </p>
                     </div>
                   </div>
