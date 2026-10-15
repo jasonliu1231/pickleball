@@ -4,13 +4,28 @@ import { supabase, getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId");
-
-  if (!userId) {
-    return Response.json({ ok: false, error: "Missing userId" }, { status: 400 });
-  }
+  let userId = searchParams.get("userId");
+  const phone = searchParams.get("phone");
 
   const client = getSupabaseAdmin() || supabase;
+
+  if (!userId && phone) {
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone) {
+      const { data: u } = await client
+        .from("users")
+        .select("id")
+        .eq("phone", cleanPhone)
+        .maybeSingle();
+      if (u?.id) {
+        userId = u.id;
+      }
+    }
+  }
+
+  if (!userId) {
+    return Response.json({ ok: false, error: "Missing userId or valid phone" }, { status: 400 });
+  }
 
   try {
     const { data: notifications, error } = await client
