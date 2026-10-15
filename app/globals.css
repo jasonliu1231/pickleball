@@ -4207,6 +4207,21 @@ body:has(.modal.active) {
   height: 36px;
   background: #e2e8f0;
 }
+.other-service-lead {
+  font-size: 12.5px;
+  color: #475569;
+  margin: 0 0 10px 0;
+  text-align: center;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.other-service-disclaimer {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 8px 0 0 0;
+  text-align: center;
+  line-height: 1.4;
+}
 
 @media (max-width: 640px) {
   /* 手機端隱藏 QR Code，避免佔用大量空間 */

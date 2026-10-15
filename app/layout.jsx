@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.8.1";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.8.2";
 
 export default function RootLayout({ children }) {
   return (
@@ -274,6 +274,10 @@ export default function RootLayout({ children }) {
                       </div>
                     </div>
 
+                    <p className="other-service-lead">
+                      如果需要請私訊工程師洽詢。
+                    </p>
+
                     <a 
                       href="https://line.me/ti/p/~nagic1596" 
                       target="_blank" 
@@ -282,6 +286,10 @@ export default function RootLayout({ children }) {
                     >
                       <span>💬 私訊工程師 (LINE)</span>
                     </a>
+
+                    <p className="other-service-disclaimer">
+                      ※ 免責聲明：本系統純屬球友社群交流推廣，完全免費、不收取任何費用。
+                    </p>
                   </div>
                 </div>
 
