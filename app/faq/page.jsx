@@ -74,7 +74,49 @@ const FAQ_DATA = [
           💡 <strong>費用說明：</strong>LINE 推播通知由官方團主負擔費用，因此<strong>僅限「團主發起」之場次</strong>享有自動推播；「球友自發團」系統仍會依序自動遞補，但為節省費用不會發送 LINE 推播，請球友自行至網站/App 查看狀態。
         </div>
 
-        <div style={{ marginTop: "16px", display: "flex", justifyContent: "center" }}>
+        {/* 📢 LINE 推送成本考量與 App 推播轉型說明 */}
+        <div style={{
+          marginTop: "16px",
+          background: "linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)",
+          border: "1.5px solid #bfdbfe",
+          borderRadius: "16px",
+          padding: "16px 18px",
+          boxShadow: "0 4px 12px rgba(37, 99, 235, 0.06)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <span style={{ fontSize: "20px" }}>📢</span>
+            <strong style={{ fontSize: "15px", color: "var(--primary-dark, #1e3a8a)" }}>
+              【重要說明】推播服務升級與手機 App 全面接軌規劃
+            </strong>
+          </div>
+          <p style={{ fontSize: "13.5px", color: "var(--sub, #475569)", lineHeight: "1.65", margin: 0 }}>
+            因 <strong>LINE 官方帳號訊息推送成本考量</strong>（採每則訊息計費制），為使系統能長期維持免費並提供更即時的通知服務，<strong>預計未來將逐步全面轉為使用「手機 App 原生推播」為主</strong>。建議球友們儘早下載「匹克同樂會」App，即可享受完全免費、即時彈窗通知且不漏接的完整體驗！
+          </p>
+          <div style={{ marginTop: "12px", display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="open-app-modal-btn"
+              style={{
+                background: "var(--primary, #2563eb)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "10px",
+                padding: "8px 16px",
+                fontSize: "13px",
+                fontWeight: "800",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 8px rgba(37, 99, 235, 0.2)"
+              }}
+            >
+              <span>📱</span> 前往下載手機 App (iOS / Android) →
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "18px", display: "flex", justifyContent: "center" }}>
           <a
             href="https://line.me/R/ti/p/%40657kasvh"
             target="_blank"
@@ -95,6 +137,75 @@ const FAQ_DATA = [
           >
             ➕ 點我加入官方 LINE 好友
           </a>
+        </div>
+      </div>
+    ),
+  },
+
+  {
+    id: "line_to_app_push_notice",
+    category: "line",
+    catBadge: "📢 推播政策",
+    title: "為什麼未來預計轉為使用手機 App 推播？（LINE 成本與服務升級說明）",
+    tags: ["推播", "APP", "LINE", "成本", "通知", "官方帳號", "升級"],
+    renderContent: () => (
+      <div>
+        <p style={{ marginBottom: "14px", lineHeight: "1.65" }}>
+          許多球友常詢問：「為什麼未來預計轉為使用 App 推播？」「為什麼自揪團沒有每場都發 LINE？」以下為平台的整體規劃與考量：
+        </p>
+
+        <div className="faq-step-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+          <div className="faq-step-card">
+            <span className="faq-step-pill" style={{ background: "#fee2e2", color: "#991b1b" }}>考量 1</span>
+            <div className="faq-step-title" style={{ color: "#991b1b" }}>LINE 官方訊息成本考量</div>
+            <div className="faq-step-desc">
+              LINE 官方帳號 API 是依照發送則數向團長與系統收取費用。隨著球友數快速成長，若每場球聚的報名、提醒與遞補皆透過 LINE 推送，將產生龐大負擔。
+            </div>
+          </div>
+
+          <div className="faq-step-card">
+            <span className="faq-step-pill" style={{ background: "#dcfce7", color: "#166534" }}>優勢 2</span>
+            <div className="faq-step-title" style={{ color: "#166534" }}>App 推播零成本且更即時</div>
+            <div className="faq-step-desc">
+              專屬手機 App（iOS / Android）原生推播完全不受則數與額度限制，能第一時間發送開賽前 2 小時提醒、候補秒轉正通知與扣點帳單收據。
+            </div>
+          </div>
+
+          <div className="faq-step-card">
+            <span className="faq-step-pill" style={{ background: "#e0e7ff", color: "#3730a3" }}>優勢 3</span>
+            <div className="faq-step-title" style={{ color: "#3730a3" }}>內建通知中心歷史紀錄</div>
+            <div className="faq-step-desc">
+              App 與網頁版均內建小鈴鐺 🔔 通知中心，所有的候補成功、扣款明細與球聚提醒都會完整保存，不用擔心聊天室被洗版找不到資訊。
+            </div>
+          </div>
+        </div>
+
+        <div className="faq-warning-box" style={{ marginTop: "16px", background: "#f0fdf4", borderColor: "#86efac", color: "#166534" }}>
+          ✅ <strong>推播服務升級方向：</strong>目前系統仍為官方常態團提供 LINE 遞補與交易推播，但基於成本與穩定性考量，<strong>預計未來會逐步全面轉為使用手機 App 推播</strong>。<br />
+          👉 <strong>誠摯推薦所有球友下載「匹克同樂會」App</strong>，掌握最即時的活動與席位通知！
+        </div>
+
+        <div style={{ marginTop: "16px", display: "flex", justifyContent: "center" }}>
+          <button
+            type="button"
+            className="open-app-modal-btn"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              backgroundColor: "var(--primary, #2563eb)",
+              color: "#fff",
+              padding: "12px 28px",
+              borderRadius: "14px",
+              fontSize: "15px",
+              fontWeight: "900",
+              border: "none",
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)"
+            }}
+          >
+            📱 前往查看 App 下載資訊 (iOS / Android)
+          </button>
         </div>
       </div>
     ),

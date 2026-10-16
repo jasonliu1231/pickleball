@@ -4917,6 +4917,12 @@ function initAppDownloadModal() {
   footerBtn?.addEventListener("click", openModal);
   closeBtn?.addEventListener("click", closeModal);
 
+  document.addEventListener("click", (e) => {
+    if (e.target.closest(".open-app-modal-btn")) {
+      openModal(e);
+    }
+  });
+
   modal.addEventListener("click", (e) => {
     if (e.target === modal) closeModal();
   });
