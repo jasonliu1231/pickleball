@@ -187,20 +187,17 @@ export default function Page() {
           <div className="modal-head">
             <div>
               <h2 className="section-title" style={{ fontSize: "24px" }}>預約管理</h2>
-              <p className="muted" id="cancelSubtitle">輸入報名手機即可進行查詢、取消預約或確認出席轉正。</p>
+              <p className="muted" id="cancelSubtitle">輸入報名或會員手機即可進行查詢、取消預約或自主請假。</p>
             </div>
             <button className="close-btn" id="closeCancelModal">×</button>
           </div>
           <form className="form" id="cancelForm">
-            <label>報名手機
+            <label>報名或會員手機
               <input id="cancelPhone" placeholder="0912345678" inputMode="numeric" autoComplete="tel" />
-              <button className="btn-primary" id="queryCancelBtn" type="button" style={{ marginTop: "8px" }}>查詢預約</button>
+              <button className="btn-primary" id="queryCancelBtn" type="button" style={{ marginTop: "8px" }}>查詢紀錄</button>
             </label>
             <div id="cancelFormSecondStep" style={{ display: "none", marginTop: "16px" }}>
               <p id="queryResultText" style={{ fontWeight: "bold", color: "#0d9488", marginBottom: "12px", fontSize: "15px" }}></p>
-              <label style={{ display: "none", marginBottom: "12px" }}>取消人數
-                <select id="cancelPeopleCount"></select>
-              </label>
               <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
                 <button className="btn-danger" id="cancelSubmitBtn" type="submit" style={{ flex: 1, margin: 0 }}>取消預約</button>
                 <button className="btn-primary" id="guestPromoteBtn" type="button" style={{ flex: 1, margin: 0, display: "none", backgroundColor: "var(--accent)", borderColor: "var(--accent)" }}>確認出席轉正</button>

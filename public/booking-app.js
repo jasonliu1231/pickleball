@@ -626,7 +626,7 @@ async function fetchRoster(meetupId, dateStr) {
         .maybeSingle(),
       client
         .from("member_meetup_subscriptions")
-        .select("organizer_member_id, organizer_member:organizer_members(id, user_id, status, created_at, user:users(id, name, phone, is_beginner, skill_level, rating))")
+        .select("organizer_member_id, organizer_member:organizer_members(id, user_id, note, status, created_at, user:users(id, name, phone, is_beginner, skill_level, rating))")
         .eq("meetup_id", meetupId)
     ]);
 
@@ -652,7 +652,7 @@ async function fetchRoster(meetupId, dateStr) {
         rating: om.user?.rating || 1000,
         people_count: 1,
         status: "confirmed",
-        note: "",
+        note: om.note || "",
         created_at: om.created_at || null,
         source: "member"
       });
@@ -1433,16 +1433,19 @@ async function handleQueryCancel() {
   clearMessage($("cancelMessage"));
   $("queryCancelBtn").disabled = true;
   $("queryCancelBtn").textContent = "查詢中...";
+  setMessage($("cancelMessage"), "");
+  window._pendingCancelTarget = null;
+
   try {
     const { data: user } = await client
       .from("users")
-      .select("id, name")
+      .select("id, name, phone")
       .eq("phone", phone)
       .maybeSingle();
 
     if (!user) {
       $("cancelFormSecondStep").style.display = "none";
-      return setMessage($("cancelMessage"), "找不到該手機的預約紀錄。", false);
+      return setMessage($("cancelMessage"), "找不到該手機的預約或會員紀錄。", false);
     }
 
     const { data: session } = await client
@@ -1452,52 +1455,77 @@ async function handleQueryCancel() {
       .eq("session_date", selectedDate)
       .maybeSingle();
 
-    if (!session) {
-      $("cancelFormSecondStep").style.display = "none";
-      return setMessage($("cancelMessage"), "查無該場次預約紀錄。", false);
+    let part = null;
+    if (session) {
+      const { data: pData, error } = await client
+        .from("session_participants")
+        .select("id, people_count, status, note")
+        .eq("session_id", session.id)
+        .eq("user_id", user.id)
+        .in("status", ["confirmed", "waitlist", "absent"])
+        .maybeSingle();
+
+      if (error) throw error;
+      part = pData;
     }
 
-    const { data, error } = await client
-      .from("session_participants")
-      .select("id, people_count, status")
-      .eq("session_id", session.id)
-      .eq("user_id", user.id)
-      .in("status", ["confirmed", "waitlist"])
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) {
-      $("cancelFormSecondStep").style.display = "none";
-      return setMessage($("cancelMessage"), "找不到該手機的預約紀錄。", false);
-    }
-
-    const select = $("cancelPeopleCount");
-    const count = Number(data.people_count || 1);
-    if (select) {
-      select.innerHTML = "";
-      for (let i = 1; i <= count; i++) {
-        const opt = document.createElement("option");
-        opt.value = String(i);
-        opt.textContent = `${i} 人`;
-        if (i === 1) opt.selected = true;
-        select.appendChild(opt);
+    if (part) {
+      if (part.status === "absent") {
+        $("cancelFormSecondStep").style.display = "none";
+        return setMessage($("cancelMessage"), `查得紀錄：${user.name || "球友"} 此場次先前已完成請假。`, true);
       }
 
-      const cancelPeopleLabel = select.closest("label");
-      if (cancelPeopleLabel) {
-        cancelPeopleLabel.style.display = count > 1 ? "grid" : "none";
-      }
+      const statusText = part.status === "waitlist" ? "備取" : "正取";
+      window._pendingCancelTarget = {
+        type: "participant",
+        id: part.id,
+        status: part.status,
+        session_id: session.id,
+        user_id: user.id,
+        name: user.name || "球友",
+        phone: user.phone
+      };
+
+      $("queryResultText").textContent = `查得預約：${user.name || "球友"} (${statusText} 1人)`;
+      $("cancelSubmitBtn").textContent = "確認取消預約";
+      $("cancelFormSecondStep").style.display = "block";
+      return;
     }
 
-    const statusText = data.status === "waitlist" ? "備取" : "正取";
-    $("queryResultText").textContent = `查得預約：${user.name || "球友"} (${statusText} ${count}人)`;
-    
-    $("cancelFormSecondStep").style.display = "block";
+    // 檢查是否為固定會員 (member_meetup_subscriptions)
+    const { data: subData } = await client
+      .from("member_meetup_subscriptions")
+      .select("organizer_member_id, organizer_member:organizer_members(id, user_id, status, user:users(id, name, phone))")
+      .eq("meetup_id", currentMeetup.id);
+
+    const activeSub = (subData || []).find(s => {
+      const om = s.organizer_member;
+      if (!om || om.status !== "active") return false;
+      return String(om.user_id) === String(user.id) || String(om.user?.id) === String(user.id);
+    });
+
+    if (activeSub) {
+      window._pendingCancelTarget = {
+        type: "member",
+        session_id: session?.id || null,
+        user_id: user.id,
+        name: user.name || "固定會員",
+        phone: user.phone
+      };
+
+      $("queryResultText").textContent = `查得身分：${user.name || "固定會員"} (固定會員 / 正取 1人)`;
+      $("cancelSubmitBtn").textContent = "確認請假（釋出名額）";
+      $("cancelFormSecondStep").style.display = "block";
+      return;
+    }
+
+    $("cancelFormSecondStep").style.display = "none";
+    return setMessage($("cancelMessage"), "找不到該手機在此場次的有效預約或會員紀錄。", false);
   } catch (err) {
     setMessage($("cancelMessage"), err.message || "查詢失敗，請稍後再試。", false);
   } finally {
     $("queryCancelBtn").disabled = false;
-    $("queryCancelBtn").textContent = "查詢預約";
+    $("queryCancelBtn").textContent = "查詢紀錄";
   }
 }
 
@@ -1738,53 +1766,72 @@ async function handleCancel(e) {
   const blockCheck = isCancelBlocked(currentMeetup, selectedDate);
   if (blockCheck.blocked) return setMessage($("cancelMessage"), blockCheck.reason, false);
   const phone = cleanPhone($("cancelPhone").value);
-  const cancelPeopleCount = $("cancelPeopleCount") ? (parseInt($("cancelPeopleCount").value) || 1) : 1;
   if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入報名或會員手機，例如 0912345678。", false);
+
+  const target = window._pendingCancelTarget;
+  if (!target) return setMessage($("cancelMessage"), "請先點擊「查詢紀錄」確認名單後再送出。", false);
+
+  const isMember = target.type === "member";
   $("cancelSubmitBtn").disabled = true;
-  $("cancelSubmitBtn").textContent = "取消中...";
+  $("cancelSubmitBtn").textContent = isMember ? "請假處理中..." : "取消處理中...";
+
   try {
-    const { data: user } = await client
-      .from("users")
-      .select("id")
-      .eq("phone", phone)
-      .maybeSingle();
-    if (!user) throw new Error("找不到該手機的預約紀錄。");
+    let sessionId = target.session_id;
+    if (!sessionId) {
+      const { data: existingSession } = await client
+        .from("sessions")
+        .select("id")
+        .eq("meetup_id", currentMeetup.id)
+        .eq("session_date", selectedDate)
+        .maybeSingle();
 
-    const { data: session } = await client
-      .from("sessions")
-      .select("id")
-      .eq("meetup_id", currentMeetup.id)
-      .eq("session_date", selectedDate)
-      .maybeSingle();
-    if (!session) throw new Error("查無該場次紀錄。");
-
-    const { data: part } = await client
-      .from("session_participants")
-      .select("id, people_count, status")
-      .eq("session_id", session.id)
-      .eq("user_id", user.id)
-      .in("status", ["confirmed", "waitlist"])
-      .maybeSingle();
-    if (!part) throw new Error("找不到有效的預約紀錄。");
-
-    if (cancelPeopleCount && cancelPeopleCount < part.people_count) {
-      const newCount = part.people_count - cancelPeopleCount;
-      await client
-        .from("session_participants")
-        .update({ people_count: newCount, updated_at: new Date().toISOString() })
-        .eq("id", part.id);
-    } else {
-      await client
-        .from("session_participants")
-        .update({ status: "cancelled", updated_at: new Date().toISOString() })
-        .eq("id", part.id);
+      if (existingSession) {
+        sessionId = existingSession.id;
+      } else {
+        const { data: newSession, error: sErr } = await client
+          .from("sessions")
+          .insert({
+            meetup_id: currentMeetup.id,
+            session_date: selectedDate,
+            status: "open"
+          })
+          .select("id")
+          .single();
+        if (sErr) throw sErr;
+        sessionId = newSession.id;
+      }
     }
 
-    if (part.status === "confirmed") {
+    if (isMember) {
+      // 會員請假：在 session_participants upsert status = 'absent'
+      const { error: absErr } = await client
+        .from("session_participants")
+        .upsert({
+          session_id: sessionId,
+          user_id: target.user_id,
+          status: "absent",
+          people_count: 1,
+          note: "會員線上自主請假",
+          updated_at: new Date().toISOString()
+        }, { onConflict: "session_id,user_id" });
+
+      if (absErr) throw absErr;
+    } else {
+      // 一般報名：整筆取消 (1人)
+      const { error: cancelErr } = await client
+        .from("session_participants")
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
+        .eq("id", target.id);
+
+      if (cancelErr) throw cancelErr;
+    }
+
+    // 若為正取取消（會員請假 或 一般正取球友取消），自動遞補第一位候補並發送通知
+    if (isMember || target.status === "confirmed") {
       const { data: waitlist } = await client
         .from("session_participants")
-        .select("id")
-        .eq("session_id", session.id)
+        .select("id, user_id, user:users(id, name, phone)")
+        .eq("session_id", sessionId)
         .eq("status", "waitlist")
         .order("created_at", { ascending: true })
         .limit(1);
@@ -1794,26 +1841,44 @@ async function handleCancel(e) {
           .from("session_participants")
           .update({ status: "confirmed", updated_at: new Date().toISOString() })
           .eq("id", waitlist[0].id);
+
+        const promotedUser = waitlist[0].user;
+        if (promotedUser?.phone) {
+          fetch("/api/waitlist-notification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              meetup_id: currentMeetup.id,
+              phone: promotedUser.phone,
+              nickname: promotedUser.name || "球友",
+              reservation_date: selectedDate
+            })
+          }).catch(err => console.warn("notify waitlist error:", err));
+        }
       }
     }
 
-    setMessage($("cancelMessage"), "已成功取消預約，名額已釋出。", true);
+    const successMsg = isMember ? "已成功完成會員請假，名額已釋出。" : "已成功取消預約，名額已釋出。";
+    setMessage($("cancelMessage"), successMsg, true);
+
     notifyCancelSignup({
       meetup: currentMeetup,
       meetupId: currentMeetup.id,
       reservationDate: selectedDate,
-      nickname: currentSystemMember?.nickname || phone,
+      nickname: target.name || phone,
       meetupName: currentMeetup.name
     });
+
     $("cancelFormSecondStep").style.display = "none";
     $("queryResultText").textContent = "";
+    window._pendingCancelTarget = null;
     clearRosterCache();
     await refreshMeetupListOnly();
   } catch (err) {
-    setMessage($("cancelMessage"), err.message || "取消失敗，請稍後再試。", false);
+    setMessage($("cancelMessage"), err.message || "處理失敗，請稍後再試。", false);
   } finally {
     $("cancelSubmitBtn").disabled = false;
-    $("cancelSubmitBtn").textContent = "確認取消";
+    $("cancelSubmitBtn").textContent = isMember ? "確認請假（釋出名額）" : "確認取消預約";
   }
 }
 
