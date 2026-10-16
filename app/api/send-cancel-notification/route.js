@@ -3,9 +3,44 @@ export const runtime = "nodejs";
 import { supabase } from "@/lib/supabase";
 import { normalizeTokens, fetchTokensForMeetup, sendExpoPush } from "@/lib/line";
 
+// 記憶體中短期防重 (8 秒內相同開團、日期與球友名稱不重複送推播)
+const recentCancelRequests = new Map();
+const DEBOUNCE_WINDOW_MS = 8000;
+
+function cleanupOldRequests() {
+  const now = Date.now();
+  for (const [key, timestamp] of recentCancelRequests.entries()) {
+    if (now - timestamp > DEBOUNCE_WINDOW_MS * 2) {
+      recentCancelRequests.delete(key);
+    }
+  }
+}
+
 export async function POST(request) {
   try {
     const body = await request.json();
+    const meetupId = body.meetupId || "";
+    const reservationDate = body.reservationDate || "";
+    const nickname = body.nickname || "球友";
+
+    // 檢查防重快取
+    const dedupKey = `${meetupId}_${reservationDate}_${nickname}`;
+    const now = Date.now();
+    if (dedupKey !== "__球友" && recentCancelRequests.has(dedupKey)) {
+      const prevTime = recentCancelRequests.get(dedupKey);
+      if (now - prevTime < DEBOUNCE_WINDOW_MS) {
+        return Response.json({
+          ok: true,
+          debounced: true,
+          message: "取消通知短時間內已發送過，略過重複推播",
+        });
+      }
+    }
+    if (dedupKey !== "__球友") {
+      recentCancelRequests.set(dedupKey, now);
+      cleanupOldRequests();
+    }
+
     let pushTokens = normalizeTokens(body.pushTokens);
     let resolvedMeetupName = body.meetupName;
 
@@ -20,8 +55,6 @@ export async function POST(request) {
     }
 
     const meetupName = resolvedMeetupName || body.meetupName || "開團活動";
-    const nickname = body.nickname || "球友";
-    const reservationDate = body.reservationDate || "";
     let formattedDate = "";
     if (reservationDate) {
       const parts = reservationDate.split("-");
