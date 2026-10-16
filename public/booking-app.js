@@ -474,11 +474,11 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
       const [sessionRes, meetupRes, subsRes] = await Promise.all([
         client
           .from("sessions")
-          .select("*, meetup:meetups(*, organizer:organizers(name, line_id, phone)), participants:session_participants(user_id, status)")
+          .select("*, meetup:meetups(*, organizer:organizers(name, line_id, phone), creator:users!creator_user_id(name, phone)), participants:session_participants(user_id, status)")
           .eq("session_date", dateStr),
         client
           .from("meetups")
-          .select("*, organizer:organizers(name, line_id, phone)")
+          .select("*, organizer:organizers(name, line_id, phone), creator:users!creator_user_id(name, phone)")
           .eq("is_active", true)
           .order("start_time", { ascending: true }),
         client
@@ -539,7 +539,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
           over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
           member_count: memberCount,
           confirmed_signup_count: signupConfirmed,
-          organizer_name: m.organizer?.name || "未知主辦"
+          organizer_name: m.organizer?.name || m.creator?.name || (m.creator_user_id ? "球友自發" : "未知主辦")
         });
       });
 
@@ -571,7 +571,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
             over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
             member_count: memberCount,
             confirmed_signup_count: 0,
-            organizer_name: m.organizer?.name || "未知主辦"
+            organizer_name: m.organizer?.name || m.creator?.name || (m.creator_user_id ? "球友自發" : "未知主辦")
           });
         }
       });
@@ -858,7 +858,7 @@ function renderMeetups(meetups) {
       <div class="meetup-top">
         <div>
           <h3 class="meetup-title">
-            ${m.creator_member_id ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
+            ${(m.creator_user_id || m.creator_member_id) ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
             ${(m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
             ${escapeHtml(m.name || "未命名活動")}
           </h3>
@@ -873,7 +873,7 @@ function renderMeetups(meetups) {
         <span class="badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="info-grid">
-        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}${m.creator_member_id && currentSystemMember && String(m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
+        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(formatFeeDisplay(m))}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
@@ -1214,14 +1214,14 @@ function openEditPickupModal(m) {
   initPickupModal();
   if ($("editPickupId")) $("editPickupId").value = m.id;
   if ($("editPickupName")) $("editPickupName").value = m.name || "";
-  if ($("editPickupDate")) $("editPickupDate").value = m.start_date || "";
+  if ($("editPickupDate")) $("editPickupDate").value = m.start_date || m.one_off_date || "";
   if ($("editPickupCity")) $("editPickupCity").value = m.city || "台中市";
   if ($("editPickupStartTime")) $("editPickupStartTime").value = m.start_time ? m.start_time.slice(0, 5) : "14:00";
   if ($("editPickupEndTime")) $("editPickupEndTime").value = m.end_time ? m.end_time.slice(0, 5) : "16:00";
   if ($("editPickupAddress")) $("editPickupAddress").value = m.address || "";
   if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = m.street_address || "";
   if ($("editPickupCapacity")) $("editPickupCapacity").value = m.capacity || 4;
-  if ($("editPickupFee")) $("editPickupFee").value = m.fee || "場租平分";
+  if ($("editPickupFee")) $("editPickupFee").value = m.fee || m.guest_fee || "場租平分";
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
@@ -1261,23 +1261,27 @@ async function handleUpdatePickup(e) {
   clearMessage($("editPickupMessage"));
 
   try {
-    const { data, error } = await client.rpc("update_member_pickup", {
-      p_creator_member_id: currentSystemMember.id,
-      p_meetup_id: Number(meetupId),
-      p_name: name,
-      p_city: city,
-      p_address: address,
-      p_street_address: streetAddress,
-      p_start_time: startTime,
-      p_end_time: endTime,
-      p_capacity: capacity,
-      p_fee: fee,
-      p_notes: notes,
-      p_join_password: joinPassword
+    const res = await fetch("/api/update-member-pickup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        creator_user_id: currentSystemMember.id,
+        meetup_id: meetupId,
+        name,
+        city,
+        address,
+        street_address: streetAddress,
+        start_time: startTime,
+        end_time: endTime,
+        capacity,
+        fee,
+        notes,
+        join_password: joinPassword
+      })
     });
 
-    if (error) throw error;
-    if (data && !data.ok) {
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
       throw new Error(data.error || "儲存修改失敗");
     }
 
@@ -1286,6 +1290,7 @@ async function handleUpdatePickup(e) {
       closeEditPickupModal();
       clearRosterCache();
       await loadAvailableWeekdays(true);
+      await loadMeetupsByDate(selectedDate);
       if ($("memberDashboard")) loadMemberDashboard();
     }, 1000);
   } catch (err) {
@@ -1370,23 +1375,27 @@ async function handleCreatePickup(e) {
   clearMessage($("pickupFormMessage"));
 
   try {
-    const { data, error } = await client.rpc("create_member_pickup", {
-      p_creator_member_id: currentSystemMember.id,
-      p_name: name,
-      p_city: city,
-      p_address: address,
-      p_street_address: streetAddress,
-      p_date: date,
-      p_start_time: startTime,
-      p_end_time: endTime,
-      p_capacity: capacity,
-      p_fee: fee,
-      p_notes: notes,
-      p_join_password: joinPassword
+    const res = await fetch("/api/create-member-pickup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        creator_user_id: currentSystemMember.id,
+        name,
+        city,
+        address,
+        street_address: streetAddress,
+        date,
+        start_time: startTime,
+        end_time: endTime,
+        capacity,
+        fee,
+        notes,
+        join_password: joinPassword
+      })
     });
 
-    if (error) throw error;
-    if (data && !data.ok) {
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
       throw new Error(data.error || "發起揪團失敗");
     }
 
@@ -1411,6 +1420,7 @@ async function handleCreatePickup(e) {
       clearRosterCache();
       await loadAvailableWeekdays(true);
       await refreshAll();
+      if ($("memberDashboard")) loadMemberDashboard();
     }, 1200);
   } catch (err) {
     console.error("發起自揪失敗:", err);
@@ -3136,7 +3146,65 @@ async function loadMemberDashboard() {
     }
   })();
 
-  const pPickups = Promise.resolve({ myMeetups: [], signupsByMeetup: {} });
+  const pPickups = (async () => {
+    if (!currentSystemMember?.id) return { myMeetups: [], signupsByMeetup: {} };
+    try {
+      const { data, error } = await client
+        .from("meetups")
+        .select(`
+          *,
+          sessions (
+            id,
+            session_date,
+            status,
+            session_participants (
+              id,
+              people_count,
+              status,
+              user:users (
+                id,
+                name,
+                phone
+              )
+            )
+          )
+        `)
+        .eq("creator_user_id", currentSystemMember.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.warn("pPickups error:", error);
+        return { myMeetups: [], signupsByMeetup: {} };
+      }
+
+      const myMeetups = (data || []).map(m => {
+        const session = (m.sessions && m.sessions.length > 0) ? m.sessions[0] : null;
+        return {
+          ...m,
+          start_date: m.one_off_date || session?.session_date || "",
+          fee: m.guest_fee || m.fee || "場租平分",
+          session_id: session?.id
+        };
+      });
+
+      const signupsByMeetup = {};
+      (data || []).forEach(m => {
+        const session = (m.sessions && m.sessions.length > 0) ? m.sessions[0] : null;
+        const participants = session?.session_participants || [];
+        signupsByMeetup[String(m.id)] = participants.map(p => ({
+          id: p.id,
+          nickname: p.user?.name || "球友",
+          people_count: p.people_count || 1,
+          status: p.status
+        }));
+      });
+
+      return { myMeetups, signupsByMeetup };
+    } catch (err) {
+      console.warn("pPickups exception:", err);
+      return { myMeetups: [], signupsByMeetup: {} };
+    }
+  })();
   const pSignupIds = Promise.resolve([]);
   const pFallbackRating = Promise.resolve(currentSystemMember.rating || 1000);
 
@@ -3475,14 +3543,20 @@ async function loadMemberDashboard() {
             if (!confirm(`確定要取消自揪活動「${name}」嗎？取消後球友將無法再預約。`)) return;
             try {
               btn.disabled = true;
-              btn.textContent = "取消中...";
-              const { data, error } = await client.rpc("cancel_member_pickup", {
-                p_creator_member_id: currentSystemMember.id,
-                p_meetup_id: Number(meetupId)
+              const res = await fetch("/api/cancel-member-pickup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  creator_user_id: currentSystemMember.id,
+                  meetup_id: meetupId
+                })
               });
-              if (error) throw error;
-              if (data && !data.ok) throw new Error(data.error || "取消失敗");
+              const data = await res.json();
+              if (!res.ok || !data.ok) throw new Error(data.error || "取消失敗");
               alert("自揪活動已成功取消！");
+              clearRosterCache();
+              await loadAvailableWeekdays(true);
+              await loadMeetupsByDate(selectedDate);
               loadMemberDashboard();
             } catch (err) {
               console.error("取消自揪活動失敗:", err);
