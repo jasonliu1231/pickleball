@@ -2679,12 +2679,18 @@ window.renderMemberBookingsUI = function(targetContainer) {
     // Status Badge
     let statusClass = "status-confirmed";
     let statusText = "✓ 正取";
-    if (s.isAttended) {
+    if (s.status === "absent") {
+      statusClass = "status-absent";
+      statusText = "已請假";
+    } else if (s.isAttended) {
       statusClass = "status-attended";
       statusText = "✓ 已出席";
     } else if (s.isPast) {
       statusClass = "status-past";
       statusText = "🏁 已結束";
+    } else if (s.is_member) {
+      statusClass = "status-member";
+      statusText = "👑 固定會員";
     } else if (s.status === "confirmed") {
       statusClass = "status-confirmed";
       statusText = "✓ 正取";
@@ -2728,7 +2734,9 @@ window.renderMemberBookingsUI = function(targetContainer) {
     const feeVal = mObj.member_fee || mObj.guest_fee;
     const feeLabel = feeVal ? `$${feeVal}/人` : "現場收費";
     let methodLabel = "";
-    if (s.payment_method === "wallet") {
+    if (s.is_member) {
+      methodLabel = "會員保留席";
+    } else if (s.payment_method === "wallet") {
       methodLabel = "點數扣款";
     } else if (s.payment_method === "cash") {
       methodLabel = "現場付現";
@@ -2771,6 +2779,21 @@ window.renderMemberBookingsUI = function(targetContainer) {
             退出候補
           </button>
         `;
+      }
+    } else if (s.is_member) {
+      if (s.status === "absent") {
+        footerTipHtml = `<span class="booking-tip-text muted" style="color:#b91c1c;">您此場次已線上登記請假，名額已釋出</span>`;
+      } else if (!s.blockCheck.blocked && s.arrived_count === 0) {
+        footerTipHtml = `<span class="booking-tip-text hint">固定會員席位・開賽前可線上請假</span>`;
+        actionButtonsHtml = `
+          <button type="button" class="btn-booking-cancel" style="color:#b91c1c;border-color:#fca5a5;" onclick="cancelMemberDashboardLeave('${s.meetup_id || s.meetup?.id}', '${s.dateStr || s.reservation_date}', '${escapeHtml(s.meetupName)}')">
+            我要請假
+          </button>
+        `;
+      } else if (s.arrived_count > 0) {
+        footerTipHtml = `<span class="booking-tip-text attended">您已完成現場簽到出席</span>`;
+      } else {
+        footerTipHtml = `<span class="booking-tip-text warn">⚠️ ${s.blockCheck.reason || "已逾線上請假時限，如需請假請聯繫主辦方"}</span>`;
       }
     } else {
       // Confirmed upcoming
@@ -2917,58 +2940,196 @@ async function loadMemberDashboard() {
 
   const pBookings = (async () => {
     try {
-      const { data: signups, error: signupsError } = await client
-        .from("session_participants")
-        .select(`
-          id,
-          status,
-          people_count,
-          payment_method,
-          is_paid,
-          arrived_count,
-          note,
-          created_at,
-          session:sessions (
+      const [signupsRes, omRes] = await Promise.all([
+        client
+          .from("session_participants")
+          .select(`
             id,
-            session_date,
-            meetup:meetups (
+            status,
+            people_count,
+            payment_method,
+            is_paid,
+            arrived_count,
+            note,
+            created_at,
+            session:sessions (
               id,
-              name,
-              start_time,
-              end_time,
-              address,
-              city,
-              guest_fee,
-              member_fee,
-              cancel_deadline_hours,
-              capacity
+              session_date,
+              meetup:meetups (
+                id,
+                name,
+                start_time,
+                end_time,
+                address,
+                city,
+                guest_fee,
+                member_fee,
+                capacity
+              )
             )
-          )
-        `)
-        .eq("user_id", currentSystemMember.id)
-        .neq("status", "cancelled")
-        .order("created_at", { ascending: false });
+          `)
+          .eq("user_id", currentSystemMember.id)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false }),
+        client
+          .from("organizer_members")
+          .select(`
+            id,
+            user_id,
+            status,
+            note,
+            member_meetup_subscriptions (
+              meetup_id,
+              meetup:meetups (
+                id,
+                name,
+                city,
+                address,
+                street_address,
+                start_time,
+                end_time,
+                weekdays,
+                is_one_off,
+                one_off_date,
+                is_active,
+                guest_fee,
+                member_fee,
+                capacity
+              )
+            )
+          `)
+          .eq("user_id", currentSystemMember.id)
+          .eq("status", "active")
+      ]);
 
-      if (signupsError || !signups) {
-        console.warn("pBookings query note:", signupsError);
-        return [];
+      const regularSignups = signupsRes.data || [];
+      const omList = omRes.data || [];
+
+      // 1. 整理會員固定開團未來場次 (42天 / 6週內)
+      const now = new Date();
+      const activeMemberMeetups = [];
+      omList.forEach(om => {
+        (om.member_meetup_subscriptions || []).forEach(sub => {
+          if (sub.meetup && sub.meetup.is_active !== false) {
+            activeMemberMeetups.push({
+              omId: om.id,
+              omNote: om.note,
+              meetup: sub.meetup
+            });
+          }
+        });
+      });
+
+      const candidateMemberSessions = [];
+      activeMemberMeetups.forEach(({ omId, omNote, meetup }) => {
+        const weekdays = new Set((meetup.weekdays || []).map(Number));
+        for (let i = 0; i <= 42; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+          const dayOfWeek = d.getDay();
+          const yr = d.getFullYear();
+          const mo = String(d.getMonth() + 1).padStart(2, "0");
+          const dy = String(d.getDate()).padStart(2, "0");
+          const dateStr = `${yr}-${mo}-${dy}`;
+
+          let matches = false;
+          if (meetup.is_one_off && meetup.one_off_date === dateStr) {
+            matches = true;
+          } else if (!meetup.is_one_off && weekdays.has(dayOfWeek)) {
+            matches = true;
+          }
+          if (!matches) continue;
+
+          // 判斷當天是否已結束
+          const timeToCheck = (meetup.end_time || meetup.start_time || "23:59").slice(0, 5);
+          const [h, min] = timeToCheck.split(":").map(Number);
+          const sessionEnd = new Date(yr, Number(mo) - 1, Number(dy), isNaN(h) ? 23 : h, isNaN(min) ? 59 : min, 0);
+          if (now > sessionEnd) continue;
+
+          candidateMemberSessions.push({
+            omId,
+            omNote,
+            meetup,
+            dateStr
+          });
+        }
+      });
+
+      let sessionMap = new Map();
+      if (candidateMemberSessions.length > 0) {
+        const meetupIds = [...new Set(candidateMemberSessions.map(c => c.meetup.id))];
+        const dateStrs = [...new Set(candidateMemberSessions.map(c => c.dateStr))];
+        const { data: dbSessions } = await client
+          .from("sessions")
+          .select("id, meetup_id, session_date, status")
+          .in("meetup_id", meetupIds)
+          .in("session_date", dateStrs);
+
+        (dbSessions || []).forEach(s => {
+          sessionMap.set(`${s.meetup_id}_${s.session_date}`, s);
+        });
       }
 
-      return signups.map(s => ({
-        id: s.id,
-        status: s.status,
-        people_count: s.people_count || 1,
-        payment_method: s.payment_method || "",
-        is_paid: !!s.is_paid,
-        arrived_count: s.arrived_count || (s.status === "attended" ? (s.people_count || 1) : 0),
-        note: s.note || "",
-        is_tentative: s.status === "tentative" || !!s.is_tentative,
-        created_at: s.created_at,
-        reservation_date: s.session?.session_date || "",
-        meetup_id: s.session?.meetup?.id,
-        meetup: s.session?.meetup || { id: "", name: "球敘活動" },
-        meetups: s.session?.meetup || { id: "", name: "球敘活動" }
-      }));
+      const memberUpcoming = [];
+      candidateMemberSessions.forEach(c => {
+        const key = `${c.meetup.id}_${c.dateStr}`;
+        const s = sessionMap.get(key);
+        if (s && (s.status === "cancelled" || s.status === "closed")) {
+          return;
+        }
+
+        const existingParticipant = regularSignups.find(sp =>
+          sp.session?.meetup?.id === c.meetup.id && sp.session?.session_date === c.dateStr
+        );
+
+        const isAbsent = existingParticipant?.status === "absent";
+        const status = isAbsent ? "absent" : (existingParticipant?.status || "confirmed");
+
+        memberUpcoming.push({
+          id: existingParticipant?.id || `member-${c.omId}-${c.dateStr}`,
+          session_id: s?.id || existingParticipant?.session?.id || existingParticipant?.session_id || null,
+          status: status,
+          is_member: true,
+          people_count: 1,
+          payment_method: "member_subscription",
+          is_paid: true,
+          arrived_count: existingParticipant?.arrived_count || 0,
+          note: isAbsent ? "已登記請假" : (existingParticipant?.note || c.omNote || ""),
+          created_at: null,
+          reservation_date: c.dateStr,
+          meetup_id: c.meetup.id,
+          meetup: c.meetup,
+          meetups: c.meetup
+        });
+      });
+
+      // 2. 整理一般報名 (排除已在會員固定場次中的紀錄)
+      const memberMeetupDateKeys = new Set(memberUpcoming.map(m => `${m.meetup_id}_${m.reservation_date}`));
+      const regularMapped = regularSignups
+        .filter(sp => {
+          if (sp.status === "cancelled") return false;
+          const key = `${sp.session?.meetup?.id}_${sp.session?.session_date}`;
+          if (memberMeetupDateKeys.has(key)) return false;
+          return true;
+        })
+        .map(s => ({
+          id: s.id,
+          session_id: s.session?.id || s.session_id,
+          status: s.status,
+          is_member: false,
+          people_count: s.people_count || 1,
+          payment_method: s.payment_method || "",
+          is_paid: !!s.is_paid,
+          arrived_count: s.arrived_count || (s.status === "attended" ? (s.people_count || 1) : 0),
+          note: s.note || "",
+          is_tentative: s.status === "tentative" || !!s.is_tentative,
+          created_at: s.created_at,
+          reservation_date: s.session?.session_date || "",
+          meetup_id: s.session?.meetup?.id,
+          meetup: s.session?.meetup || { id: "", name: "球敘活動" },
+          meetups: s.session?.meetup || { id: "", name: "球敘活動" }
+        }));
+
+      return [...memberUpcoming, ...regularMapped];
     } catch (err) {
       console.error("pBookings exception:", err);
       return [];
@@ -3150,9 +3311,11 @@ async function loadMemberDashboard() {
       });
 
       // Sort upcoming chronologically (soonest first), past reverse-chronologically (newest first)
+      // Limit upcoming to nearest 5 sessions as requested!
       const upcomingItems = processed
         .filter(s => !s.isPast)
-        .sort((a, b) => (a.dateStr + a.startTime).localeCompare(b.dateStr + b.startTime));
+        .sort((a, b) => (a.dateStr + a.startTime).localeCompare(b.dateStr + b.startTime))
+        .slice(0, 5);
       const pastItems = processed
         .filter(s => s.isPast)
         .sort((a, b) => (b.dateStr + b.startTime).localeCompare(a.dateStr + a.startTime));
@@ -3595,7 +3758,7 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
     if (part.status === "confirmed" && part.session?.id) {
       const { data: waitlist } = await client
         .from("session_participants")
-        .select("id")
+        .select("id, user_id, user:users(id, name, phone)")
         .eq("session_id", part.session.id)
         .eq("status", "waitlist")
         .order("created_at", { ascending: true })
@@ -3606,6 +3769,20 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
           .from("session_participants")
           .update({ status: "confirmed", updated_at: new Date().toISOString() })
           .eq("id", waitlist[0].id);
+
+        const promotedUser = waitlist[0].user;
+        if (promotedUser?.phone) {
+          fetch("/api/waitlist-notification", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              meetup_id: part.session?.meetup_id,
+              phone: promotedUser.phone,
+              nickname: promotedUser.name || "球友",
+              reservation_date: part.session?.session_date
+            })
+          }).catch(err => console.warn("notify waitlist error:", err));
+        }
       }
     }
 
@@ -3622,6 +3799,91 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
     await refreshAll(true);
   } catch (err) {
     alert("取消失敗：" + (err.message || String(err)));
+  }
+};
+
+window.cancelMemberDashboardLeave = async function(meetupId, reservationDate, meetupName) {
+  if (!confirm(`確定要為「${meetupName}」(${reservationDate}) 登記請假嗎？\n請假後名額將自動釋出給候補球友。`)) return;
+  try {
+    const { data: existingSession } = await client
+      .from("sessions")
+      .select("id")
+      .eq("meetup_id", meetupId)
+      .eq("session_date", reservationDate)
+      .maybeSingle();
+
+    let sessionId = existingSession?.id;
+    if (!sessionId) {
+      const { data: newSession, error: sErr } = await client
+        .from("sessions")
+        .insert({
+          meetup_id: meetupId,
+          session_date: reservationDate,
+          status: "open",
+        })
+        .select("id")
+        .single();
+      if (sErr) throw sErr;
+      sessionId = newSession.id;
+    }
+
+    const { error: absErr } = await client
+      .from("session_participants")
+      .upsert({
+        session_id: sessionId,
+        user_id: currentSystemMember.id,
+        status: "absent",
+        people_count: 1,
+        note: "會員線上自主請假",
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "session_id,user_id" });
+
+    if (absErr) throw absErr;
+
+    // 遞補候補第一位
+    const { data: waitlist } = await client
+      .from("session_participants")
+      .select("id, user_id, user:users(id, name, phone)")
+      .eq("session_id", sessionId)
+      .eq("status", "waitlist")
+      .order("created_at", { ascending: true })
+      .limit(1);
+
+    if (waitlist && waitlist.length > 0) {
+      await client
+        .from("session_participants")
+        .update({ status: "confirmed", updated_at: new Date().toISOString() })
+        .eq("id", waitlist[0].id);
+
+      const promotedUser = waitlist[0].user;
+      if (promotedUser?.phone) {
+        fetch("/api/waitlist-notification", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetup_id: meetupId,
+            phone: promotedUser.phone,
+            nickname: promotedUser.name || "球友",
+            reservation_date: reservationDate
+          })
+        }).catch(err => console.warn("notify waitlist error:", err));
+      }
+    }
+
+    notifyCancelSignup({
+      meetupId,
+      reservationDate,
+      nickname: currentSystemMember?.nickname || "固定會員",
+      meetupName
+    });
+
+    alert("已成功完成會員請假，名額已釋出！");
+    if (typeof loadMemberDashboard === "function") {
+      await loadMemberDashboard();
+    }
+    await refreshAll(true);
+  } catch (err) {
+    alert("請假失敗：" + (err.message || String(err)));
   }
 };
 
