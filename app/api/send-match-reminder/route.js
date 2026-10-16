@@ -121,25 +121,27 @@ export async function POST(request) {
         continue;
       }
       
-      // Deduct 1 point from organizer quota
+      // Deduct 1 point from organizer quota (扣點制：數量沒了就不再發送)
       if (organizerId) {
         try {
-          const { data: deductResult } = await supabase.rpc("deduct_organizer_message_quota", {
+          const { data: deductResult, error: rpcError } = await supabase.rpc("deduct_organizer_message_quota", {
             p_organizer_id: organizerId,
             p_message_type: "reminder",
             p_recipient_phone: player.phone,
             p_content: `行前提醒: ${playerNickname} - ${formattedDate || date} - ${meetupName}`,
             p_cost: 1,
-            p_allow_overdraft: true // 加點累計制：不阻擋發送
+            p_allow_overdraft: false // 扣點制：數量沒了就不再發送
           });
           
           const deductRes = Array.isArray(deductResult) ? deductResult[0] : deductResult;
-          if (deductRes && deductRes.ok) {
-            console.log(`[Usage Recorded] Organizer (${organizerId}) cumulative push count: ${deductRes.new_quota}`);
+          if (rpcError || !deductRes?.ok) {
+            console.log(`[Match Reminder] Skipped LINE push for ${player.phone} because organizer quota is exhausted or LINE disabled: ${deductRes?.message || rpcError?.message}`);
+            continue; // Skip sending LINE message to this player
           }
+          console.log(`[Usage Deducted] Organizer (${organizerId}) remaining quota: ${deductRes.remaining_quota}`);
         } catch (deductErr) {
           console.error("Failed to deduct message quota:", deductErr);
-          // Fail-safe: if DB RPC call throws error, proceed to send the message anyway so we don't break service
+          continue; // Skip sending LINE message on deduction failure
         }
       }
       

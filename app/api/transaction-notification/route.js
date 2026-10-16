@@ -16,7 +16,7 @@ export async function POST(request) {
     // 1. Fetch organizer member details with user and organizer
     const { data: members } = await supabase
       .from("organizer_members")
-      .select("id, user_id, balance, organizers(name), user:users(id, name, line_user_id, expo_push_token)")
+      .select("id, user_id, organizer_id, balance, organizers(name), user:users(id, name, line_user_id, expo_push_token)")
       .eq("id", member_id);
     
     if (!members || members.length === 0) {
@@ -278,16 +278,42 @@ export async function POST(request) {
       });
     }
 
-    // 5. Send LINE Push Message (if linked)
+    // 5. Send LINE Push Message (if linked and organizer quota allows)
     let lineSuccess = false;
-    if (lineUserId) {
-      lineSuccess = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - ${headerTitle}`);
+    let skipReason = "";
+
+    if (lineUserId && member.organizer_id) {
+      try {
+        const { data: deductResult, error: rpcError } = await supabase.rpc("deduct_organizer_message_quota", {
+          p_organizer_id: member.organizer_id,
+          p_message_type: "transaction",
+          p_recipient_phone: userObj?.phone || null,
+          p_content: `${headerTitle}: ${playerNickname} - ${amountSign}${amountVal} 點`,
+          p_cost: 1,
+          p_allow_overdraft: false // 扣點制：數量沒了就不再發送
+        });
+
+        const deductRes = Array.isArray(deductResult) ? deductResult[0] : deductResult;
+        if (!rpcError && deductRes?.ok) {
+          lineSuccess = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - ${headerTitle}`);
+          console.log(`[Transaction Quota Deducted] Organizer (${member.organizer_id}) remaining quota: ${deductRes.remaining_quota}`);
+        } else {
+          skipReason = deductRes?.message || rpcError?.message || "LINE 免費額度已用完或團主已關閉 LINE 推播";
+          console.log(`[Transaction LINE Push Skipped]: ${skipReason}`);
+        }
+      } catch (deductErr) {
+        console.error("Failed to deduct transaction quota:", deductErr);
+        skipReason = "推播額度檢核異常";
+      }
+    } else if (lineUserId && !member.organizer_id) {
+      skipReason = "無關聯團長，略過 LINE 推播以節省成本";
     }
     
     return Response.json({
       ok: true,
       sent_line: lineSuccess,
-      sent_app: appPushSuccess
+      sent_app: appPushSuccess,
+      ...(skipReason ? { skipped_line: skipReason } : {})
     });
   } catch (error) {
     console.error("Transaction notification error:", error);

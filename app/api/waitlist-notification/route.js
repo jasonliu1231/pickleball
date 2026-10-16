@@ -287,36 +287,45 @@ export async function POST(request) {
       });
     }
 
-    // Deduct LINE push quota from organizer balance
+    // Deduct LINE push quota from organizer balance (扣點制：數量沒了就不再發送)
+    let canSendLine = false;
+    let skipReason = "";
+
     if (lineUserId) {
       try {
-        const { data: deductResult } = await supabase.rpc("deduct_organizer_message_quota", {
+        const { data: deductResult, error: rpcError } = await supabase.rpc("deduct_organizer_message_quota", {
           p_organizer_id: organizerId,
           p_message_type: "waitlist",
           p_recipient_phone: normalizedPhone,
           p_content: `遞補成功: ${playerNickname} - ${formattedDate || reservation_date} - ${meetupName}`,
           p_cost: 1,
-          p_allow_overdraft: true // 加點累計制：不阻擋發送
+          p_allow_overdraft: false // 扣點制：數量沒了就不再發送
         });
         
         const deductRes = Array.isArray(deductResult) ? deductResult[0] : deductResult;
-        if (deductRes && deductRes.ok) {
-          console.log(`[Usage Recorded] Organizer ${orgName} (${organizerId}) cumulative push count: ${deductRes.new_quota}`);
+        if (!rpcError && deductRes?.ok) {
+          canSendLine = true;
+          console.log(`[Usage Deducted] Organizer ${orgName} (${organizerId}) remaining quota: ${deductRes.remaining_quota}`);
+        } else {
+          skipReason = deductRes?.message || rpcError?.message || "LINE 免費額度已用完或團主已關閉 LINE 推播";
+          console.log(`[LINE Push Skipped] Organizer ${orgName}: ${skipReason}`);
         }
       } catch (deductErr) {
         console.error("Failed to deduct message quota:", deductErr);
+        skipReason = "推播額度檢核異常";
       }
     }
     
     let lineSuccess = false;
-    if (lineUserId) {
+    if (lineUserId && canSendLine) {
       lineSuccess = await sendLinePushFlex(lineUserId, flexContents, `匹克球同樂會 - 備取遞補成功！`);
     }
     
     return Response.json({
       ok: true,
       sent_line: lineSuccess,
-      sent_app: appPushSuccess
+      sent_app: appPushSuccess,
+      ...(skipReason ? { skipped_line: skipReason } : {})
     });
   } catch (error) {
     console.error("Waitlist notification error:", error);
