@@ -66,6 +66,24 @@ input, textarea, select {
   font-size: 16px !important;
 }
 
+/* Ensure iOS Safari WebKit native date/time pickers follow CSS box-sizing */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-height: 1.2em;
+}
+
 button {
   cursor: pointer;
   border: 0;
@@ -2012,12 +2030,28 @@ body:has(.modal.active) {
 
 .form input[type="date"],
 .form input[type="time"] {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
   min-height: 44px;
+  height: 44px;
+  line-height: 44px;
   display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  background-color: var(--bg);
+  padding: 0 12px;
+  margin: 0;
+}
+
+.form input[type="date"]::-webkit-date-and-time-value,
+.form input[type="time"]::-webkit-date-and-time-value {
+  text-align: left;
+  padding: 0;
+  margin: 0;
+  min-height: 20px;
 }
 
 .form input:focus, .form select:focus, .form textarea:focus {
