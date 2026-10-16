@@ -13,22 +13,33 @@ export default function MemberPage() {
             </div>
           </div>
           
-          {/* Loading Container (Shown during session check) */}
-          <div id="memberLoading" className="booking-card" style={{ maxWidth: "480px", margin: "0 auto", padding: "48px 24px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", minHeight: "240px" }}>
-            <style>{`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-              @keyframes pulse {
-                0%, 100% { opacity: 0.6; }
-                50% { opacity: 1; }
-              }
-            `}</style>
-            <svg viewBox="0 0 50 50" style={{ width: "40px", height: "40px", animation: "spin 1s linear infinite" }}>
-              <circle cx="25" cy="25" r="20" fill="none" stroke="var(--accent)" strokeWidth="4" strokeLinecap="round" strokeDasharray="80, 200" strokeDashoffset="0"></circle>
-            </svg>
-            <span style={{ fontSize: "14px", color: "var(--sub)", fontWeight: "700", animation: "pulse 1.5s ease-in-out infinite", letterSpacing: "0.5px" }}>會員登入驗證中，請稍候...</span>
+          {/* 🎾 會員登入等待畫面 (Login Waiting Screen) */}
+          <div id="memberLoading" className="login-waiting-card">
+            <div className="login-waiting-glow"></div>
+            <div className="login-waiting-logo-wrapper">
+              <img src="/logo.png" alt="匹克球同樂會 Logo" className="login-waiting-logo" width="72" height="72" />
+              <div className="login-waiting-ring"></div>
+            </div>
+            
+            <div className="login-waiting-badge">
+              <span className="line-icon-badge">LINE</span>
+              <span>會員安全連線</span>
+            </div>
+
+            <h3 id="memberLoadingTitle" className="login-waiting-title">登入驗證中，請稍候...</h3>
+            
+            <p id="memberLoadingSubtitle" className="login-waiting-desc">
+              正在確認會員身分與同步個人資料
+            </p>
+
+            <div className="login-waiting-progress-track">
+              <div className="login-waiting-progress-bar"></div>
+            </div>
+
+            <div className="login-waiting-tips">
+              <span className="login-waiting-tip-icon">🔒</span>
+              <span id="memberLoadingTip">LINE 官方授權連線 ｜ 資料安全加密傳輸</span>
+            </div>
           </div>
 
           {/* Auth Form (Hidden if logged in) - 純 LINE 一鍵登入與註冊 */}

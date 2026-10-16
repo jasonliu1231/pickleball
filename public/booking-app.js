@@ -4192,20 +4192,62 @@ async function handleAuthSubmit(e) {
   }
 }
 
+function showLoginWaiting(title, subtitle, tip) {
+  const overlay = $("globalLoginOverlay");
+  const mLoading = $("memberLoading");
+  
+  if (title) {
+    if ($("globalLoginTitle")) $("globalLoginTitle").textContent = title;
+    if ($("memberLoadingTitle")) $("memberLoadingTitle").textContent = title;
+  }
+  if (subtitle) {
+    if ($("globalLoginSubtitle")) $("globalLoginSubtitle").textContent = subtitle;
+    if ($("memberLoadingSubtitle")) $("memberLoadingSubtitle").textContent = subtitle;
+  }
+  if (tip) {
+    if ($("globalLoginTip")) $("globalLoginTip").textContent = tip;
+    if ($("memberLoadingTip")) $("memberLoadingTip").textContent = tip;
+  }
+
+  if (overlay) {
+    overlay.style.display = "flex";
+    requestAnimationFrame(() => overlay.classList.add("active"));
+  }
+  if (mLoading) {
+    mLoading.style.display = "flex";
+    const authContainer = $("authContainer");
+    if (authContainer) authContainer.style.display = "none";
+  }
+}
+
+function hideLoginWaiting() {
+  const overlay = $("globalLoginOverlay");
+  if (overlay) {
+    overlay.classList.remove("active");
+    setTimeout(() => {
+      overlay.style.display = "none";
+    }, 280);
+  }
+  const mLoading = $("memberLoading");
+  if (mLoading && $("memberDashboard") && $("memberDashboard").style.display !== "none") {
+    mLoading.style.display = "none";
+  }
+}
+
 async function handleLineLogin() {
   const lineBtn = $("lineLoginBtn");
   if (lineBtn) {
     if (lineBtn.disabled) return;
     lineBtn.disabled = true;
+    lineBtn.style.opacity = "0.75";
+    lineBtn.innerHTML = '<span style="font-size:16px;">🔄</span> 正在跳轉 LINE 登入...';
   }
-  const loadingContainer = $("memberLoading");
-  const authContainer = $("authContainer");
-  if (authContainer) authContainer.style.display = "none";
-  if (loadingContainer) {
-    loadingContainer.style.display = "flex";
-    const textEl = loadingContainer.querySelector("span");
-    if (textEl) textEl.textContent = "正在跳轉至 LINE 登入頁面...";
-  }
+
+  showLoginWaiting(
+    "會員登入中，請稍候...",
+    "正在為您連線至 LINE 官方授權登入頁面...",
+    "LINE 官方授權連線中，請勿關閉視窗"
+  );
 
   // 採用後端直通架構：直接導向 LINE 官方授權端點
   const clientId = "2010841175";
@@ -4214,7 +4256,10 @@ async function handleLineLogin() {
   sessionStorage.setItem("line_login_state", state);
 
   const authUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;
-  window.location.href = authUrl;
+  
+  setTimeout(() => {
+    window.location.href = authUrl;
+  }, 120);
 }
 
 function toggleAuthView(isLoggedIn) {
@@ -4222,7 +4267,21 @@ function toggleAuthView(isLoggedIn) {
   const authContainer = $("authContainer");
   const memberDashboard = $("memberDashboard");
   
-  if (loadingContainer) loadingContainer.style.display = "none";
+  if (isLoggedIn) {
+    if (authContainer) authContainer.style.display = "none";
+    if (memberDashboard) memberDashboard.style.display = "flex";
+  } else {
+    if (loadingContainer) loadingContainer.style.display = "none";
+    if (authContainer) authContainer.style.display = "block";
+    if (memberDashboard) memberDashboard.style.display = "none";
+    const lineBtn = $("lineLoginBtn");
+    if (lineBtn) {
+      lineBtn.disabled = false;
+      lineBtn.style.opacity = "1";
+      lineBtn.innerHTML = '<span style="font-weight:900;font-size:20px;">LINE</span> LINE 一鍵登入 / 註冊 (免費)';
+    }
+    hideLoginWaiting();
+  }
   
   const welcomeEl = $("headerWelcome");
   if (welcomeEl) {
@@ -4426,17 +4485,33 @@ document.addEventListener("click", (e) => {
       currentUser = null;
       currentSystemMember = null;
       toggleAuthView(false);
+      hideLoginWaiting();
       return null;
     }
     sessionStorage.removeItem("user_logged_out");
     currentUser = user;
     if (!activeMemberPromise) {
-      activeMemberPromise = ensureSystemMember(user).then((m) => {
+      activeMemberPromise = ensureSystemMember(user).then(async (m) => {
         currentSystemMember = m;
         toggleAuthView(true);
-        if ($("memberDashboard")) loadMemberDashboard();
+        if ($("memberDashboard")) {
+          showLoginWaiting(
+            "會員個人中心載入中...",
+            "正在同步您的會員資料、俱樂部與近期預約紀錄...",
+            "即將進入個人中心"
+          );
+          try {
+            await loadMemberDashboard();
+          } catch (dashErr) {
+            console.warn("loadMemberDashboard warning:", dashErr);
+          }
+        }
         checkAndPromptBindPhone(m);
+        hideLoginWaiting();
         return m;
+      }).catch((err) => {
+        console.error("syncUserAuth error:", err);
+        hideLoginWaiting();
       }).finally(() => {
         activeMemberPromise = null;
       });
@@ -4451,6 +4526,11 @@ document.addEventListener("click", (e) => {
   try {
     // 若網址 Hash 含有剛換發之 access_token 與 refresh_token，直接呼叫 setSession
     if (window.location.hash.includes("access_token")) {
+      showLoginWaiting(
+        "LINE 登入驗證中...",
+        "LINE 授權成功！正在同步會員個人資料與近期預約紀錄...",
+        "即將進入個人中心"
+      );
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const accessToken = hashParams.get("access_token");
       const refreshToken = hashParams.get("refresh_token");
@@ -4475,9 +4555,12 @@ document.addEventListener("click", (e) => {
       const searchParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const rawError = searchParams.get("error_description") || hashParams.get("error_description") || searchParams.get("error");
-      if (rawError && $("authMessage")) {
-        const errorText = decodeURIComponent(rawError.replace(/\+/g, " "));
-        setMessage($("authMessage"), `⚠️ LINE 驗證未完成：${errorText}`, false);
+      if (rawError) {
+        hideLoginWaiting();
+        if ($("authMessage")) {
+          const errorText = decodeURIComponent(rawError.replace(/\+/g, " "));
+          setMessage($("authMessage"), `⚠️ LINE 驗證未完成：${errorText}`, false);
+        }
       }
 
       const isLineBrowser = /Line/i.test(navigator.userAgent);

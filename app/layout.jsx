@@ -16,7 +16,7 @@ export const viewport = {
 };
 
 // 自動建置版本號（每次改版升級自動使瀏覽器載入最新腳本，杜絕快取錯誤）
-const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.8.6";
+const BUILD_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "1.8.7";
 
 export default function RootLayout({ children }) {
   return (
@@ -89,6 +89,37 @@ export default function RootLayout({ children }) {
           </header>
 
           {children}
+
+          {/* 🎾 全站會員登入等待畫面 (Global Login Waiting Overlay) */}
+          <div id="globalLoginOverlay" className="global-login-overlay" style={{ display: "none" }}>
+            <div className="global-login-card">
+              <div className="login-waiting-glow"></div>
+              <div className="login-waiting-logo-wrapper">
+                <img src="/logo.png" alt="匹克球同樂會 Logo" className="login-waiting-logo" width="72" height="72" />
+                <div className="login-waiting-ring"></div>
+              </div>
+              
+              <div className="login-waiting-badge">
+                <span className="line-icon-badge">LINE</span>
+                <span>會員安全連線</span>
+              </div>
+
+              <h3 id="globalLoginTitle" className="login-waiting-title">會員登入中，請稍候...</h3>
+              
+              <p id="globalLoginSubtitle" className="login-waiting-desc">
+                正在安全驗證身分並同步個人會員資料
+              </p>
+
+              <div className="login-waiting-progress-track">
+                <div className="login-waiting-progress-bar"></div>
+              </div>
+
+              <div className="login-waiting-tips">
+                <span className="login-waiting-tip-icon">⚡</span>
+                <span id="globalLoginTip">即將進入個人中心，請勿關閉視窗</span>
+              </div>
+            </div>
+          </div>
 
           {/* Global Phone Binding Modal (Shown when logged in but phone is missing) */}
           <div className="modal" id="bindPhoneModal">
