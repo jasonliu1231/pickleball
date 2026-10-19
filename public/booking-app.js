@@ -650,8 +650,9 @@ async function fetchRoster(meetupId, dateStr) {
       if (!om || om.status !== 'active') return;
       const uId = String(om.user?.id || om.user_id);
       if (absentUserIds.has(uId)) return; // 請假不列入
+      const memberPart = participants.find(p => String(p.user?.id || p.user_id) === uId);
       memberRows.push({
-        id: `member-${om.id}`,
+        id: memberPart?.id || `member-${om.id}`,
         user_id: uId,
         nickname: om.user?.name || "固定會員",
         display_name: om.user?.name || "固定會員",
@@ -661,7 +662,7 @@ async function fetchRoster(meetupId, dateStr) {
         rating: om.user?.rating || 1000,
         people_count: 1,
         status: "confirmed",
-        note: om.note || "",
+        note: memberPart?.note || om.note || "",
         created_at: om.created_at || null,
         source: "member"
       });
@@ -4226,6 +4227,10 @@ window.editBookingNote = async function(signupId, meetupId, dateStr, meetupName,
         })
         .eq("id", signupId);
       if (error) throw error;
+    }
+
+    if (typeof rosterCache !== "undefined" && rosterCache && typeof rosterCache.delete === "function") {
+      rosterCache.delete(`${meetupId}-${dateStr}`);
     }
 
     alert("✅ 備註已更新成功！");
