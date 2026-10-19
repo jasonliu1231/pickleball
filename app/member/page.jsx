@@ -291,7 +291,7 @@ export default function MemberPage() {
                   <input id="editPickupCapacity" type="number" min="2" max="32" required />
                 </label>
                 <label>每人費用
-                  <input id="editPickupFee" placeholder="例如：場租平分、免費" required />
+                  <input id="editPickupFee" placeholder="例如：200、或填「場租平分」" required />
                 </label>
                 <label>備註說明（選填）
                   <textarea id="editPickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球"></textarea>

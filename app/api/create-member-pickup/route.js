@@ -40,6 +40,16 @@ export async function POST(request) {
 
     const weekday = new Date(date + "T00:00:00").getDay();
 
+    // 處理費用（若輸入中文如「場租平分」、「免費」或 0，存為 0；若輸入金額則提取數字）
+    let parsedFee = 0;
+    if (fee !== null && fee !== undefined) {
+      const feeStr = String(fee).trim();
+      const match = feeStr.match(/\d+(\.\d+)?/);
+      if (match) {
+        parsedFee = Number(match[0]) || 0;
+      }
+    }
+
     // 2. 建立自揪活動 (meetups)
     const { data: newMeetup, error: meetupErr } = await supabase
       .from("meetups")
@@ -53,8 +63,8 @@ export async function POST(request) {
         start_time: start_time,
         end_time: end_time,
         capacity: Number(capacity) || 4,
-        guest_fee: (fee || "場租平分").trim(),
-        member_fee: (fee || "場租平分").trim(),
+        guest_fee: parsedFee,
+        member_fee: parsedFee,
         notes: (notes || "").trim() || null,
         is_active: true,
         is_one_off: true,

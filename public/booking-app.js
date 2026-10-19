@@ -1230,9 +1230,10 @@ function openEditPickupModal(m) {
   if ($("editPickupEndTime")) $("editPickupEndTime").value = m.end_time ? m.end_time.slice(0, 5) : "16:00";
   if ($("editPickupAddress")) $("editPickupAddress").value = addr;
   if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = streetAddr;
-  if ($("editPickupCapacity")) $("editPickupCapacity").value = m.capacity || 4;
-  if ($("editPickupFee")) $("editPickupFee").value = m.fee || m.guest_fee || "場租平分";
-  if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
+  const displayFee = (m.guest_fee !== null && m.guest_fee !== undefined)
+    ? (Number(m.guest_fee) === 0 ? "場租平分" : String(m.guest_fee))
+    : (m.fee || "場租平分");
+  if ($("editPickupFee")) $("editPickupFee").value = displayFee;
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
   setModalVisible($("editPickupModal"), true);
@@ -3381,10 +3382,14 @@ async function loadMemberDashboard() {
 
       const myMeetups = (data || []).map(m => {
         const session = (m.sessions && m.sessions.length > 0) ? m.sessions[0] : null;
+        const feeVal = (m.guest_fee !== null && m.guest_fee !== undefined)
+          ? (Number(m.guest_fee) === 0 ? "場租平分" : String(m.guest_fee))
+          : "場租平分";
         return {
           ...m,
           start_date: m.one_off_date || session?.session_date || "",
-          fee: m.guest_fee || m.fee || "場租平分",
+          fee: feeVal,
+          guest_fee: m.guest_fee,
           session_id: session?.id
         };
       });
