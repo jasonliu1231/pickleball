@@ -3085,6 +3085,14 @@ window.renderMemberBookingsUI = function(targetContainer) {
       } else {
         footerTipHtml = `<span class="booking-tip-text warn">⚠️ ${s.blockCheck.reason || "已逾線上取消時限，如需請假請聯繫主辦方"}</span>`;
       }
+    let canEditNote = !s.isPast && s.status !== "absent" && s.status !== "cancelled" && s.arrived_count === 0;
+    if (canEditNote) {
+      const editNoteBtnHtml = `
+        <button type="button" class="btn-booking-edit-note" onclick="editBookingNote('${s.id}', '${s.meetup_id || s.meetup?.id || ''}', '${s.dateStr || s.reservation_date || ''}', '${escapeHtml(s.meetupName || '')}', '${escapeHtml(s.note || '').replace(/'/g, "\\'")}', ${s.is_member ? 'true' : 'false'})" style="font-size:12.5px;padding:6px 12px;border-radius:8px;font-weight:800;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;cursor:pointer;margin-right:6px;">
+          📝 修改備註
+        </button>
+      `;
+      actionButtonsHtml = editNoteBtnHtml + actionButtonsHtml;
     }
 
     html += `
@@ -4163,6 +4171,66 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
     await refreshAll(true);
   } catch (err) {
     alert("取消失敗：" + (err.message || String(err)));
+  }
+window.editBookingNote = async function(signupId, meetupId, dateStr, meetupName, currentNote, isMember) {
+  const newNote = prompt(`【${meetupName}】(${dateStr})\n請輸入要修改的備註內容：\n（例如：需借球拍、預計晚15分鐘到、同行球友名單...）`, currentNote || "");
+  if (newNote === null) return; // user cancelled
+
+  const cleanNote = newNote.trim();
+  try {
+    if (isMember || String(signupId).startsWith("member-")) {
+      let sessionId = null;
+      const { data: sess } = await client
+        .from("sessions")
+        .select("id")
+        .eq("meetup_id", meetupId)
+        .eq("session_date", dateStr)
+        .maybeSingle();
+
+      if (sess) {
+        sessionId = sess.id;
+      } else {
+        const { data: newSess, error: sErr } = await client
+          .from("sessions")
+          .insert({ meetup_id: meetupId, session_date: dateStr, status: "open" })
+          .select("id")
+          .single();
+        if (sErr) throw sErr;
+        sessionId = newSess.id;
+      }
+
+      const { error: partErr } = await client
+        .from("session_participants")
+        .upsert(
+          {
+            session_id: sessionId,
+            user_id: currentSystemMember?.id,
+            status: "confirmed",
+            people_count: 1,
+            note: cleanNote || null,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: "session_id,user_id" }
+        );
+      if (partErr) throw partErr;
+    } else {
+      const { error } = await client
+        .from("session_participants")
+        .update({
+          note: cleanNote || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", signupId);
+      if (error) throw error;
+    }
+
+    alert("✅ 備註已更新成功！");
+    if (typeof loadMemberDashboard === "function") {
+      await loadMemberDashboard();
+    }
+  } catch (err) {
+    console.error("editBookingNote error:", err);
+    alert("修改備註失敗：" + (err.message || String(err)));
   }
 };
 
