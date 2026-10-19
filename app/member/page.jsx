@@ -326,7 +326,12 @@ export default function MemberPage() {
                 </div>
                 <button className="close-btn" id="closePickupRosterModal">×</button>
               </div>
-              <div id="pickupRosterModalList" style={{ maxHeight: "380px", overflowY: "auto", marginTop: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "10px" }}>
+                <button type="button" id="copyPickupRosterModalBtn" className="btn-secondary" style={{ fontSize: "13px", height: "34px", padding: "0 14px", borderRadius: "8px", fontWeight: "800", display: "inline-flex", alignItems: "center", gap: "6px", background: "#f8fafc", border: "1px solid #cbd5e1", color: "#334155" }}>
+                  📋 複製名單到剪貼簿
+                </button>
+              </div>
+              <div id="pickupRosterModalList" style={{ maxHeight: "380px", overflowY: "auto", marginTop: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
                 <p style={{ color: "var(--muted)", textAlign: "center", padding: "20px" }}>載入名單中...</p>
               </div>
               <div className="message" id="pickupRosterMessage" style={{ marginTop: "10px" }}></div>

@@ -3039,6 +3039,7 @@ body:has(.modal.active) {
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
+  white-space: nowrap;
 }
 
 .status-badge.confirmed {
@@ -4668,17 +4669,21 @@ body:has(.modal.active) {
   .pickup-action-row {
     width: 100% !important;
     display: flex !important;
-    gap: 6px !important;
+    gap: 8px !important;
   }
   .pickup-action-row button {
     flex: 1 1 0 !important;
     width: 0 !important;
     min-width: 0 !important;
-    font-size: 12px !important;
-    height: 35px !important;
-    padding: 0 4px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    height: 36px !important;
+    padding: 0 8px !important;
     white-space: nowrap !important;
     box-sizing: border-box !important;
+  }
+  .pickup-card-street-address {
+    display: none !important;
   }
 }
 

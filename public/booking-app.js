@@ -1320,6 +1320,39 @@ async function renderPickupRosterList(meetup) {
       subEl.textContent = `日期：${meetup.start_date || ""} ｜ 正取：${totalConfirmedPeople}/${meetup.capacity || 0} 人 ${waitlist.length > 0 ? `(備取 ${waitlist.length} 人)` : ""}`;
     }
 
+    let copyText = `【${meetup.name || "自揪活動"}】${meetup.start_date || ""} 名單：\n`;
+    copyText += `--- 正取 (${totalConfirmedPeople}/${meetup.capacity || 0}人) ---\n`;
+    if (confirmed.length) {
+      copyText += confirmed.map((p, idx) => {
+        const count = p.people_count || 1;
+        return `${idx + 1}. ${p.user?.name || "球友"}${count > 1 ? ` (+${count - 1}人)` : ""}`;
+      }).join("\n");
+    } else {
+      copyText += "(無)\n";
+    }
+    if (waitlist.length) {
+      copyText += `\n--- 備取 (${waitlist.length}人) ---\n`;
+      copyText += waitlist.map((p, idx) => {
+        const count = p.people_count || 1;
+        return `備${idx + 1}. ${p.user?.name || "球友"}${count > 1 ? ` (+${count - 1}人)` : ""}`;
+      }).join("\n");
+    }
+
+    const copyBtn = $("copyPickupRosterModalBtn");
+    if (copyBtn) {
+      copyBtn.onclick = () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(copyText).then(() => {
+            alert("📋 已複製活動名單到剪貼簿！可直接貼至 LINE 群組。");
+          }).catch(() => {
+            prompt("請手動複製以下名單：", copyText);
+          });
+        } else {
+          prompt("請手動複製以下名單：", copyText);
+        }
+      };
+    }
+
     if (participants.length === 0) {
       listEl.innerHTML = `
         <div style="text-align: center; padding: 30px; color: var(--muted);">
@@ -3700,37 +3733,35 @@ async function loadMemberDashboard() {
 
           let statusBadge = "";
           if (!m.is_active) {
-            statusBadge = `<span class="status-badge" style="background:#fee2e2;color:#b91c1c;">已取消</span>`;
+            statusBadge = `<span class="status-badge" style="background:#fee2e2;color:#b91c1c;white-space:nowrap;">已取消</span>`;
           } else if (isEnded) {
-            statusBadge = `<span class="status-badge" style="background:#f1f5f9;color:#64748b;">已結束</span>`;
+            statusBadge = `<span class="status-badge" style="background:#f1f5f9;color:#64748b;white-space:nowrap;">已結束</span>`;
           } else {
-            statusBadge = `<span class="status-badge confirmed">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
+            statusBadge = `<span class="status-badge confirmed" style="white-space:nowrap;">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
           }
 
           const shareUrl = `${window.location.origin}/?date=${m.start_date}&meetup_id=${m.id}${m.join_password ? `&pwd=${encodeURIComponent(m.join_password)}` : ''}`;
 
           return `
-            <div class="booking-item-card" style="flex-direction: column; align-items: stretch; gap: 10px;">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+            <div class="booking-item-card" style="flex-direction: column; align-items: stretch; gap: 8px;">
+              <div style="width: 100%;">
+                <strong style="font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.4; display: block; word-break: break-word;">${escapeHtml(m.name)}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 8px; flex-wrap: wrap;">
                 <div>
-                  <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                    <span class="badge pickup-badge" style="font-size: 11px; padding: 2px 6px;">我的自揪</span>
-                    ${m.join_password ? `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 密碼: ${escapeHtml(m.join_password)}</span>` : `<span class="badge" style="font-size: 11px; padding: 2px 6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">🌐 公開團</span>`}
-                    <strong style="font-size: 15px; color: var(--text);">${escapeHtml(m.name)}</strong>
-                  </div>
-                  <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">
-                    📅 ${escapeHtml(m.start_date)} ${m.start_time?.slice(0, 5)} ~ ${m.end_time?.slice(0, 5)} ｜ 📍 ${escapeHtml(m.city || "")} ${escapeHtml(m.address || "")}${m.street_address ? ` (${escapeHtml(m.street_address)})` : ""}
-                  </div>
+                  ${m.join_password ? `<span class="badge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人團 (密碼: ${escapeHtml(m.join_password)})</span>` : `<span class="badge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">🌐 公開團</span>`}
                 </div>
-                ${statusBadge}
+                <div>
+                  ${statusBadge}
+                </div>
+              </div>
+              <div style="font-size: 13px; color: var(--muted); line-height: 1.4;">
+                📅 ${escapeHtml(m.start_date)} ${m.start_time?.slice(0, 5)} ~ ${m.end_time?.slice(0, 5)} ｜ 📍 ${escapeHtml(m.city || "")} ${escapeHtml(m.address || "")}<span class="pickup-card-street-address">${m.street_address ? ` (${escapeHtml(m.street_address)})` : ""}</span>
               </div>
               <div class="pickup-card-actions">
                 <div class="pickup-action-row">
                   <button type="button" class="btn-secondary copy-link-btn" data-url="${escapeHtml(shareUrl)}">
                     🔗 複製連結
-                  </button>
-                  <button type="button" class="btn-secondary copy-roster-btn" data-roster="${escapeHtml(rosterText)}">
-                    📋 複製名單
                   </button>
                   ${m.session_id ? `
                     <button type="button" class="btn-secondary manage-roster-btn" data-id="${m.id}">
