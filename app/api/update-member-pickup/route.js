@@ -52,15 +52,15 @@ export async function POST(request) {
 
     // 處理費用：
     // - 輸入「免費」、「0」-> 0
-    // - 輸入「場租平分」或包含平分/均分字眼 -> -1
+    // - 輸入「場租平分」或包含平分/均分字眼/留空 -> null（代表場租平分）
     // - 輸入具體金額數字 -> 該數字金額
-    let parsedFee = -1;
+    let parsedFee = null;
     if (fee !== null && fee !== undefined) {
       const feeStr = String(fee).trim();
       if (feeStr === "免費" || feeStr === "免收" || feeStr === "0" || feeStr === "$0") {
         parsedFee = 0;
       } else if (feeStr.includes("平分") || feeStr.includes("均分") || feeStr.includes("分攤")) {
-        parsedFee = -1;
+        parsedFee = null;
       } else {
         const match = feeStr.match(/\d+(\.\d+)?/);
         if (match) {

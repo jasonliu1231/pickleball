@@ -773,6 +773,11 @@ function formatFeeDisplay(m) {
     if (str === "免費" || str === "免收") return "免費";
     return str.startsWith("$") ? str : `$${str}`;
   }
+  if (gFee === null || gFee === undefined || gFee === "") {
+    if (m.creator_user_id || m.is_one_off) {
+      return "場租平分";
+    }
+  }
   if (mFee !== null && mFee !== undefined && mFee !== "") {
     const mNum = Number(mFee);
     if (!isNaN(mNum)) {
