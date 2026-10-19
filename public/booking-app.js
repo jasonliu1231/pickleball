@@ -856,16 +856,14 @@ function renderMeetups(meetups) {
       primaryBtnText = delta <= 60000 ? `即將開放 (${Math.ceil(delta / 1000)}秒)` : `${formatShortDateTime(openDateTime)} 開放`;
       btnDisabledAttr = "disabled";
     } else if (isBookingClosed) {
-      primaryBtnText = "預約已截止";
+      primaryBtnText = "截止";
       btnDisabledAttr = "disabled";
     } else {
-      primaryBtnText = full ? "加入備取" : "我要報名";
+      primaryBtnText = full ? "候補" : "報名";
     }
 
     const showQuickSignup = currentSystemMember && currentSystemMember.phone && currentSystemMember.nickname && !isBookingNotOpen && !isBookingClosed && !btnDisabledAttr && !hasRatingThreshold(m);
-    const quickSignupBtnHtml = showQuickSignup 
-      ? `<button class="btn-secondary quick-signup-btn" style="background:#eff6ff;border:1.5px solid var(--primary);color:var(--primary);font-weight:900" title="使用您的個人資料快速報名">⚡ 快速報名</button>`
-      : "";
+    const quickSignupBtnHtml = `<button class="btn-secondary quick-signup-btn" ${btnDisabledAttr} style="flex:1;height:42px;background:#f59e0b;border:1px solid #d97706;color:#ffffff;font-weight:900;border-radius:12px;font-size:14px;cursor:pointer;" title="使用個人資料快速報名">⚡ 快速</button>`;
 
     const fillPct = cap > 0 ? Math.min(100, Math.round((displayConfirmed / cap) * 100)) : 100;
     const isUrgent = cap > 0 && left <= 2 && left > 0;
@@ -911,13 +909,17 @@ function renderMeetups(meetups) {
       ${capBarHtml}
       ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
       ${m.session_notes ? `<div class="session-note-banner">📢 <strong>當日公告：</strong>${escapeHtml(m.session_notes)}</div>` : ""}
-      <div class="actions">
-        <button class="btn-primary signup-btn" ${btnDisabledAttr}>${primaryBtnText}</button>
-        ${quickSignupBtnHtml}
-        <button class="btn-secondary roster-btn">查看名單</button>
-        ${m.match_schedule ? `<button class="btn-secondary schedule-btn" style="background:#eff6ff; border-color:var(--primary); color:var(--primary); font-weight:800;">📅 查看賽程</button>` : ""}
-        <button class="btn-ghost share-link-btn" style="font-size: 12.5px; font-weight: 800;" title="複製此活動分享連結">🔗 分享</button>
-        <button class="btn-ghost cancel-btn">預約管理</button>
+      <div class="card-actions-wrapper" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+        <div class="card-secondary-actions" style="display:flex;gap:6px;">
+          <button class="btn-secondary roster-btn" style="flex:1;height:38px;font-size:13px;">查看名單</button>
+          ${m.match_schedule ? `<button class="btn-secondary schedule-btn" style="flex:1;height:38px;font-size:13px;background:#eff6ff; border-color:var(--primary); color:var(--primary); font-weight:800;">📅 賽程</button>` : ""}
+          <button class="btn-ghost share-link-btn" style="height:38px;font-size:12.5px;font-weight:800;padding:0 12px;border:1px solid #e2e8f0;border-radius:10px;" title="複製此活動分享連結">🔗 分享</button>
+        </div>
+        <div class="card-primary-actions" style="display:flex;gap:6px;width:100%;">
+          ${quickSignupBtnHtml}
+          <button class="btn-primary signup-btn" ${btnDisabledAttr} style="flex:1;height:42px;font-size:14px;font-weight:900;border-radius:12px;">${primaryBtnText}</button>
+          <button class="btn-secondary cancel-btn" style="flex:1;height:42px;font-size:14px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-weight:900;border-radius:12px;">✕ 取消</button>
+        </div>
       </div>
       <div class="roster" id="roster-${m.id}"></div>
       <div class="schedule" id="schedule-${m.id}"></div>
@@ -1953,8 +1955,15 @@ async function handleSignup(e) {
 }
 
 async function handleQuickSignup(meetup, btn) {
+  if (!currentUser) {
+    if (confirm("【快速預約】為會員專屬 1 鍵極速功能！\n點擊「確定」立即前往會員中心透過 LINE 免費登入。\n（若無須註冊，亦可直接點擊「報名」填寫表單送出）")) {
+      window.location.href = "/member";
+    }
+    return;
+  }
+
   if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) {
-    openBindPhoneModal("使用 1 鍵快速預約前，請先完成手機號碼綁定！");
+    openBindPhoneModal("使用「快速」預約前，請先完成手機號碼綁定！");
     return;
   }
 

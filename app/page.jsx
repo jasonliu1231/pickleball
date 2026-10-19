@@ -186,8 +186,8 @@ export default function Page() {
         <div className="modal-card">
           <div className="modal-head">
             <div>
-              <h2 className="section-title" style={{ fontSize: "24px" }}>預約管理</h2>
-              <p className="muted" id="cancelSubtitle">輸入報名或會員手機即可進行查詢、取消預約或自主請假。</p>
+              <h2 className="section-title" style={{ fontSize: "24px" }}>取消預約</h2>
+              <p className="muted" id="cancelSubtitle">輸入報名或會員手機即可查詢、取消預約或自主請假。</p>
             </div>
             <button className="close-btn" id="closeCancelModal">×</button>
           </div>
