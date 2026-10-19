@@ -1212,14 +1212,24 @@ function initPickupModal() {
 function openEditPickupModal(m) {
   if (!m) return;
   initPickupModal();
+  let addr = m.address || "";
+  let streetAddr = m.street_address || "";
+  if (!streetAddr && addr.includes("(") && addr.endsWith(")")) {
+    const match = addr.match(/^(.*?)\s*\((.*?)\)$/);
+    if (match) {
+      addr = match[1].trim();
+      streetAddr = match[2].trim();
+    }
+  }
+
   if ($("editPickupId")) $("editPickupId").value = m.id;
   if ($("editPickupName")) $("editPickupName").value = m.name || "";
   if ($("editPickupDate")) $("editPickupDate").value = m.start_date || m.one_off_date || "";
   if ($("editPickupCity")) $("editPickupCity").value = m.city || "台中市";
   if ($("editPickupStartTime")) $("editPickupStartTime").value = m.start_time ? m.start_time.slice(0, 5) : "14:00";
   if ($("editPickupEndTime")) $("editPickupEndTime").value = m.end_time ? m.end_time.slice(0, 5) : "16:00";
-  if ($("editPickupAddress")) $("editPickupAddress").value = m.address || "";
-  if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = m.street_address || "";
+  if ($("editPickupAddress")) $("editPickupAddress").value = addr;
+  if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = streetAddr;
   if ($("editPickupCapacity")) $("editPickupCapacity").value = m.capacity || 4;
   if ($("editPickupFee")) $("editPickupFee").value = m.fee || m.guest_fee || "場租平分";
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
@@ -3480,7 +3490,7 @@ async function loadMemberDashboard() {
                     <strong style="font-size: 15px; color: var(--text);">${escapeHtml(m.name)}</strong>
                   </div>
                   <div style="font-size: 13px; color: var(--muted); margin-top: 4px;">
-                    📅 ${escapeHtml(m.start_date)} ${m.start_time?.slice(0, 5)} ~ ${m.end_time?.slice(0, 5)} ｜ 📍 ${escapeHtml(m.city || "")} ${escapeHtml(m.address || "")}
+                    📅 ${escapeHtml(m.start_date)} ${m.start_time?.slice(0, 5)} ~ ${m.end_time?.slice(0, 5)} ｜ 📍 ${escapeHtml(m.city || "")} ${escapeHtml(m.address || "")}${m.street_address ? ` (${escapeHtml(m.street_address)})` : ""}
                   </div>
                 </div>
                 ${statusBadge}
