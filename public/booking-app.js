@@ -1246,6 +1246,9 @@ function openEditPickupModal(m) {
   if ($("editPickupStartTime")) $("editPickupStartTime").value = m.start_time ? m.start_time.slice(0, 5) : "14:00";
   if ($("editPickupEndTime")) $("editPickupEndTime").value = m.end_time ? m.end_time.slice(0, 5) : "16:00";
   if ($("editPickupAddress")) $("editPickupAddress").value = addr;
+  if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = streetAddr;
+  if ($("editPickupCapacity")) $("editPickupCapacity").value = m.capacity || 4;
+
   let displayFee = "場租平分";
   if (m.guest_fee !== null && m.guest_fee !== undefined) {
     const gNum = Number(m.guest_fee);
@@ -1256,6 +1259,7 @@ function openEditPickupModal(m) {
     displayFee = m.fee;
   }
   if ($("editPickupFee")) $("editPickupFee").value = displayFee;
+  if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
   setModalVisible($("editPickupModal"), true);
