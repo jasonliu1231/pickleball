@@ -273,10 +273,38 @@ async function notifyCancelSignup({ meetup, meetupId, reservationDate, nickname,
 
 // URL Query Parameter parsing (for shareable links & deep links)
 const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
-const urlDate = urlParams.get("date");
-const urlMeetupId = urlParams.get("meetup_id") || urlParams.get("id");
-const urlPwd = urlParams.get("pwd") || urlParams.get("password");
+let urlDate = urlParams.get("date");
+let urlMeetupId = urlParams.get("meetup_id") || urlParams.get("id");
+let urlPwd = urlParams.get("pwd") || urlParams.get("password");
+
+if (typeof window !== "undefined" && window.location.pathname.startsWith("/s/")) {
+  const shortSlug = window.location.pathname.replace(/^\/s\//, "").replace(/\/+$/, "");
+  if (shortSlug) {
+    const parts = shortSlug.split("_");
+    if (parts[0]) urlMeetupId = parts[0];
+    if (parts[1]) {
+      const d = parts[1];
+      if (/^\d{8}$/.test(d)) {
+        urlDate = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+      } else if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        urlDate = d;
+      }
+    }
+    if (parts[2] && !urlPwd) {
+      urlPwd = decodeURIComponent(parts[2]);
+    }
+  }
+}
 let hasHandledUrlMeetup = false;
+
+function makeShortShareUrl(meetupId, date, pwd) {
+  const dStr = String(date || "").replace(/-/g, "");
+  let slug = `${meetupId}_${dStr}`;
+  if (pwd) {
+    slug += `_${encodeURIComponent(pwd)}`;
+  }
+  return `${window.location.origin}/s/${slug}`;
+}
 
 let selectedDate = (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate.trim())) ? urlDate.trim() : toISODate(new Date());
 let visibleMonth = selectedDate.slice(0, 7) + "-01";
@@ -935,10 +963,10 @@ function renderMeetups(meetups) {
     card.querySelector(".schedule-btn")?.addEventListener("click", () => toggleSchedule(meetup));
     card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
     card.querySelector(".share-link-btn")?.addEventListener("click", () => {
-      const shareUrl = `${window.location.origin}/?date=${selectedDate}&meetup_id=${meetup.id}${meetup.join_password ? `&pwd=${encodeURIComponent(meetup.join_password)}` : ''}`;
+      const shareUrl = makeShortShareUrl(meetup.id, selectedDate, meetup.join_password);
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareUrl).then(() => {
-          alert(`🎉 已複製專屬報名連結！可直接傳給朋友或貼到 LINE 群組：\n\n${shareUrl}`);
+          alert(`🎉 已複製專屬短網址報名連結！可直接傳給朋友或貼到 LINE 群組：\n\n${shareUrl}`);
         }).catch(() => {
           prompt("請複製以下活動報名連結：", shareUrl);
         });
@@ -1673,10 +1701,10 @@ async function handleCreatePickup(e) {
     const newMeetupId = data?.meetup_id;
     let successMsg = "🎉 自揪團發起成功！已自動將您加入正取第 1 位。";
     if (newMeetupId && navigator?.clipboard?.writeText) {
-      const shareUrl = `${window.location.origin}/?date=${date}&meetup_id=${newMeetupId}${joinPassword ? `&pwd=${encodeURIComponent(joinPassword)}` : ''}`;
+      const shareUrl = makeShortShareUrl(newMeetupId, date, joinPassword);
       try {
         await navigator.clipboard.writeText(shareUrl);
-        successMsg += "（活動專屬連結已複製至剪貼簿）";
+        successMsg += "（活動專屬短網址已複製至剪貼簿）";
       } catch (_) {}
     }
     setMessage($("pickupFormMessage"), successMsg, true);
@@ -3762,7 +3790,7 @@ async function loadMemberDashboard() {
             statusBadge = `<span class="status-badge confirmed" style="white-space:nowrap;">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
           }
 
-          const shareUrl = `${window.location.origin}/?date=${m.start_date}&meetup_id=${m.id}${m.join_password ? `&pwd=${encodeURIComponent(m.join_password)}` : ''}`;
+          const shareUrl = makeShortShareUrl(m.id, m.start_date, m.join_password);
 
           return `
             <div class="booking-item-card" style="flex-direction: column; align-items: stretch; gap: 8px;">
