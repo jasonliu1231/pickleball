@@ -35,9 +35,9 @@ export async function GET(request) {
     console.error("LINE Auth callback error from provider:", error, errorDescription);
     const msg = errorDescription || error || "未收到 LINE 授權碼";
     if (appReturnUrl) {
-      const sep = appReturnUrl.includes("#") ? "&" : "#";
+      const baseReturn = appReturnUrl.split("#")[0].split("?")[0];
       return NextResponse.redirect(
-        `${appReturnUrl}${sep}error=${encodeURIComponent(error || "no_code")}&error_description=${encodeURIComponent(msg)}`
+        `${baseReturn}?error=${encodeURIComponent(error || "no_code")}&error_description=${encodeURIComponent(msg)}#error=${encodeURIComponent(error || "no_code")}`
       );
     }
     return NextResponse.redirect(
@@ -257,8 +257,8 @@ export async function GET(request) {
     // 8. 成功導回：若來自 App，跳轉回 App 專屬協定；若來自 Web，導回 /member
     // Supabase JS Client 會在頁面載入時自動解析 #access_token=...，完成身分驗證並持久化至 localStorage！
     if (appReturnUrl) {
-      const sep = appReturnUrl.includes("#") ? "&" : "#";
-      const redirectUrl = `${appReturnUrl}${sep}access_token=${access_token}&refresh_token=${refresh_token}&token_type=bearer&type=recovery`;
+      const baseReturn = appReturnUrl.split("#")[0].split("?")[0];
+      const redirectUrl = `${baseReturn}?access_token=${access_token}&refresh_token=${refresh_token}#access_token=${access_token}&refresh_token=${refresh_token}&token_type=bearer&type=recovery`;
       return NextResponse.redirect(redirectUrl);
     }
 
@@ -267,9 +267,9 @@ export async function GET(request) {
   } catch (err) {
     console.error("Fatal exception in LINE callback:", err);
     if (appReturnUrl) {
-      const sep = appReturnUrl.includes("#") ? "&" : "#";
+      const baseReturn = appReturnUrl.split("#")[0].split("?")[0];
       return NextResponse.redirect(
-        `${appReturnUrl}${sep}error=server_error&error_description=${encodeURIComponent(err.message || "伺服器換證發生錯誤")}`
+        `${baseReturn}?error=server_error&error_description=${encodeURIComponent(err.message || "伺服器換證發生錯誤")}#error=server_error`
       );
     }
     return NextResponse.redirect(
