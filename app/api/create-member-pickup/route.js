@@ -40,13 +40,25 @@ export async function POST(request) {
 
     const weekday = new Date(date + "T00:00:00").getDay();
 
-    // 處理費用（若輸入中文如「場租平分」、「免費」或 0，存為 0；若輸入金額則提取數字）
-    let parsedFee = 0;
+    // 處理費用：
+    // - 輸入「免費」、「0」-> 0
+    // - 輸入「場租平分」或包含平分/均分字眼 -> -1
+    // - 輸入具體金額數字 -> 該數字金額
+    let parsedFee = -1;
     if (fee !== null && fee !== undefined) {
       const feeStr = String(fee).trim();
-      const match = feeStr.match(/\d+(\.\d+)?/);
-      if (match) {
-        parsedFee = Number(match[0]) || 0;
+      if (feeStr === "免費" || feeStr === "免收" || feeStr === "0" || feeStr === "$0") {
+        parsedFee = 0;
+      } else if (feeStr.includes("平分") || feeStr.includes("均分") || feeStr.includes("分攤")) {
+        parsedFee = -1;
+      } else {
+        const match = feeStr.match(/\d+(\.\d+)?/);
+        if (match) {
+          const num = Number(match[0]);
+          if (!isNaN(num)) {
+            parsedFee = num === 0 ? 0 : num;
+          }
+        }
       }
     }
 

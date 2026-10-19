@@ -756,21 +756,33 @@ function formatFeeDisplay(m) {
   if (gFee !== null && gFee !== undefined && gFee !== "") {
     const gNum = Number(gFee);
     const isGNum = !isNaN(gNum);
-    if (isGNum && gNum === 0) return "免費 / 場租平分";
-    const gStr = isGNum ? `$${gNum}` : (String(gFee).startsWith("$") ? String(gFee) : `$${gFee}`);
-    if (mFee !== null && mFee !== undefined && mFee !== "") {
-      const mNum = Number(mFee);
-      if (!isNaN(mNum) && mNum !== gNum && mNum > 0) {
-        return `臨打 ${gStr} / 會員 $${mNum}`;
+    if (isGNum) {
+      if (gNum === -1) return "場租平分";
+      if (gNum === 0) return "免費";
+      const gStr = `$${gNum}`;
+      if (mFee !== null && mFee !== undefined && mFee !== "") {
+        const mNum = Number(mFee);
+        if (!isNaN(mNum) && mNum !== gNum && mNum > 0) {
+          return `臨打 ${gStr} / 會員 $${mNum}`;
+        }
       }
+      return `${gStr} / 人`;
     }
-    return `${gStr} / 人`;
+    const str = String(gFee).trim();
+    if (str.includes("平分") || str.includes("均分") || str.includes("分攤")) return "場租平分";
+    if (str === "免費" || str === "免收") return "免費";
+    return str.startsWith("$") ? str : `$${str}`;
   }
   if (mFee !== null && mFee !== undefined && mFee !== "") {
     const mNum = Number(mFee);
-    return !isNaN(mNum) ? `$${mNum} / 人` : String(mFee);
+    if (!isNaN(mNum)) {
+      if (mNum === -1) return "場租平分";
+      if (mNum === 0) return "免費";
+      return `$${mNum} / 人`;
+    }
+    return String(mFee);
   }
-  return "現場公告 / 場租平分";
+  return "現場公告";
 }
 
 function renderMeetups(meetups) {
@@ -1229,10 +1241,15 @@ function openEditPickupModal(m) {
   if ($("editPickupStartTime")) $("editPickupStartTime").value = m.start_time ? m.start_time.slice(0, 5) : "14:00";
   if ($("editPickupEndTime")) $("editPickupEndTime").value = m.end_time ? m.end_time.slice(0, 5) : "16:00";
   if ($("editPickupAddress")) $("editPickupAddress").value = addr;
-  if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = streetAddr;
-  const displayFee = (m.guest_fee !== null && m.guest_fee !== undefined)
-    ? (Number(m.guest_fee) === 0 ? "場租平分" : String(m.guest_fee))
-    : (m.fee || "場租平分");
+  let displayFee = "場租平分";
+  if (m.guest_fee !== null && m.guest_fee !== undefined) {
+    const gNum = Number(m.guest_fee);
+    if (gNum === -1) displayFee = "場租平分";
+    else if (gNum === 0) displayFee = "免費";
+    else if (!isNaN(gNum) && gNum > 0) displayFee = String(gNum);
+  } else if (m.fee) {
+    displayFee = m.fee;
+  }
   if ($("editPickupFee")) $("editPickupFee").value = displayFee;
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
@@ -3382,9 +3399,13 @@ async function loadMemberDashboard() {
 
       const myMeetups = (data || []).map(m => {
         const session = (m.sessions && m.sessions.length > 0) ? m.sessions[0] : null;
-        const feeVal = (m.guest_fee !== null && m.guest_fee !== undefined)
-          ? (Number(m.guest_fee) === 0 ? "場租平分" : String(m.guest_fee))
-          : "場租平分";
+        let feeVal = "場租平分";
+        if (m.guest_fee !== null && m.guest_fee !== undefined) {
+          const gNum = Number(m.guest_fee);
+          if (gNum === -1) feeVal = "場租平分";
+          else if (gNum === 0) feeVal = "免費";
+          else if (!isNaN(gNum) && gNum > 0) feeVal = `$${gNum} / 人`;
+        }
         return {
           ...m,
           start_date: m.one_off_date || session?.session_date || "",
