@@ -385,7 +385,7 @@ async function loadAvailableWeekdays(forceRefresh = false) {
   try {
     const [meetupsRes, cancelSessRes] = await Promise.all([
       query,
-      client.from("sessions").select("meetup_id, session_date").in("status", ["cancelled", "closed"])
+      client.from("sessions").select("meetup_id, session_date").eq("status", "cancelled")
     ]);
     if (meetupsRes.error) throw meetupsRes.error;
 
