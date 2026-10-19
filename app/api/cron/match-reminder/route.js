@@ -41,6 +41,58 @@ async function handleCronMatchReminder(request) {
 
   console.log(`[Cron:MatchReminder] Executing 2-hour match reminder check at ${now.toISOString()} (Taipei: ${todayKey})`);
 
+  const searchParams = new URL(request.url).searchParams;
+  const isTestAdmin = searchParams.get("test_admin") === "1";
+
+  // 若為管理員測試請求，直接向 Jason 發送測試推播並回傳
+  if (isTestAdmin) {
+    const ADMIN_PHONE = "0988602005";
+    const { data: adminUser } = await client
+      .from("users")
+      .select("id, name, expo_push_token")
+      .eq("phone", ADMIN_PHONE)
+      .maybeSingle();
+
+    if (adminUser) {
+      const adminTitle = "🤖 系統測試：開打提醒功能正常";
+      const adminBody = "哈囉 Jason！這是系統排程測試回報，您的手機推播與排程通知通道均運作正常！";
+
+      await logBatchUserNotifications([
+        {
+          userId: adminUser.id,
+          category: "match_reminder",
+          title: adminTitle,
+          body: adminBody,
+          data: { type: "admin_reminder_test" }
+        }
+      ]);
+
+      if (adminUser.expo_push_token) {
+        try {
+          await sendExpoPush([
+            {
+              to: adminUser.expo_push_token,
+              title: adminTitle,
+              body: adminBody,
+              sound: "default",
+              channelId: "pickleball-alerts",
+              data: { type: "admin_reminder_test" }
+            }
+          ]);
+        } catch (e) {
+          console.warn("Test push failed:", e);
+        }
+      }
+    }
+
+    return Response.json({
+      ok: true,
+      message: "已成功發送管理員功能正常測試推播給 Jason！",
+      admin_user: adminUser?.name || "Jason",
+      has_token: !!adminUser?.expo_push_token
+    });
+  }
+
   try {
     // 1. 查詢今天與明天尚未發送 2 小時提醒且未取消的場次 (包含 open 與 closed 額滿場次)
     const { data: sessions, error: sessErr } = await client
@@ -330,10 +382,7 @@ async function handleCronMatchReminder(request) {
     }
 
     // 4. 若有成功發送開賽提醒，同步發送一筆「管理員系統回報」給 Jason（免費 App 原生推播 + 站內通知）
-    const searchParams = new URL(request.url).searchParams;
-    const isTestAdmin = searchParams.get("test_admin") === "1";
-
-    if (processedSessionIds.length > 0 || isTestAdmin) {
+    if (processedSessionIds.length > 0) {
       const ADMIN_PHONE = "0988602005";
       const { data: adminUser } = await client
         .from("users")
@@ -342,10 +391,8 @@ async function handleCronMatchReminder(request) {
         .maybeSingle();
 
       if (adminUser) {
-        const adminTitle = isTestAdmin ? "🤖 系統測試：開打提醒功能正常" : "🤖 系統回報：開打提醒已順利發送";
-        const adminBody = isTestAdmin
-          ? "哈囉 Jason！這是系統排程測試回報，您的手機推播與排程通知通道均運作正常！"
-          : `系統剛完成開打提醒！共計為 ${processedSessionIds.length} 個場次發送通知，通知 ${totalSentNotifications} 人次，送出 LINE 官方推播 ${totalSentLine} 則，系統正常運行中！`;
+        const adminTitle = "🤖 系統回報：開打提醒已順利發送";
+        const adminBody = `系統剛完成開打提醒！共計為 ${processedSessionIds.length} 個場次發送通知，通知 ${totalSentNotifications} 人次，送出 LINE 官方推播 ${totalSentLine} 則，系統正常運行中！`;
 
         // (1) 寫入 Jason 站內通知紀錄
         await logBatchUserNotifications([
@@ -388,9 +435,7 @@ async function handleCronMatchReminder(request) {
 
     return Response.json({
       ok: true,
-      message: isTestAdmin
-        ? "已成功發送管理員功能正常測試推播給 Jason！"
-        : `成功發送 ${processedSessionIds.length} 場開賽前 2 小時提醒，共通知 ${totalSentNotifications} 人次，送出 ${totalSentLine} 則 LINE 官方推播。`,
+      message: `成功發送 ${processedSessionIds.length} 場開賽前 2 小時提醒，共通知 ${totalSentNotifications} 人次，送出 ${totalSentLine} 則 LINE 官方推播。`,
       processed_session_ids: processedSessionIds,
       sent_reminders: totalSentNotifications,
       sent_line: totalSentLine,
