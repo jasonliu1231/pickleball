@@ -1470,7 +1470,7 @@ async function handleUpdatePickup(e) {
   const address = $("editPickupAddress")?.value?.trim();
   const streetAddress = $("editPickupStreetAddress")?.value?.trim() || "";
   const capacity = parseInt($("editPickupCapacity")?.value || "4", 10);
-  const fee = $("editPickupFee")?.value?.trim() || "場租平分";
+  const fee = $("editPickupFee")?.value?.trim() || "";
   const notes = $("editPickupNotes")?.value?.trim() || "";
   const joinPassword = $("editPickupJoinPassword")?.value?.trim() || null;
 
@@ -1579,7 +1579,7 @@ async function handleCreatePickup(e) {
   const address = $("pickupAddress")?.value?.trim();
   const streetAddress = $("pickupStreetAddress")?.value?.trim() || "";
   const capacity = parseInt($("pickupCapacity")?.value || "4", 10);
-  const fee = $("pickupFee")?.value?.trim() || "場租平分";
+  const fee = $("pickupFee")?.value?.trim() || "";
   const notes = $("pickupNotes")?.value?.trim() || "";
 
   const isPrivate = $("pickupIsPrivate")?.checked;

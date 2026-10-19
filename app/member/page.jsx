@@ -290,8 +290,8 @@ export default function MemberPage() {
                 <label>人數上限
                   <input id="editPickupCapacity" type="number" min="2" max="32" required />
                 </label>
-                <label>每人費用
-                  <input id="editPickupFee" placeholder="例如：200、或填「場租平分」" required />
+                <label>每人費用（選填，留空預設為場租平分）
+                  <input id="editPickupFee" placeholder="例如：200、免費（留空即為場租平分）" />
                 </label>
                 <label>備註說明（選填）
                   <textarea id="editPickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球"></textarea>
