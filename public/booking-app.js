@@ -3085,6 +3085,8 @@ window.renderMemberBookingsUI = function(targetContainer) {
       } else {
         footerTipHtml = `<span class="booking-tip-text warn">⚠️ ${s.blockCheck.reason || "已逾線上取消時限，如需請假請聯繫主辦方"}</span>`;
       }
+    }
+
     let canEditNote = !s.isPast && s.status !== "absent" && s.status !== "cancelled" && s.arrived_count === 0;
     if (canEditNote) {
       const editNoteBtnHtml = `
@@ -4172,6 +4174,8 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
   } catch (err) {
     alert("取消失敗：" + (err.message || String(err)));
   }
+};
+
 window.editBookingNote = async function(signupId, meetupId, dateStr, meetupName, currentNote, isMember) {
   const newNote = prompt(`【${meetupName}】(${dateStr})\n請輸入要修改的備註內容：\n（例如：需借球拍、預計晚15分鐘到、同行球友名單...）`, currentNote || "");
   if (newNote === null) return; // user cancelled
