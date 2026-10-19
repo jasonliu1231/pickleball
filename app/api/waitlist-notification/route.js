@@ -39,17 +39,17 @@ export async function POST(request) {
     
     // 2. Fetch meetup details, organizer_id and organizer name
     let meetupName = "球團活動";
-    let orgName = "未知團主";
+    let orgName = "球友同樂會";
     let organizerId = null;
     if (meetup_id) {
       const { data: meetups } = await supabase
         .from("meetups")
-        .select("name,organizer_id,organizers(name)")
+        .select("name,organizer_id,creator_user_id,organizers(name),creator:users!creator_user_id(name)")
         .eq("id", meetup_id);
       if (meetups && meetups.length > 0) {
         meetupName = meetups[0].name;
         organizerId = meetups[0].organizer_id;
-        orgName = meetups[0].organizers?.name || "未知團主";
+        orgName = meetups[0].organizers?.name || meetups[0].creator?.name || (!meetups[0].organizer_id || meetups[0].creator_user_id ? "球友自發" : "球友同樂會");
       }
     }
 

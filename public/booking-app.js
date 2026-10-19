@@ -539,7 +539,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
           over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
           member_count: memberCount,
           confirmed_signup_count: signupConfirmed,
-          organizer_name: m.organizer?.name || m.creator?.name || (m.creator_user_id ? "球友自發" : "未知主辦")
+          organizer_name: m.organizer?.name || m.creator?.name || (!m.organizer_id || m.creator_user_id ? "球友自發" : "球友同樂會")
         });
       });
 
@@ -571,7 +571,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
             over_capacity_count: cap > 0 ? Math.max(realConfirmed - cap, 0) : 0,
             member_count: memberCount,
             confirmed_signup_count: 0,
-            organizer_name: m.organizer?.name || m.creator?.name || (m.creator_user_id ? "球友自發" : "未知主辦")
+            organizer_name: m.organizer?.name || m.creator?.name || (!m.organizer_id || m.creator_user_id ? "球友自發" : "球友同樂會")
           });
         }
       });
@@ -858,7 +858,7 @@ function renderMeetups(meetups) {
       <div class="meetup-top">
         <div>
           <h3 class="meetup-title">
-            ${(m.creator_user_id || m.creator_member_id) ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
+            ${(m.creator_user_id || m.creator_member_id || !m.organizer_id) ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
             ${(m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
             ${escapeHtml(m.name || "未命名活動")}
           </h3>
@@ -873,7 +873,7 @@ function renderMeetups(meetups) {
         <span class="badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="info-grid">
-        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || "未設定")}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
+        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || (!m.organizer_id ? "球友自發" : "球友同樂會"))}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(formatFeeDisplay(m))}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>

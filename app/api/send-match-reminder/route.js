@@ -16,7 +16,7 @@ export async function POST(request) {
     // 1. Fetch meetup details, organizer_id and location
     const { data: meetups } = await supabase
       .from("meetups")
-      .select("name,organizer_id,city,address,organizers(name)")
+      .select("name,organizer_id,creator_user_id,city,address,organizers(name),creator:users!creator_user_id(name)")
       .eq("id", meetup_id);
     
     if (!meetups || meetups.length === 0) {
@@ -26,7 +26,7 @@ export async function POST(request) {
     const meetup = meetups[0];
     const meetupName = meetup.name;
     const organizerId = meetup.organizer_id;
-    const orgName = meetup.organizers?.name || "未知團主";
+    const orgName = meetup.organizers?.name || meetup.creator?.name || (!meetup.organizer_id || meetup.creator_user_id ? "球友自發" : "球友同樂會");
     const meetupLocation = [meetup.city, meetup.address].filter(Boolean).join(" ") || "未設定地點";
     
     // 2. Fetch session for this meetup and date

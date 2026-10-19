@@ -110,7 +110,9 @@ async function handleCronMatchReminder(request) {
           street_address,
           start_time,
           organizer_id,
-          organizers(name)
+          creator_user_id,
+          organizers(name),
+          creator:users!creator_user_id(name)
         )
       `)
       .in("session_date", [todayKey, tomorrowKey])
@@ -174,7 +176,7 @@ async function handleCronMatchReminder(request) {
       const meetupName = meetup.name || "匹克球活動";
       const startTimeStr = (meetup.start_time || "").slice(0, 5);
       const location = [meetup.city, meetup.address, meetup.street_address].filter(Boolean).join(" ") || "未設定地點";
-      const orgName = meetup.organizers?.name || "未知主辦";
+      const orgName = meetup.organizers?.name || meetup.creator?.name || (!meetup.organizer_id || meetup.creator_user_id ? "球友自發" : "球友同樂會");
       const organizerId = meetup.organizer_id;
 
       // 抓取該場次正取/已出席名單 (含 line_user_id)
