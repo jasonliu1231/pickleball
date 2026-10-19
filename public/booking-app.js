@@ -197,6 +197,15 @@ function skillLabel(value, isBeginner) {
 function isBeginnerSkill(value) {
   return value === "first_time" || value === "beginner" || value === "2.0" || value === "2.5";
 }
+function mapSkillToSelect(level) {
+  if (!level) return "beginner";
+  const s = String(level).trim().toLowerCase();
+  if (s === "first_time" || s === "2.0" || parseFloat(s) <= 2.0) return "first_time";
+  if (s === "beginner" || s === "2.5" || (parseFloat(s) > 2.0 && parseFloat(s) <= 2.5)) return "beginner";
+  if (s === "normal" || s === "3.0" || (parseFloat(s) > 2.5 && parseFloat(s) <= 3.0)) return "normal";
+  if (s === "advanced" || s === "3.5" || parseFloat(s) > 3.0) return "advanced";
+  return "beginner";
+}
 
 function normalizePushTokens(value) {
   if (!value) return [];
@@ -1128,12 +1137,7 @@ function openSignup(meetup, initialPwd = null) {
     $("nickname").value = currentSystemMember.nickname || "";
     $("phone").value = currentSystemMember.phone || "";
     if ($("skillLevel")) {
-      let s = currentSystemMember.skill_level || "beginner";
-      if (s === "2.0") s = "first_time";
-      else if (s === "2.5") s = "beginner";
-      else if (s === "3.0") s = "normal";
-      else if (s === "3.5") s = "advanced";
-      $("skillLevel").value = s;
+      $("skillLevel").value = mapSkillToSelect(currentSystemMember.skill_level);
     }
   } else {
     if ($("skillLevel")) $("skillLevel").value = "beginner";
@@ -1824,30 +1828,69 @@ async function handleSignup(e) {
   try {
     // 1. Find or create user
     let user = null;
-    const { data: existingUser } = await client
-      .from("users")
-      .select("id, name, phone")
-      .eq("phone", phone)
-      .maybeSingle();
 
-    if (existingUser) {
-      user = existingUser;
-      if (nickname && nickname !== user.name) {
-        await client.from("users").update({ name: nickname }).eq("id", user.id);
+    // 若為登入會員，直接對齊當前會員身分，並將表單選擇的程度同步更新至會員資料
+    if (currentUser && currentSystemMember?.id) {
+      user = currentSystemMember;
+      try {
+        const { data: updatedMember } = await client
+          .from("users")
+          .update({
+            name: nickname,
+            phone: phone || currentSystemMember.phone,
+            skill_level: skillLevel,
+            is_beginner: isBeginner,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", currentSystemMember.id)
+          .select()
+          .single();
+        if (updatedMember) {
+          currentSystemMember = { ...updatedMember, nickname: updatedMember.name };
+          user = currentSystemMember;
+          if ($("profilePhone") && phone) $("profilePhone").value = phone;
+          if ($("profileNickname")) $("profileNickname").value = nickname;
+          if ($("profileSkillLevel")) $("profileSkillLevel").value = skillLevel;
+        }
+      } catch (uErr) {
+        console.warn("Update currentSystemMember in handleSignup non-fatal:", uErr);
       }
-    } else {
-      const { data: newUser, error: createErr } = await client
+    }
+
+    // 若非登入會員，以手機號碼查找或建立訪客使用者，他寫什麼程度就帶什麼程度
+    if (!user) {
+      const { data: existingUser } = await client
         .from("users")
-        .insert({
-          phone: phone,
-          name: nickname,
-          skill_level: skillLevel,
-          is_beginner: isBeginner
-        })
-        .select()
-        .single();
-      if (createErr) throw createErr;
-      user = newUser;
+        .select("id, name, phone, skill_level")
+        .eq("phone", phone)
+        .maybeSingle();
+
+      if (existingUser) {
+        user = existingUser;
+        // 球友填寫報名，他選什麼程度就帶什麼程度，更新該球友紀錄
+        await client
+          .from("users")
+          .update({
+            name: nickname,
+            skill_level: skillLevel,
+            is_beginner: isBeginner,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", user.id);
+      } else {
+        const { data: newUser, error: createErr } = await client
+          .from("users")
+          .insert({
+            phone: phone,
+            name: nickname,
+            skill_level: skillLevel,
+            is_beginner: isBeginner
+          })
+          .select()
+          .single();
+        if (createErr) throw createErr;
+        user = newUser;
+      }
     }
 
     // 2. Find or create session
@@ -1896,25 +1939,6 @@ async function handleSignup(e) {
       );
     if (partErr) throw partErr;
 
-    // 如果球友已登入，且資料中手機為空，自動更新
-    if (currentUser && currentSystemMember && !currentSystemMember.phone && phone) {
-      try {
-        const { data: updatedMember } = await client
-          .from("users")
-          .update({ phone: phone, name: nickname })
-          .eq("id", currentSystemMember?.id || currentUser.id)
-          .select()
-          .single();
-        if (updatedMember) {
-          currentSystemMember = { ...updatedMember, nickname: updatedMember.name };
-          if ($("profilePhone")) $("profilePhone").value = phone;
-          if ($("profileNickname")) $("profileNickname").value = nickname;
-        }
-      } catch (profileErr) {
-        console.error("Failed to auto-update profile phone:", profileErr);
-      }
-    }
-
     setMessage($("formMessage"), targetStatus === "waitlist" ? "目前正取已滿，已幫您加入備取。" : "報名成功，您目前為正取。", true);
     notifyNewSignup({ meetup: currentMeetup, meetupId: currentMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
     clearRosterCache();
@@ -1951,30 +1975,8 @@ async function handleQuickSignup(meetup, btn) {
     const skillLevelVal = currentSystemMember.skill_level || "beginner";
     const phone = cleanPhone(currentSystemMember.phone);
 
-    // 1. Find or create user
-    let user = null;
-    const { data: existingUser } = await client
-      .from("users")
-      .select("id, name, phone")
-      .eq("phone", phone)
-      .maybeSingle();
-
-    if (existingUser) {
-      user = existingUser;
-    } else {
-      const { data: newUser, error: createErr } = await client
-        .from("users")
-        .insert({
-          phone: phone,
-          name: currentSystemMember.nickname,
-          skill_level: skillLevelVal,
-          is_beginner: isBeginnerVal
-        })
-        .select()
-        .single();
-      if (createErr) throw createErr;
-      user = newUser;
-    }
+    // 1. 快速報名：直接帶入當前會員設定的身分與程度
+    let user = currentSystemMember;
 
     // 2. Find or create session
     let session = null;
@@ -4356,12 +4358,7 @@ function openBindPhoneModal(customNotice) {
     $("bindPhone").value = currentSystemMember?.phone || "";
   }
   if ($("bindSkillLevel")) {
-    let s = currentSystemMember?.skill_level || "beginner";
-    if (s === "2.0") s = "first_time";
-    else if (s === "2.5") s = "beginner";
-    else if (s === "3.0") s = "normal";
-    else if (s === "3.5") s = "advanced";
-    $("bindSkillLevel").value = s;
+    $("bindSkillLevel").value = mapSkillToSelect(currentSystemMember?.skill_level);
   }
   const msgEl = $("bindPhoneMessage");
   if (msgEl) {
@@ -4404,16 +4401,20 @@ async function handleBindPhoneSubmit(e) {
   try {
     setMessage(msgEl, "正在為您綁定並連結球館資料...", true);
 
-    // 1. Update users
+    // 1. Update users (若會員原本已有程度，保留其程度設定，不隨意覆蓋)
+    const updatePayload = {
+      name: nickname,
+      phone,
+      updated_at: new Date().toISOString()
+    };
+    if (!currentSystemMember?.skill_level) {
+      updatePayload.skill_level = skillLevel;
+      updatePayload.is_beginner = isBeginner;
+    }
+
     const { data: updatedMember, error: updateErr } = await client
       .from("users")
-      .update({
-        name: nickname,
-        phone,
-        skill_level: skillLevel,
-        is_beginner: isBeginner,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq("id", currentSystemMember?.id || currentUser.id)
       .select()
       .single();
@@ -4747,29 +4748,6 @@ $("pickupRosterModal")?.addEventListener("click", (e) => { if (e.target.id === "
 $("createPickupForm")?.addEventListener("submit", handleCreatePickup);
 $("editPickupForm")?.addEventListener("submit", handleUpdatePickup);
 $("signupForm")?.addEventListener("submit", handleSignup);
-$("phone")?.addEventListener("input", async (e) => {
-  if (currentSystemMember) return;
-  const rawVal = e.target.value;
-  const cleanPh = cleanPhone(rawVal);
-  if (/^09\d{8}$/.test(cleanPh)) {
-    try {
-      const { data } = await client
-        .from("users")
-        .select("skill_level")
-        .eq("phone", cleanPh)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        if ($("skillLevel") && data.skill_level) {
-          $("skillLevel").value = data.skill_level;
-        }
-      }
-    } catch (err) {
-      console.warn("Failed to autofill last signup details:", err);
-    }
-  }
-});
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
 $("logoutBtn")?.addEventListener("click", async () => { sessionStorage.setItem("user_logged_out", "true"); await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
