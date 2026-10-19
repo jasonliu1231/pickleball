@@ -1242,6 +1242,198 @@ function closeEditPickupModal() {
   setModalVisible($("editPickupModal"), false);
 }
 
+function openPickupRosterModal(meetup) {
+  if (!meetup) return;
+  const modal = $("pickupRosterModal");
+  if (!modal) return;
+
+  const titleEl = $("pickupRosterModalTitle");
+  const subEl = $("pickupRosterModalSubtitle");
+  const listEl = $("pickupRosterModalList");
+  const msgEl = $("pickupRosterMessage");
+  if (msgEl) clearMessage(msgEl);
+
+  if (titleEl) titleEl.textContent = `👥 名單管理：${meetup.name || "自揪活動"}`;
+  if (subEl) subEl.textContent = `日期：${meetup.start_date || ""} ｜ 人數上限：${meetup.capacity || 0} 人`;
+  if (listEl) listEl.innerHTML = `<p style="color: var(--muted); text-align: center; padding: 20px;">載入名單中...</p>`;
+
+  setModalVisible(modal, true);
+
+  renderPickupRosterList(meetup);
+}
+
+function closePickupRosterModal() {
+  setModalVisible($("pickupRosterModal"), false);
+}
+
+async function renderPickupRosterList(meetup) {
+  const listEl = $("pickupRosterModalList");
+  const msgEl = $("pickupRosterMessage");
+  if (!listEl) return;
+
+  try {
+    const { data: parts, error } = await client
+      .from("session_participants")
+      .select("id, session_id, user_id, status, people_count, note, created_at, user:users(id, name, phone)")
+      .eq("session_id", meetup.session_id)
+      .neq("status", "cancelled")
+      .order("created_at", { ascending: true });
+
+    if (error) throw error;
+
+    const participants = parts || [];
+    const confirmed = participants.filter(p => p.status === "confirmed");
+    const waitlist = participants.filter(p => p.status === "waitlist");
+
+    const totalConfirmedPeople = confirmed.reduce((sum, p) => sum + (Number(p.people_count) || 1), 0);
+    const subEl = $("pickupRosterModalSubtitle");
+    if (subEl) {
+      subEl.textContent = `日期：${meetup.start_date || ""} ｜ 正取：${totalConfirmedPeople}/${meetup.capacity || 0} 人 ${waitlist.length > 0 ? `(備取 ${waitlist.length} 人)` : ""}`;
+    }
+
+    if (participants.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align: center; padding: 30px; color: var(--muted);">
+          <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
+          <p style="font-size: 14px; font-weight: 700;">目前尚無人報名</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = "";
+
+    // 1. 正取名單
+    html += `
+      <div style="margin-bottom: 6px;">
+        <div style="font-size: 13px; font-weight: 900; color: #15803d; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+          <span>✅ 正取名單 (${totalConfirmedPeople}/${meetup.capacity || 0}人)</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+    `;
+
+    if (confirmed.length === 0) {
+      html += `<p style="color: var(--muted); font-size: 13px; margin: 0 0 10px 4px;">(目前無正取人員)</p>`;
+    } else {
+      confirmed.forEach((p, idx) => {
+        const isCreator = String(p.user_id) === String(currentSystemMember?.id);
+        const userName = p.user?.name || "球友";
+        const count = p.people_count || 1;
+        const countBadge = count > 1 ? `<span style="background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px;">${count}人</span>` : "";
+
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 900; font-size: 13px; color: var(--muted); width: 20px;">${idx + 1}.</span>
+              <strong style="font-size: 14px; color: var(--text);">${escapeHtml(userName)}</strong>
+              ${countBadge}
+              ${isCreator ? `<span style="background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; border: 1px solid #fde68a;">👑 發起人</span>` : ""}
+            </div>
+            <div>
+              ${isCreator ? `
+                <span style="font-size: 12px; color: var(--muted); font-weight: 700;">本人</span>
+              ` : `
+                <button type="button" class="btn-ghost remove-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 10px; border-radius: 6px; font-weight: 800; color: #dc2626; border: 1px solid #fca5a5; background: #fff5f5; cursor: pointer;">
+                  🗑️ 移除
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    html += `</div></div>`;
+
+    // 2. 備取名單
+    if (waitlist.length > 0) {
+      html += `
+        <div style="margin-top: 10px;">
+          <div style="font-size: 13px; font-weight: 900; color: #d97706; margin-bottom: 8px;">
+            ⏳ 候補名單 (${waitlist.length}人)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+      `;
+
+      waitlist.forEach((p, idx) => {
+        const userName = p.user?.name || "球友";
+        const count = p.people_count || 1;
+        const countBadge = count > 1 ? `<span style="background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px;">${count}人</span>` : "";
+
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 10px 14px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-weight: 900; font-size: 13px; color: #b45309; width: 24px;">備${idx + 1}.</span>
+              <strong style="font-size: 14px; color: var(--text);">${escapeHtml(userName)}</strong>
+              ${countBadge}
+            </div>
+            <div>
+              <button type="button" class="btn-ghost remove-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 10px; border-radius: 6px; font-weight: 800; color: #dc2626; border: 1px solid #fca5a5; background: #fff; cursor: pointer;">
+                🗑️ 移除
+              </button>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div></div>`;
+    }
+
+    listEl.innerHTML = html;
+
+    // 綁定移除按鈕事件
+    listEl.querySelectorAll(".remove-pickup-member-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const partId = btn.dataset.partId;
+        const userName = btn.dataset.name;
+        const count = btn.dataset.count;
+        if (!confirm(`確定要將「${userName}」(${count}人) 從本自揪團名單中移除嗎？\n移除後名額將自動釋出，若有候補將自動遞補。`)) {
+          return;
+        }
+
+        try {
+          btn.disabled = true;
+          btn.textContent = "移除中...";
+          if (msgEl) clearMessage(msgEl);
+
+          const res = await fetch("/api/remove-pickup-participant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              creator_user_id: currentSystemMember.id,
+              participant_id: partId,
+              meetup_id: meetup.id
+            })
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || "移除失敗");
+
+          if (msgEl) {
+            let msg = `✅ ${data.message || "已成功移除報名人員"}`;
+            if (data.promoted) msg += `，候補球友「${data.promoted.name}」已自動遞補為正取！`;
+            setMessage(msgEl, msg, true);
+          }
+
+          // 重新整理名單
+          await renderPickupRosterList(meetup);
+          // 重新載入儀表板自揪團列表以更新人數
+          if (typeof loadMemberDashboard === "function") {
+            loadMemberDashboard().catch(() => {});
+          }
+        } catch (err) {
+          alert("移除失敗：" + (err.message || String(err)));
+          btn.disabled = false;
+          btn.textContent = "🗑️ 移除";
+        }
+      });
+    });
+
+  } catch (err) {
+    listEl.innerHTML = `<p style="color: var(--red); text-align: center; padding: 20px;">載入名單失敗：${escapeHtml(err.message || String(err))}</p>`;
+  }
+}
+
 async function handleUpdatePickup(e) {
   e.preventDefault();
   if (!currentUser || !currentSystemMember) {
@@ -3502,6 +3694,11 @@ async function loadMemberDashboard() {
                 <button type="button" class="btn-secondary copy-roster-btn" data-roster="${escapeHtml(rosterText)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800;">
                   📋 複製名單
                 </button>
+                ${m.session_id ? `
+                  <button type="button" class="btn-secondary manage-roster-btn" data-id="${m.id}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d;">
+                    👥 名單管理
+                  </button>
+                ` : ""}
                 ${m.is_active && !isEnded ? `
                   <button type="button" class="btn-secondary edit-pickup-btn" data-id="${m.id}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
                     ✏️ 編輯
@@ -3535,6 +3732,14 @@ async function loadMemberDashboard() {
             const roster = btn.dataset.roster;
             navigator.clipboard.writeText(roster);
             alert("已複製活動名單到剪貼簿！");
+          });
+        });
+
+        myPickupsList.querySelectorAll(".manage-roster-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const mId = btn.dataset.id;
+            const meetup = myMeetups.find(x => String(x.id) === String(mId));
+            if (meetup) openPickupRosterModal(meetup);
           });
         });
 
@@ -4456,6 +4661,7 @@ $("closeModal")?.addEventListener("click", closeSignup);
 $("closeCancelModal")?.addEventListener("click", closeCancel);
 $("closeCreatePickupModal")?.addEventListener("click", closeCreatePickupModal);
 $("closeEditPickupModal")?.addEventListener("click", closeEditPickupModal);
+$("closePickupRosterModal")?.addEventListener("click", closePickupRosterModal);
 $("openCreatePickupBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
 $("openCreatePickupInlineBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
 $("closeTransactionModal")?.addEventListener("click", () => setModalVisible($("transactionModal"), false));
@@ -4464,6 +4670,7 @@ $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signup
 $("cancelModal")?.addEventListener("click", (e) => { if (e.target.id === "cancelModal") closeCancel(); });
 $("createPickupModal")?.addEventListener("click", (e) => { if (e.target.id === "createPickupModal") closeCreatePickupModal(); });
 $("editPickupModal")?.addEventListener("click", (e) => { if (e.target.id === "editPickupModal") closeEditPickupModal(); });
+$("pickupRosterModal")?.addEventListener("click", (e) => { if (e.target.id === "pickupRosterModal") closePickupRosterModal(); });
 $("createPickupForm")?.addEventListener("submit", handleCreatePickup);
 $("editPickupForm")?.addEventListener("submit", handleUpdatePickup);
 $("signupForm")?.addEventListener("submit", handleSignup);

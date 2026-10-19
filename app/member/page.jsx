@@ -312,6 +312,23 @@ export default function MemberPage() {
               <div className="message" id="editPickupMessage"></div>
             </div>
           </div>
+
+          {/* Pickup Roster Management Modal */}
+          <div className="modal" id="pickupRosterModal">
+            <div className="modal-card" style={{ maxWidth: "520px" }}>
+              <div className="modal-head">
+                <div>
+                  <h2 className="section-title" id="pickupRosterModalTitle" style={{ fontSize: "22px" }}>👥 自揪團名單管理</h2>
+                  <p className="muted" id="pickupRosterModalSubtitle">檢視目前報名球友，發起人可直接移除成員並釋出名額。</p>
+                </div>
+                <button className="close-btn" id="closePickupRosterModal">×</button>
+              </div>
+              <div id="pickupRosterModalList" style={{ maxHeight: "380px", overflowY: "auto", marginTop: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <p style={{ color: "var(--muted)", textAlign: "center", padding: "20px" }}>載入名單中...</p>
+              </div>
+              <div className="message" id="pickupRosterMessage" style={{ marginTop: "10px" }}></div>
+            </div>
+          </div>
         </section>
       </div>
     </div>
