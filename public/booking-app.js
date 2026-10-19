@@ -1249,14 +1249,16 @@ function openEditPickupModal(m) {
   if ($("editPickupStreetAddress")) $("editPickupStreetAddress").value = streetAddr;
   if ($("editPickupCapacity")) $("editPickupCapacity").value = m.capacity || 4;
 
-  let displayFee = "場租平分";
+  let displayFee = "";
   if (m.guest_fee !== null && m.guest_fee !== undefined) {
     const gNum = Number(m.guest_fee);
-    if (gNum === -1) displayFee = "場租平分";
-    else if (gNum === 0) displayFee = "免費";
+    if (gNum === 0) displayFee = "0";
     else if (!isNaN(gNum) && gNum > 0) displayFee = String(gNum);
+    else displayFee = "";
   } else if (m.fee) {
-    displayFee = m.fee;
+    if (m.fee === "免費" || m.fee === "0") displayFee = "0";
+    else if (m.fee === "場租平分") displayFee = "";
+    else displayFee = m.fee;
   }
   if ($("editPickupFee")) $("editPickupFee").value = displayFee;
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";

@@ -243,9 +243,12 @@ export default function Page() {
             <label>人數上限
               <input id="pickupCapacity" type="number" min="2" max="32" defaultValue="4" required />
             </label>
-            <label>每人費用（選填，留空預設為場租平分）
-              <input id="pickupFee" placeholder="例如：200、免費（留空即為場租平分）" defaultValue="場租平分" />
+            <label>每人費用
+              <input id="pickupFee" placeholder="例如：200、或留空" defaultValue="" />
             </label>
+            <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
+              💡 <strong>費用說明：</strong>填 <strong>0</strong> 代表免費；<strong>留空</strong>代表均分；填<strong>數字</strong>代表每人固定費用。
+            </p>
             <label>備註說明（選填）
               <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
             </label>
