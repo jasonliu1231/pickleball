@@ -3755,8 +3755,9 @@ async function loadMemberDashboard() {
                   ${statusBadge}
                 </div>
               </div>
-              <div style="font-size: 13px; color: var(--muted); line-height: 1.4;">
-                📅 ${escapeHtml(m.start_date)} ${m.start_time?.slice(0, 5)} ~ ${m.end_time?.slice(0, 5)} ｜ 📍 ${escapeHtml(m.city || "")} ${escapeHtml(m.address || "")}<span class="pickup-card-street-address">${m.street_address ? ` (${escapeHtml(m.street_address)})` : ""}</span>
+              <div style="font-size: 13px; color: var(--muted); line-height: 1.4; display: flex; flex-direction: column; gap: 2px;">
+                <div>📅 ${escapeHtml(m.start_date)} ${m.start_time?.slice(0, 5)} ~ ${m.end_time?.slice(0, 5)}</div>
+                <div>📍 ${escapeHtml(m.city || "")} ${escapeHtml(m.address || "")}<span class="pickup-card-street-address">${m.street_address ? ` (${escapeHtml(m.street_address)})` : ""}</span></div>
               </div>
               <div class="pickup-card-actions">
                 <div class="pickup-action-row">
