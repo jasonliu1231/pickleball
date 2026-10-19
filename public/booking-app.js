@@ -3724,25 +3724,29 @@ async function loadMemberDashboard() {
                 </div>
                 ${statusBadge}
               </div>
-              <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center; border-top: 1px dashed var(--line); padding-top: 8px; flex-wrap: wrap;">
-                <button type="button" class="btn-secondary copy-link-btn" data-url="${escapeHtml(shareUrl)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
-                  🔗 複製連結
-                </button>
-                <button type="button" class="btn-secondary copy-roster-btn" data-roster="${escapeHtml(rosterText)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800;">
-                  📋 複製名單
-                </button>
-                ${m.session_id ? `
-                  <button type="button" class="btn-secondary manage-roster-btn" data-id="${m.id}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d;">
-                    👥 名單管理
+              <div class="pickup-card-actions">
+                <div class="pickup-action-row">
+                  <button type="button" class="btn-secondary copy-link-btn" data-url="${escapeHtml(shareUrl)}">
+                    🔗 複製連結
                   </button>
-                ` : ""}
+                  <button type="button" class="btn-secondary copy-roster-btn" data-roster="${escapeHtml(rosterText)}">
+                    📋 複製名單
+                  </button>
+                  ${m.session_id ? `
+                    <button type="button" class="btn-secondary manage-roster-btn" data-id="${m.id}">
+                      👥 名單管理
+                    </button>
+                  ` : ""}
+                </div>
                 ${m.is_active && !isEnded ? `
-                  <button type="button" class="btn-secondary edit-pickup-btn" data-id="${m.id}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8;">
-                    ✏️ 編輯
-                  </button>
-                  <button type="button" class="btn-ghost cancel-pickup-btn" data-id="${m.id}" data-name="${escapeHtml(m.name)}" style="font-size: 12.5px; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 800; color: var(--red); border: 1px solid var(--red);">
-                    ❌ 取消活動
-                  </button>
+                  <div class="pickup-action-row">
+                    <button type="button" class="btn-secondary edit-pickup-btn" data-id="${m.id}">
+                      ✏️ 編輯
+                    </button>
+                    <button type="button" class="btn-ghost cancel-pickup-btn" data-id="${m.id}" data-name="${escapeHtml(m.name)}">
+                      ❌ 取消活動
+                    </button>
+                  </div>
                 ` : ""}
               </div>
             </div>

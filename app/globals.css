@@ -4537,5 +4537,150 @@ body:has(.modal.active) {
   100% { left: 100%; width: 45%; }
 }
 
+/* ========================================================
+   自揪團卡片動作按鈕 Responsive Layout (RWD)
+======================================================== */
+.pickup-card-actions {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pickup-action-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pickup-card-actions .copy-link-btn {
+  font-size: 12.5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-weight: 800;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.pickup-card-actions .copy-link-btn:hover {
+  background: #dbeafe;
+}
+
+.pickup-card-actions .copy-roster-btn {
+  font-size: 12.5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-weight: 800;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.pickup-card-actions .copy-roster-btn:hover {
+  background: #f1f5f9;
+}
+
+.pickup-card-actions .manage-roster-btn {
+  font-size: 12.5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-weight: 800;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.pickup-card-actions .manage-roster-btn:hover {
+  background: #dcfce7;
+}
+
+.pickup-card-actions .edit-pickup-btn {
+  font-size: 12.5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-weight: 800;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.pickup-card-actions .edit-pickup-btn:hover {
+  background: #dbeafe;
+}
+
+.pickup-card-actions .cancel-pickup-btn {
+  font-size: 12.5px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-weight: 800;
+  color: var(--red);
+  border: 1px solid var(--red);
+  background: #fff5f5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.pickup-card-actions .cancel-pickup-btn:hover {
+  background: #fee2e2;
+}
+
+@media (max-width: 640px) {
+  .pickup-card-actions {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 7px !important;
+  }
+  .pickup-action-row {
+    width: 100% !important;
+    display: flex !important;
+    gap: 6px !important;
+  }
+  .pickup-action-row button {
+    flex: 1 1 0 !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    font-size: 12px !important;
+    height: 35px !important;
+    padding: 0 4px !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+  }
+}
+
 
 
