@@ -595,7 +595,8 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
             }
           }
         });
-        const realConfirmed = memberCount + nonMemberConfirmedCount;
+        const signupConfirmed = nonMemberConfirmedCount;
+        const realConfirmed = memberCount + signupConfirmed;
 
         rows.push({
           ...m,
