@@ -342,6 +342,31 @@ function timeText(start, end) {
   if (!start || !end) return "時間另行公告";
   return `${String(start).slice(0,5)}–${String(end).slice(0,5)}`;
 }
+function calculateDurationText(start, end) {
+  if (!start || !end) return "";
+  const [sH, sM = 0] = String(start).split(":").map(Number);
+  const [eH, eM = 0] = String(end).split(":").map(Number);
+  if (isNaN(sH) || isNaN(eH)) return "";
+
+  let diffMins = (eH * 60 + (Number(eM) || 0)) - (sH * 60 + (Number(sM) || 0));
+  if (diffMins < 0) {
+    diffMins += 24 * 60; // 跨夜時段處理 (例如 23:00 至 01:00)
+  }
+  if (diffMins <= 0 || diffMins > 24 * 60) return "";
+
+  if (diffMins < 60) {
+    return `${diffMins} 分鐘`;
+  }
+  const h = Math.floor(diffMins / 60);
+  const m = diffMins % 60;
+  if (m === 0) {
+    return `${h} 小時`;
+  } else if (m === 30) {
+    return `${h}.5 小時`;
+  } else {
+    return `${h}小時${m}分`;
+  }
+}
 function cleanPhone(phone) { return String(phone || "").replace(/\D/g, ""); }
 function validatePhone(phone) { return /^09\d{8}$/.test(cleanPhone(phone)); }
 function isTodayDate(dateStr) { return dateStr === toISODate(new Date()); }
@@ -903,6 +928,9 @@ function renderMeetups(meetups) {
       </div>
     ` : "";
 
+    const durationText = calculateDurationText(m.start_time, m.end_time);
+    const durationBadgeHtml = durationText ? `<span class="badge duration-badge" style="margin-left: 6px; font-size: 11px; padding: 2px 7px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 800; border-radius: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 3px;">⏱️ ${durationText}</span>` : "";
+
     return `<article class="meetup-card" id="meetup-card-${m.id}" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
       data-is-full="${full}"
@@ -914,6 +942,7 @@ function renderMeetups(meetups) {
             ${(m.creator_user_id || m.creator_member_id || !m.organizer_id) ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
             ${(m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
             ${escapeHtml(m.name || "未命名活動")}
+            ${durationBadgeHtml}
           </h3>
           <p class="muted">
             ${m.address && m.address !== "地點另行公告" ? `
@@ -3087,6 +3116,9 @@ window.renderMemberBookingsUI = function(targetContainer) {
       timeStr = "時間另行公告";
     }
 
+    const bDurationText = calculateDurationText(s.startTime, s.endTime);
+    const bDurationBadgeHtml = bDurationText ? `<span class="badge duration-badge" style="margin-left: 6px; font-size: 11px; padding: 2px 7px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 800; border-radius: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 3px;">⏱️ ${bDurationText}</span>` : "";
+
     // Location & Map
     const mObj = s.meetup || s.meetups || {};
     const address = mObj.address || "";
@@ -3209,7 +3241,7 @@ window.renderMemberBookingsUI = function(targetContainer) {
           <div class="booking-card-main-col">
             <!-- Title & Status Badge -->
             <div class="booking-card-title-row">
-              <h4 class="booking-meetup-title">${escapeHtml(s.meetupName)}</h4>
+              <h4 class="booking-meetup-title">${escapeHtml(s.meetupName)}${bDurationBadgeHtml}</h4>
               <span class="booking-status-badge ${statusClass}">${statusText}</span>
             </div>
 
@@ -3852,11 +3884,13 @@ async function loadMemberDashboard() {
           }
 
           const shareUrl = makeShortShareUrl(m.id, m.start_date, m.join_password);
+          const mDurationText = calculateDurationText(m.start_time, m.end_time);
+          const mDurationBadgeHtml = mDurationText ? `<span class="badge duration-badge" style="margin-left: 6px; font-size: 11px; padding: 2px 7px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 800; border-radius: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 3px;">⏱️ ${mDurationText}</span>` : "";
 
           return `
             <div class="booking-item-card" style="flex-direction: column; align-items: stretch; gap: 8px;">
               <div style="width: 100%;">
-                <strong style="font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.4; display: block; word-break: break-word;">${escapeHtml(m.name)}</strong>
+                <strong style="font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.4; display: block; word-break: break-word;">${escapeHtml(m.name)}${mDurationBadgeHtml}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 8px; flex-wrap: wrap;">
                 <div>

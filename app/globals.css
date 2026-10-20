@@ -400,6 +400,22 @@ a {
   border: 1px solid #bfdbfe;
 }
 
+.badge.duration-badge {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+
 /* Simplified Hero Section */
 .hero {
   margin-bottom: 28px;
