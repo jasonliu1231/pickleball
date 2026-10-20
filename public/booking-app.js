@@ -536,7 +536,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
       const [sessionRes, meetupRes, subsRes] = await Promise.all([
         client
           .from("sessions")
-          .select("*, meetup:meetups(*, organizer:organizers(name, line_id, phone), creator:users!creator_user_id(name, phone)), participants:session_participants(user_id, status)")
+          .select("*, meetup:meetups(*, organizer:organizers(name, line_id, phone), creator:users!creator_user_id(name, phone)), participants:session_participants(user_id, status, people_count)")
           .eq("session_date", dateStr),
         client
           .from("meetups")
@@ -581,8 +581,21 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         const absentUserIds = new Set((s.participants || []).filter(p => p.status === 'absent').map(p => String(p.user_id)));
         const activeSubs = subs.filter(sub => !absentUserIds.has(String(sub.organizer_member?.user_id)));
         const memberCount = activeSubs.length;
-        const signupConfirmed = Number(s.confirmed_count || 0);
-        const realConfirmed = signupConfirmed + memberCount;
+        const activeSubUserIds = new Set(activeSubs.map(sub => String(sub.organizer_member?.user_id)).filter(Boolean));
+
+        // 計算非固定會員的正取人數 (排除已被 activeSubs 計算過的會員，避免重複加總)
+        let nonMemberConfirmedCount = 0;
+        (s.participants || []).forEach(p => {
+          if (p.status === 'confirmed' || p.status === 'attended') {
+            const uId = String(p.user_id);
+            if (!activeSubUserIds.has(uId)) {
+              nonMemberConfirmedCount += (Number(p.people_count) || 1);
+            } else if (Number(p.people_count) > 1) {
+              nonMemberConfirmedCount += (Number(p.people_count) - 1);
+            }
+          }
+        });
+        const realConfirmed = memberCount + nonMemberConfirmedCount;
 
         rows.push({
           ...m,
@@ -2038,7 +2051,7 @@ async function handleSignup(e) {
 
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
-    const confirmed = Number(session.confirmed_count || 0);
+    const confirmed = Number(currentMeetup?.confirmed_count ?? session.confirmed_count ?? 0);
     const targetStatus = (capacity > 0 && confirmed + peopleCount > capacity) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
@@ -2130,7 +2143,7 @@ async function handleQuickSignup(meetup, btn) {
 
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? meetup.capacity ?? 0;
-    const confirmed = Number(session.confirmed_count || 0);
+    const confirmed = Number(meetup?.confirmed_count ?? session.confirmed_count ?? 0);
     const targetStatus = (capacity > 0 && confirmed + 1 > capacity) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
