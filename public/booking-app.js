@@ -1588,6 +1588,9 @@ async function handleUpdatePickup(e) {
     setTimeout(async () => {
       closeEditPickupModal();
       clearRosterCache();
+      if (typeof MEETUP_CACHE !== "undefined" && MEETUP_CACHE?.clear) {
+        MEETUP_CACHE.clear();
+      }
       await loadAvailableWeekdays(true);
       await loadMeetupsByDate(selectedDate);
       if ($("memberDashboard")) loadMemberDashboard();
@@ -1621,6 +1624,50 @@ function openCreatePickupModal(presetDate) {
   if ($("pickupCity") && selectedCity && selectedCity !== "all") {
     $("pickupCity").value = selectedCity;
   }
+
+  const addrInput = $("pickupAddress");
+  if (addrInput && !$("pickupVenuePresets")) {
+    const presetContainer = document.createElement("div");
+    presetContainer.id = "pickupVenuePresets";
+    presetContainer.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px;";
+    
+    const venues = [
+      { name: "匹克邦球館", city: "台中市", street: "411臺中市太平區太平里永豐路235-3號" },
+      { name: "迪卡儂南屯店", city: "台中市", street: "臺中市南屯區大墩南路379號" },
+      { name: "GooDink匹克球", city: "台中市", street: "台中市西屯區甘河路108號" },
+      { name: "匹克王球館", city: "台中市", street: "臺中市南屯區新生里環中路四段2號" },
+      { name: "朝馬運動中心", city: "台中市", street: "台中市西屯區朝貴路199號" },
+      { name: "南屯運動中心", city: "台中市", street: "台中市南屯區黎明路一段998號" },
+    ];
+
+    presetContainer.innerHTML = venues.map(v => `
+      <button type="button" class="btn-secondary" style="font-size: 11.5px; padding: 4px 10px; border-radius: 999px; background: #f1f5f9; border: 1px solid #cbd5e1; cursor: pointer; color: #334155; font-weight: 600;" data-name="${escapeHtml(v.name)}" data-city="${escapeHtml(v.city)}" data-street="${escapeHtml(v.street)}">
+        ${escapeHtml(v.name)}
+      </button>
+    `).join("");
+
+    presetContainer.querySelectorAll("button").forEach(btn => {
+      btn.addEventListener("click", () => {
+        addrInput.value = btn.dataset.name || "";
+        if ($("pickupStreetAddress")) $("pickupStreetAddress").value = btn.dataset.street || "";
+        if ($("pickupCity") && btn.dataset.city) $("pickupCity").value = btn.dataset.city;
+      });
+    });
+
+    addrInput.parentNode.insertBefore(presetContainer, addrInput);
+  }
+
+  if (addrInput && !addrInput.value) {
+    try {
+      const saved = JSON.parse(localStorage.getItem("last_pickup_venue") || "null");
+      if (saved?.address) {
+        addrInput.value = saved.address;
+        if (saved.city && $("pickupCity")) $("pickupCity").value = saved.city;
+        if (saved.streetAddress && $("pickupStreetAddress")) $("pickupStreetAddress").value = saved.streetAddress;
+      }
+    } catch (_) {}
+  }
+
   clearMessage($("pickupFormMessage"));
   const privateCheckbox = $("pickupIsPrivate");
   const pwdWrap = $("pickupPasswordWrap");
@@ -1699,6 +1746,14 @@ async function handleCreatePickup(e) {
     }
 
     const newMeetupId = data?.meetup_id;
+    try {
+      localStorage.setItem("last_pickup_venue", JSON.stringify({
+        city,
+        address,
+        streetAddress
+      }));
+    } catch (_) {}
+
     let successMsg = "🎉 自揪團發起成功！已自動將您加入正取第 1 位。";
     if (newMeetupId && navigator?.clipboard?.writeText) {
       const shareUrl = makeShortShareUrl(newMeetupId, date, joinPassword);
@@ -1717,8 +1772,11 @@ async function handleCreatePickup(e) {
         if ($("cityFilter")) $("cityFilter").value = "all";
       }
       clearRosterCache();
+      if (typeof MEETUP_CACHE !== "undefined" && MEETUP_CACHE?.clear) {
+        MEETUP_CACHE.clear();
+      }
       await loadAvailableWeekdays(true);
-      await refreshAll();
+      await refreshAll(true);
       if ($("memberDashboard")) loadMemberDashboard();
     }, 1200);
   } catch (err) {
@@ -3032,11 +3090,13 @@ window.renderMemberBookingsUI = function(targetContainer) {
     // Location & Map
     const mObj = s.meetup || s.meetups || {};
     const address = mObj.address || "";
+    const streetAddress = mObj.street_address || "";
     const city = mObj.city || "";
-    const venueText = address || city || "球館/場地另行通知";
+    const venueText = `${city ? city + " " : ""}${address}${streetAddress ? ` (${streetAddress})` : ""}`.trim() || "球館/場地另行通知";
     let mapChipHtml = "";
-    if (address && address.trim()) {
-      const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    const mapQuery = streetAddress || address;
+    if (mapQuery && mapQuery.trim()) {
+      const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
       mapChipHtml = `
         <a href="${mapUrl}" target="_blank" rel="noopener noreferrer" class="booking-map-chip" title="開啟 Google 地圖導航">
           導航 ↗
@@ -3285,6 +3345,7 @@ async function loadMemberDashboard() {
                 start_time,
                 end_time,
                 address,
+                street_address,
                 city,
                 guest_fee,
                 member_fee,
