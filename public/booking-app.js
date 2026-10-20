@@ -836,12 +836,6 @@ function formatFeeDisplay(m) {
       if (gNum === -1) return "場租平分";
       if (gNum === 0) return "免費";
       const gStr = `$${gNum}`;
-      if (mFee !== null && mFee !== undefined && mFee !== "") {
-        const mNum = Number(mFee);
-        if (!isNaN(mNum) && mNum !== gNum && mNum > 0) {
-          return `臨打 ${gStr} / 會員 $${mNum}`;
-        }
-      }
       return `${gStr} / 人`;
     }
     const str = String(gFee).trim();
