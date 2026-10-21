@@ -306,6 +306,28 @@ function makeShortShareUrl(meetupId, date, pwd) {
   return `${window.location.origin}/s/${slug}`;
 }
 
+function handleContactOrganizer(contactVal) {
+  if (!contactVal) return;
+  const raw = String(contactVal).trim();
+  const urlMatch = raw.match(/https?:\/\/[^\s]+/);
+  if (urlMatch) {
+    window.open(urlMatch[0], "_blank");
+    return;
+  }
+  
+  if (navigator?.clipboard?.writeText) {
+    navigator.clipboard.writeText(raw).then(() => {
+      if (confirm(`🎉 已為您複製團主 LINE ID：【${raw}】\n\n是否立即打開 LINE 加好友？`)) {
+        window.location.href = "line://";
+      }
+    }).catch(() => {
+      prompt("請複製團主 LINE ID：", raw);
+    });
+  } else {
+    prompt("請複製團主 LINE ID：", raw);
+  }
+}
+
 let selectedDate = (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate.trim())) ? urlDate.trim() : toISODate(new Date());
 let visibleMonth = selectedDate.slice(0, 7) + "-01";
 let availableRules = [];
@@ -938,6 +960,8 @@ function renderMeetups(meetups) {
 
     const durationText = calculateDurationText(m.start_time, m.end_time);
     const durationBadgeHtml = durationText ? `<span class="badge duration-badge" style="margin-left: 6px; font-size: 11px; padding: 2px 7px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 800; border-radius: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 3px;">⏱️ ${durationText}</span>` : "";
+    const effectiveLineId = m.line_id || m.organizer?.line_id || null;
+    const lineContactBtnHtml = effectiveLineId ? ` <button class="line-contact-btn" data-contact="${escapeHtml(effectiveLineId)}" style="margin-left: 6px; display: inline-flex; align-items: center; gap: 3px; background: #06C755; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(6,199,85,0.2);">💬 加 LINE</button>` : "";
 
     return `<article class="meetup-card" id="meetup-card-${m.id}" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
@@ -963,7 +987,7 @@ function renderMeetups(meetups) {
         <span class="badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="info-grid">
-        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || (!m.organizer_id ? "球友自發" : "球友同樂會"))}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}</div>
+        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || (!m.organizer_id ? "球友自發" : "球友同樂會"))}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}${lineContactBtnHtml}</div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(formatFeeDisplay(m))}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
@@ -994,6 +1018,10 @@ function renderMeetups(meetups) {
   document.querySelectorAll(".meetup-card").forEach((card) => {
     const id = String(card.dataset.meetupId);
     const meetup = meetups.find((x) => String(x.id) === id);
+    card.querySelector(".line-contact-btn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleContactOrganizer(e.currentTarget.dataset.contact);
+    });
     card.querySelector(".signup-btn")?.addEventListener("click", () => openSignup(meetup));
     card.querySelector(".cancel-btn")?.addEventListener("click", () => openCancel(meetup));
     card.querySelector(".roster-btn")?.addEventListener("click", () => toggleRoster(meetup));
@@ -1296,6 +1324,12 @@ function initPickupModal() {
   if (editCitySelect && editCitySelect.options.length <= 1) {
     editCitySelect.innerHTML = taiwanCities.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
   }
+  if ($("pickupLineId") && !$("pickupLineId").value) {
+    try {
+      const savedLineId = localStorage.getItem("last_pickup_line_id");
+      if (savedLineId) $("pickupLineId").value = savedLineId;
+    } catch (_) {}
+  }
 }
 
 function openEditPickupModal(m) {
@@ -1334,6 +1368,7 @@ function openEditPickupModal(m) {
   }
   if ($("editPickupFee")) $("editPickupFee").value = displayFee;
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
+  if ($("editPickupLineId")) $("editPickupLineId").value = m.line_id || "";
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
   setModalVisible($("editPickupModal"), true);
@@ -1583,6 +1618,7 @@ async function handleUpdatePickup(e) {
   const capacity = parseInt($("editPickupCapacity")?.value || "4", 10);
   const fee = $("editPickupFee")?.value?.trim() || "";
   const notes = $("editPickupNotes")?.value?.trim() || "";
+  const lineId = $("editPickupLineId")?.value?.trim() || "";
   const joinPassword = $("editPickupJoinPassword")?.value?.trim() || null;
 
   if (!meetupId || !name || !city || !startTime || !endTime || !address || !capacity) {
@@ -1612,7 +1648,8 @@ async function handleUpdatePickup(e) {
         capacity,
         fee,
         notes,
-        join_password: joinPassword
+        join_password: joinPassword,
+        line_id: lineId
       })
     });
 
@@ -1739,6 +1776,7 @@ async function handleCreatePickup(e) {
   const capacity = parseInt($("pickupCapacity")?.value || "4", 10);
   const fee = $("pickupFee")?.value?.trim() || "";
   const notes = $("pickupNotes")?.value?.trim() || "";
+  const lineId = $("pickupLineId")?.value?.trim() || "";
 
   const isPrivate = $("pickupIsPrivate")?.checked;
   const joinPassword = isPrivate ? ($("pickupJoinPassword")?.value?.trim() || null) : null;
@@ -1773,7 +1811,8 @@ async function handleCreatePickup(e) {
         capacity,
         fee,
         notes,
-        join_password: joinPassword
+        join_password: joinPassword,
+        line_id: lineId
       })
     });
 
@@ -1789,6 +1828,7 @@ async function handleCreatePickup(e) {
         address,
         streetAddress
       }));
+      if (lineId) localStorage.setItem("last_pickup_line_id", lineId);
     } catch (_) {}
 
     let successMsg = "🎉 自揪團發起成功！已自動將您加入正取第 1 位。";

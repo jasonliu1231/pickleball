@@ -17,7 +17,8 @@ export async function POST(request) {
       capacity,
       fee,
       notes,
-      join_password
+      join_password,
+      line_id
     } = body;
 
     if (!creator_user_id || !meetup_id) {
@@ -73,22 +74,35 @@ export async function POST(request) {
     }
 
     // 更新 meetup
-    const { error: updateErr } = await supabase
+    const updatePayload = {
+      name: name.trim(),
+      city: city.trim(),
+      address: address.trim(),
+      street_address: (street_address || "").trim() || null,
+      start_time: start_time,
+      end_time: end_time,
+      capacity: Number(capacity) || 4,
+      guest_fee: parsedFee,
+      member_fee: parsedFee,
+      notes: (notes || "").trim() || null,
+      join_password: (join_password || "").trim() || null,
+      line_id: (line_id || "").trim() || null
+    };
+
+    let { error: updateErr } = await supabase
       .from("meetups")
-      .update({
-        name: name.trim(),
-        city: city.trim(),
-        address: address.trim(),
-        street_address: (street_address || "").trim() || null,
-        start_time: start_time,
-        end_time: end_time,
-        capacity: Number(capacity) || 4,
-        guest_fee: parsedFee,
-        member_fee: parsedFee,
-        notes: (notes || "").trim() || null,
-        join_password: (join_password || "").trim() || null
-      })
+      .update(updatePayload)
       .eq("id", meetup_id);
+
+    // 若資料庫尚未遷移 line_id 欄位，自動排除後重試
+    if (updateErr && updateErr.message?.includes("line_id")) {
+      delete updatePayload.line_id;
+      const retry = await supabase
+        .from("meetups")
+        .update(updatePayload)
+        .eq("id", meetup_id);
+      updateErr = retry.error;
+    }
 
     if (updateErr) {
       return Response.json({ ok: false, error: updateErr.message }, { status: 500 });

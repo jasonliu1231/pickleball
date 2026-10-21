@@ -17,7 +17,8 @@ export async function POST(request) {
       capacity,
       fee,
       notes,
-      join_password
+      join_password,
+      line_id
     } = body;
 
     if (!creator_user_id) {
@@ -63,30 +64,45 @@ export async function POST(request) {
     }
 
     // 2. 建立自揪活動 (meetups)
-    const { data: newMeetup, error: meetupErr } = await supabase
+    const meetupInsertPayload = {
+      creator_user_id: user.id,
+      organizer_id: null,
+      name: name.trim(),
+      city: (city || "台中市").trim(),
+      address: address.trim(),
+      street_address: (street_address || "").trim() || null,
+      start_time: start_time,
+      end_time: end_time,
+      capacity: Number(capacity) || 4,
+      guest_fee: parsedFee,
+      member_fee: parsedFee,
+      notes: (notes || "").trim() || null,
+      is_active: true,
+      is_one_off: true,
+      one_off_date: date,
+      join_password: (join_password || "").trim() || null,
+      line_id: (line_id || "").trim() || null,
+      weekdays: [weekday],
+      sort_order: 50
+    };
+
+    let { data: newMeetup, error: meetupErr } = await supabase
       .from("meetups")
-      .insert({
-        creator_user_id: user.id,
-        organizer_id: null,
-        name: name.trim(),
-        city: (city || "台中市").trim(),
-        address: address.trim(),
-        street_address: (street_address || "").trim() || null,
-        start_time: start_time,
-        end_time: end_time,
-        capacity: Number(capacity) || 4,
-        guest_fee: parsedFee,
-        member_fee: parsedFee,
-        notes: (notes || "").trim() || null,
-        is_active: true,
-        is_one_off: true,
-        one_off_date: date,
-        join_password: (join_password || "").trim() || null,
-        weekdays: [weekday],
-        sort_order: 50
-      })
+      .insert(meetupInsertPayload)
       .select()
       .single();
+
+    // 若資料庫尚未遷移 line_id 欄位，自動移除並重試，避免開團中斷
+    if (meetupErr && meetupErr.message?.includes("line_id")) {
+      delete meetupInsertPayload.line_id;
+      const retry = await supabase
+        .from("meetups")
+        .insert(meetupInsertPayload)
+        .select()
+        .single();
+      newMeetup = retry.data;
+      meetupErr = retry.error;
+    }
 
     if (meetupErr) {
       console.error("Failed to insert meetup:", meetupErr);

@@ -252,6 +252,12 @@ export default function Page() {
             <label>備註說明（選填）
               <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
             </label>
+            <label>團主 LINE ID（選填）
+              <input id="pickupLineId" placeholder="例如：jason_pb 或貼上 LINE 群組連結" />
+            </label>
+            <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
+              💡 方便球友有一鍵加 LINE 聯繫或加入活動群組。
+            </p>
             <div style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: 0, userSelect: "none" }}>
                 <input type="checkbox" id="pickupIsPrivate" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
