@@ -2087,10 +2087,22 @@ async function handleSignup(e) {
       session = newSession;
     }
 
+    // 檢查該球友是否已經是正取，避免重複報名或修改備註時被系統誤踢去備取
+    const { data: existingPart } = await client
+      .from("session_participants")
+      .select("id, status, people_count")
+      .eq("session_id", session.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isAlreadyConfirmed = existingPart?.status === "confirmed";
+
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
     const confirmed = Number(currentMeetup?.confirmed_count ?? session.confirmed_count ?? 0);
-    const targetStatus = (capacity > 0 && confirmed + peopleCount > capacity) ? "waitlist" : "confirmed";
+    const targetStatus = isAlreadyConfirmed
+      ? "confirmed"
+      : (capacity > 0 && confirmed + peopleCount > capacity) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
@@ -2179,10 +2191,22 @@ async function handleQuickSignup(meetup, btn) {
       session = newSession;
     }
 
+    // 檢查該球友是否已經是正取
+    const { data: existingPart } = await client
+      .from("session_participants")
+      .select("id, status, people_count")
+      .eq("session_id", session.id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const isAlreadyConfirmed = existingPart?.status === "confirmed";
+
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? meetup.capacity ?? 0;
     const confirmed = Number(meetup?.confirmed_count ?? session.confirmed_count ?? 0);
-    const targetStatus = (capacity > 0 && confirmed + 1 > capacity) ? "waitlist" : "confirmed";
+    const targetStatus = isAlreadyConfirmed
+      ? "confirmed"
+      : (capacity > 0 && confirmed + 1 > capacity) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
