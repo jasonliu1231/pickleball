@@ -315,17 +315,20 @@ function handleContactOrganizer(contactVal) {
     return;
   }
   
-  if (navigator?.clipboard?.writeText) {
-    navigator.clipboard.writeText(raw).then(() => {
-      if (confirm(`🎉 已為您複製團主 LINE ID：【${raw}】\n\n是否立即打開 LINE 加好友？`)) {
-        window.location.href = "line://";
-      }
-    }).catch(() => {
-      prompt("請複製團主 LINE ID：", raw);
-    });
-  } else {
-    prompt("請複製團主 LINE ID：", raw);
-  }
+  // 複製 LINE ID 到剪貼簿備用
+  try {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(raw).catch(() => {});
+    }
+  } catch (_) {}
+
+  // 構造正確的 LINE 加好友連結
+  const cleanId = raw.replace(/^~/, "");
+  const lineUrl = cleanId.startsWith("@")
+    ? `https://line.me/R/ti/p/${encodeURIComponent(cleanId)}`
+    : `https://line.me/ti/p/~${encodeURIComponent(cleanId)}`;
+
+  window.location.href = lineUrl;
 }
 
 let selectedDate = (urlDate && /^\d{4}-\d{2}-\d{2}$/.test(urlDate.trim())) ? urlDate.trim() : toISODate(new Date());
