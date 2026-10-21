@@ -179,6 +179,22 @@ async function handleCronMatchReminder(request) {
       const orgName = meetup.organizers?.name || meetup.creator?.name || (!meetup.organizer_id || meetup.creator_user_id ? "球友自發" : "球友同樂會");
       const organizerId = meetup.organizer_id;
 
+      // (0) 先將該場次標記為已發送 2 小時提醒，避免排程重複發送
+      try {
+        const { error: markErr } = await client
+          .from("sessions")
+          .update({ reminder_2h_sent_at: now.toISOString() })
+          .eq("id", s.id);
+
+        if (markErr) {
+          console.error(`[Cron:MatchReminder] Failed to mark reminder_2h_sent_at for session ${s.id}:`, markErr);
+        } else {
+          console.log(`[Cron:MatchReminder] Marked session ${s.id} reminder_2h_sent_at to ${now.toISOString()}`);
+        }
+      } catch (markEx) {
+        console.error(`[Cron:MatchReminder] Exception marking reminder_2h_sent_at for session ${s.id}:`, markEx);
+      }
+
       // 抓取該場次正取/已出席名單 (含 line_user_id)
       const { data: participants, error: partErr } = await client
         .from("session_participants")
@@ -372,13 +388,7 @@ async function handleCronMatchReminder(request) {
         }
       }
 
-      // (5) 標記該場次已發送 2 小時提醒，避免重複發送
-      await client
-        .from("sessions")
-        .update({ reminder_2h_sent_at: now.toISOString() })
-        .eq("id", s.id)
-        .catch(() => {});
-
+      // (5) 記錄已處理場次與通知計數
       totalSentNotifications += userNotificationRows.length;
       processedSessionIds.push(s.id);
     }
