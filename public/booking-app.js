@@ -964,7 +964,12 @@ function renderMeetups(meetups) {
     const durationText = calculateDurationText(m.start_time, m.end_time);
     const durationBadgeHtml = durationText ? `<span class="badge duration-badge" style="margin-left: 6px; font-size: 11px; padding: 2px 7px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 800; border-radius: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 3px;">⏱️ ${durationText}</span>` : "";
     const effectiveLineId = m.line_id || m.organizer?.line_id || null;
-    const lineContactBtnHtml = effectiveLineId ? ` <button class="line-contact-btn" data-contact="${escapeHtml(effectiveLineId)}" style="margin-left: 6px; display: inline-flex; align-items: center; gap: 3px; background: #06C755; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(6,199,85,0.2);">💬 加 LINE</button>` : "";
+    const effectiveGroupUrl = m.group_url || null;
+    const effectiveDoorUrl = m.door_url || null;
+
+    const lineContactBtnHtml = effectiveLineId ? `<button class="line-contact-btn" data-contact="${escapeHtml(effectiveLineId)}" style="margin-left: 4px; display: inline-flex; align-items: center; gap: 3px; background: #06C755; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2.5px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(6,199,85,0.2);" title="一鍵加團主好友">💬 加 LINE</button>` : "";
+    const groupBtnHtml = effectiveGroupUrl ? `<button class="group-link-btn" data-url="${escapeHtml(effectiveGroupUrl)}" style="margin-left: 4px; display: inline-flex; align-items: center; gap: 3px; background: #059669; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2.5px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(5,150,105,0.2);" title="加入 LINE 活動群組">👥 LINE 群組</button>` : "";
+    const doorBtnHtml = effectiveDoorUrl ? `<button class="door-link-btn" data-url="${escapeHtml(effectiveDoorUrl)}" style="margin-left: 4px; display: inline-flex; align-items: center; gap: 3px; background: #2563eb; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2.5px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(37,99,235,0.2);" title="開啟球場開門網址">🚪 球場開門</button>` : "";
 
     return `<article class="meetup-card" id="meetup-card-${m.id}" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
@@ -990,7 +995,12 @@ function renderMeetups(meetups) {
         <span class="badge ${badgeClass}">${badgeText}</span>
       </div>
       <div class="info-grid">
-        <div class="info"><strong>發起人</strong>${escapeHtml(m.organizer_name || (!m.organizer_id ? "球友自發" : "球友同樂會"))}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}${lineContactBtnHtml}</div>
+        <div class="info" style="grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
+          <strong>發起人</strong>${escapeHtml(m.organizer_name || (!m.organizer_id ? "球友自發" : "球友同樂會"))}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}
+          ${lineContactBtnHtml}
+          ${groupBtnHtml}
+          ${doorBtnHtml}
+        </div>
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(formatFeeDisplay(m))}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
@@ -1024,6 +1034,22 @@ function renderMeetups(meetups) {
     card.querySelector(".line-contact-btn")?.addEventListener("click", (e) => {
       e.stopPropagation();
       handleContactOrganizer(e.currentTarget.dataset.contact);
+    });
+    card.querySelector(".group-link-btn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const rawUrl = e.currentTarget.dataset.url;
+      if (rawUrl) {
+        const targetUrl = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
+        window.open(targetUrl, "_blank");
+      }
+    });
+    card.querySelector(".door-link-btn")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const rawUrl = e.currentTarget.dataset.url;
+      if (rawUrl) {
+        const targetUrl = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
+        window.open(targetUrl, "_blank");
+      }
     });
     card.querySelector(".signup-btn")?.addEventListener("click", () => openSignup(meetup));
     card.querySelector(".cancel-btn")?.addEventListener("click", () => openCancel(meetup));
@@ -1333,6 +1359,18 @@ function initPickupModal() {
       if (savedLineId) $("pickupLineId").value = savedLineId;
     } catch (_) {}
   }
+  if ($("pickupGroupUrl") && !$("pickupGroupUrl").value) {
+    try {
+      const savedGroupUrl = localStorage.getItem("last_pickup_group_url");
+      if (savedGroupUrl) $("pickupGroupUrl").value = savedGroupUrl;
+    } catch (_) {}
+  }
+  if ($("pickupDoorUrl") && !$("pickupDoorUrl").value) {
+    try {
+      const savedDoorUrl = localStorage.getItem("last_pickup_door_url");
+      if (savedDoorUrl) $("pickupDoorUrl").value = savedDoorUrl;
+    } catch (_) {}
+  }
 }
 
 function openEditPickupModal(m) {
@@ -1372,6 +1410,8 @@ function openEditPickupModal(m) {
   if ($("editPickupFee")) $("editPickupFee").value = displayFee;
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
   if ($("editPickupLineId")) $("editPickupLineId").value = m.line_id || "";
+  if ($("editPickupGroupUrl")) $("editPickupGroupUrl").value = m.group_url || "";
+  if ($("editPickupDoorUrl")) $("editPickupDoorUrl").value = m.door_url || "";
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
   clearMessage($("editPickupMessage"));
   setModalVisible($("editPickupModal"), true);
@@ -1622,6 +1662,8 @@ async function handleUpdatePickup(e) {
   const fee = $("editPickupFee")?.value?.trim() || "";
   const notes = $("editPickupNotes")?.value?.trim() || "";
   const lineId = $("editPickupLineId")?.value?.trim() || "";
+  const groupUrl = $("editPickupGroupUrl")?.value?.trim() || "";
+  const doorUrl = $("editPickupDoorUrl")?.value?.trim() || "";
   const joinPassword = $("editPickupJoinPassword")?.value?.trim() || null;
 
   if (!meetupId || !name || !city || !startTime || !endTime || !address || !capacity) {
@@ -1652,7 +1694,9 @@ async function handleUpdatePickup(e) {
         fee,
         notes,
         join_password: joinPassword,
-        line_id: lineId
+        line_id: lineId,
+        group_url: groupUrl,
+        door_url: doorUrl
       })
     });
 
@@ -1780,6 +1824,8 @@ async function handleCreatePickup(e) {
   const fee = $("pickupFee")?.value?.trim() || "";
   const notes = $("pickupNotes")?.value?.trim() || "";
   const lineId = $("pickupLineId")?.value?.trim() || "";
+  const groupUrl = $("pickupGroupUrl")?.value?.trim() || "";
+  const doorUrl = $("pickupDoorUrl")?.value?.trim() || "";
 
   const isPrivate = $("pickupIsPrivate")?.checked;
   const joinPassword = isPrivate ? ($("pickupJoinPassword")?.value?.trim() || null) : null;
@@ -1815,7 +1861,9 @@ async function handleCreatePickup(e) {
         fee,
         notes,
         join_password: joinPassword,
-        line_id: lineId
+        line_id: lineId,
+        group_url: groupUrl,
+        door_url: doorUrl
       })
     });
 
@@ -1832,6 +1880,8 @@ async function handleCreatePickup(e) {
         streetAddress
       }));
       if (lineId) localStorage.setItem("last_pickup_line_id", lineId);
+      if (groupUrl) localStorage.setItem("last_pickup_group_url", groupUrl);
+      if (doorUrl) localStorage.setItem("last_pickup_door_url", doorUrl);
     } catch (_) {}
 
     let successMsg = "🎉 自揪團發起成功！已自動將您加入正取第 1 位。";

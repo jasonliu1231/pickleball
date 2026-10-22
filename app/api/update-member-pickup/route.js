@@ -18,7 +18,9 @@ export async function POST(request) {
       fee,
       notes,
       join_password,
-      line_id
+      line_id,
+      group_url,
+      door_url
     } = body;
 
     if (!creator_user_id || !meetup_id) {
@@ -86,7 +88,9 @@ export async function POST(request) {
       member_fee: parsedFee,
       notes: (notes || "").trim() || null,
       join_password: (join_password || "").trim() || null,
-      line_id: (line_id || "").trim() || null
+      line_id: (line_id || "").trim() || null,
+      group_url: (group_url || "").trim() || null,
+      door_url: (door_url || "").trim() || null
     };
 
     let { error: updateErr } = await supabase
@@ -94,9 +98,11 @@ export async function POST(request) {
       .update(updatePayload)
       .eq("id", meetup_id);
 
-    // 若資料庫尚未遷移 line_id 欄位，自動排除後重試
-    if (updateErr && updateErr.message?.includes("line_id")) {
-      delete updatePayload.line_id;
+    // 若資料庫尚未遷移新欄位，自動排除後重試
+    if (updateErr && (updateErr.message?.includes("line_id") || updateErr.message?.includes("group_url") || updateErr.message?.includes("door_url"))) {
+      if (updateErr.message?.includes("line_id")) delete updatePayload.line_id;
+      if (updateErr.message?.includes("group_url")) delete updatePayload.group_url;
+      if (updateErr.message?.includes("door_url")) delete updatePayload.door_url;
       const retry = await supabase
         .from("meetups")
         .update(updatePayload)

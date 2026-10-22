@@ -18,7 +18,9 @@ export async function POST(request) {
       fee,
       notes,
       join_password,
-      line_id
+      line_id,
+      group_url,
+      door_url
     } = body;
 
     if (!creator_user_id) {
@@ -82,6 +84,8 @@ export async function POST(request) {
       one_off_date: date,
       join_password: (join_password || "").trim() || null,
       line_id: (line_id || "").trim() || null,
+      group_url: (group_url || "").trim() || null,
+      door_url: (door_url || "").trim() || null,
       weekdays: [weekday],
       sort_order: 50
     };
@@ -92,9 +96,11 @@ export async function POST(request) {
       .select()
       .single();
 
-    // 若資料庫尚未遷移 line_id 欄位，自動移除並重試，避免開團中斷
-    if (meetupErr && meetupErr.message?.includes("line_id")) {
-      delete meetupInsertPayload.line_id;
+    // 若資料庫尚未遷移新欄位，自動移除並重試，避免開團中斷
+    if (meetupErr && (meetupErr.message?.includes("line_id") || meetupErr.message?.includes("group_url") || meetupErr.message?.includes("door_url"))) {
+      if (meetupErr.message?.includes("line_id")) delete meetupInsertPayload.line_id;
+      if (meetupErr.message?.includes("group_url")) delete meetupInsertPayload.group_url;
+      if (meetupErr.message?.includes("door_url")) delete meetupInsertPayload.door_url;
       const retry = await supabase
         .from("meetups")
         .insert(meetupInsertPayload)

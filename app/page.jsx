@@ -253,10 +253,16 @@ export default function Page() {
               <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
             </label>
             <label>團主 LINE ID（選填）
-              <input id="pickupLineId" placeholder="例如：jason_pb 或貼上 LINE 群組連結" />
+              <input id="pickupLineId" placeholder="例如：jason123 (球友點擊可一鍵加好友)" />
+            </label>
+            <label>LINE 群組連結（選填）
+              <input id="pickupGroupUrl" placeholder="例如：https://line.me/ti/g2/... (LINE 群組或社群邀請連結)" />
+            </label>
+            <label>球場開門連結（選填）
+              <input id="pickupDoorUrl" placeholder="例如：https://... (球館門禁、智慧鎖或開門網址)" />
             </label>
             <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
-              💡 方便球友有一鍵加 LINE 聯繫或加入活動群組。
+              💡 以上資訊皆為非必填，填寫後卡片會自動產生對應的專屬按鈕供球友使用。
             </p>
             <div style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: 0, userSelect: "none" }}>
