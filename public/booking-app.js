@@ -600,6 +600,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         if (s.status === "cancelled") return;
         const m = s.meetup || {};
         if (m.is_active === false) return;
+        if (m.start_date && dateStr < m.start_date) return;
 
         const meetupCity = getMeetupCity(m);
 
