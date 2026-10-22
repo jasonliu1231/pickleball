@@ -457,7 +457,7 @@ async function loadAvailableWeekdays(forceRefresh = false) {
   }
   let query = client
     .from("meetups")
-    .select("id, city, address, name, weekdays, is_one_off, one_off_date, is_active")
+    .select("*")
     .eq("is_active", true);
 
   try {
@@ -476,6 +476,7 @@ async function loadAvailableWeekdays(forceRefresh = false) {
           weekday: m.one_off_date ? dateFromISO(m.one_off_date).getDay() : 0,
           is_one_off: true,
           one_off_date: m.one_off_date,
+          start_date: m.one_off_date || null,
           city: city
         });
       } else {
@@ -485,6 +486,7 @@ async function loadAvailableWeekdays(forceRefresh = false) {
             weekday: Number(w),
             is_one_off: false,
             one_off_date: null,
+            start_date: m.start_date || null,
             city: city
           });
         });
@@ -510,6 +512,7 @@ function hasAvailableMeetupOnDate(dateStr) {
     if (rule.is_one_off) {
       if (rule.one_off_date !== dateStr) return false;
     } else {
+      if (rule.start_date && dateStr < rule.start_date) return false;
       if (Number(rule.weekday) !== weekday) return false;
     }
 
@@ -650,7 +653,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
 
         const meetupCity = getMeetupCity(m);
 
-        const matchesWeekday = !m.is_one_off && (m.weekdays || []).includes(weekday);
+        const matchesWeekday = !m.is_one_off && (m.weekdays || []).includes(weekday) && (!m.start_date || dateStr >= m.start_date);
         const matchesOneOff = m.is_one_off && m.one_off_date === dateStr;
         if (matchesWeekday || matchesOneOff) {
           const cap = m.capacity ?? 0;
