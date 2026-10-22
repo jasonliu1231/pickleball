@@ -1002,6 +1002,8 @@ a {
   padding: 8px 12px;
   border-radius: 0 8px 8px 0;
   margin-bottom: 16px;
+  white-space: pre-line;
+  line-height: 1.6;
 }
 
 /* Capacity Progress Bar */

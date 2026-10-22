@@ -1013,8 +1013,8 @@ function renderMeetups(meetups) {
         ${hasRatingThreshold(m) ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${formatRatingMin(m.rating_min)}</div>` : ""}
       </div>
       ${capBarHtml}
-      ${m.notes ? `<p class="note">${escapeHtml(m.notes)}</p>` : ""}
-      ${m.session_notes ? `<div class="session-note-banner">📢 <strong>當日公告：</strong>${escapeHtml(m.session_notes)}</div>` : ""}
+      ${m.notes ? `<p class="note" style="white-space: pre-line; line-height: 1.6;">${escapeHtml(m.notes)}</p>` : ""}
+      ${m.session_notes ? `<div class="session-note-banner" style="white-space: pre-line; line-height: 1.6;">📢 <strong>當日公告：</strong>${escapeHtml(m.session_notes)}</div>` : ""}
       <div class="card-actions-wrapper" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
         <div class="card-secondary-actions" style="display:flex;gap:6px;">
           <button class="btn-secondary roster-btn" style="flex:1;height:38px;font-size:13px;">查看名單</button>

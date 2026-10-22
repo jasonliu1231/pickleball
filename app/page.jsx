@@ -110,7 +110,7 @@ export default function Page() {
                   📍 <span id="modalAddressText">--</span>
                 </span>
               </div>
-              <div id="modalNotesBox" style={{ display: "none", background: "#f8fafc", border: "1px solid #e2e8f0", borderLeft: "4px solid var(--accent, #10b981)", padding: "10px 12px", borderRadius: "8px", color: "#334155", fontSize: "13px", fontWeight: "600", marginTop: "10px", lineHeight: "1.5" }}>
+              <div id="modalNotesBox" style={{ display: "none", background: "#f8fafc", border: "1px solid #e2e8f0", borderLeft: "4px solid var(--accent, #10b981)", padding: "10px 12px", borderRadius: "8px", color: "#334155", fontSize: "13px", fontWeight: "600", marginTop: "10px", lineHeight: "1.6", whiteSpace: "pre-line" }}>
                 <strong style={{ color: "var(--accent, #10b981)", display: "block", marginBottom: "3px" }}>📝 開團備註說明：</strong>
                 <span id="modalNotesText"></span>
               </div>
