@@ -118,6 +118,10 @@ export default function Page() {
                   📍 <span id="modalAddressText">--</span>
                 </span>
               </div>
+              <div id="modalSessionNoteBox" style={{ display: "none", background: "#eff6ff", border: "1px solid #bfdbfe", borderLeft: "4px solid #2563eb", padding: "10px 12px", borderRadius: "8px", color: "#1e40af", fontSize: "13px", fontWeight: "700", marginTop: "10px", lineHeight: "1.6", whiteSpace: "pre-line" }}>
+                <strong style={{ color: "#1e3a8a", display: "block", marginBottom: "3px" }}>📢 當日公告：</strong>
+                <span id="modalSessionNoteText"></span>
+              </div>
               <div id="modalNotesBox" style={{ display: "none", background: "#f8fafc", border: "1px solid #e2e8f0", borderLeft: "4px solid var(--accent, #10b981)", padding: "10px 12px", borderRadius: "8px", color: "#334155", fontSize: "13px", fontWeight: "600", marginTop: "10px", lineHeight: "1.6", whiteSpace: "pre-line" }}>
                 <strong style={{ color: "var(--accent, #10b981)", display: "block", marginBottom: "3px" }}>📝 開團備註說明：</strong>
                 <span id="modalNotesText"></span>

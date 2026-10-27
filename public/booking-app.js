@@ -1302,12 +1302,22 @@ function openSignup(meetup, initialPwd = null) {
       modalGroupBtn.onclick = null;
     }
   }
+  const sessionNoteBox = $("modalSessionNoteBox");
+  const sessionNoteText = $("modalSessionNoteText");
+  if (sessionNoteBox && sessionNoteText) {
+    if (meetup.session_notes && String(meetup.session_notes).trim()) {
+      sessionNoteText.style.whiteSpace = "pre-line";
+      sessionNoteText.textContent = String(meetup.session_notes).trim();
+      sessionNoteBox.style.display = "block";
+    } else {
+      sessionNoteText.textContent = "";
+      sessionNoteBox.style.display = "none";
+    }
+  }
+
   const notesBox = $("modalNotesBox");
   const notesText = $("modalNotesText");
   const noteParts = [];
-  if (meetup.session_notes && String(meetup.session_notes).trim()) {
-    noteParts.push(`📢 當日公告：${String(meetup.session_notes).trim()}`);
-  }
   if (meetup.notes && String(meetup.notes).trim()) {
     noteParts.push(String(meetup.notes).trim());
   }
