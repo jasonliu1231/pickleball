@@ -102,10 +102,16 @@ export default function Page() {
             <div>
               <h2 className="section-title" id="modalTitle" style={{ fontSize: "24px" }}>我要報名</h2>
               <p className="muted" id="modalSubtitle">--</p>
-              <div id="modalInfoBadges" style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "10px" }}>
+              <div id="modalInfoBadges" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px", marginTop: "10px" }}>
                 <span id="modalFeeBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "800" }}>
                   💰 費用：<span id="modalFeeText">--</span>
                 </span>
+                <button type="button" id="modalLineContactBtn" style={{ display: "none", alignItems: "center", gap: "4px", background: "#06C755", color: "#ffffff", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(6,199,85,0.2)" }} title="一鍵加團主好友">
+                  💬 加 LINE
+                </button>
+                <button type="button" id="modalGroupLinkBtn" style={{ display: "none", alignItems: "center", gap: "4px", background: "#059669", color: "#ffffff", border: "none", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(5,150,105,0.2)" }} title="加入 LINE 活動群組">
+                  👥 LINE 群組
+                </button>
                 <span id="modalAddressBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "700" }}>
                   📍 <span id="modalAddressText">--</span>
                 </span>

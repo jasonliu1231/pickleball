@@ -1257,6 +1257,50 @@ function openSignup(meetup, initialPwd = null) {
   if ($("modalAddressText")) {
     const loc = [meetup.city, meetup.address].filter(Boolean).join(" ");
     $("modalAddressText").textContent = loc ? `${loc}${meetup.street_address ? ` (${meetup.street_address})` : ""}` : "地點另行公告";
+    const addrBadge = $("modalAddressBadge");
+    if (addrBadge) {
+      if (meetup.address && meetup.address !== "地點另行公告") {
+        const queryStr = [meetup.city, meetup.street_address || meetup.address].filter(Boolean).join(" ");
+        addrBadge.style.cursor = "pointer";
+        addrBadge.title = "點擊開啟 Google 地圖導航";
+        addrBadge.onclick = () => {
+          window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryStr)}`, "_blank");
+        };
+      } else {
+        addrBadge.style.cursor = "default";
+        addrBadge.title = "";
+        addrBadge.onclick = null;
+      }
+    }
+  }
+
+  const effectiveLineId = meetup.line_id || meetup.organizer?.line_id || null;
+  const effectiveGroupUrl = meetup.group_url || null;
+
+  const modalLineBtn = $("modalLineContactBtn");
+  if (modalLineBtn) {
+    if (effectiveLineId) {
+      modalLineBtn.style.display = "inline-flex";
+      modalLineBtn.onclick = () => handleContactOrganizer(effectiveLineId);
+    } else {
+      modalLineBtn.style.display = "none";
+      modalLineBtn.onclick = null;
+    }
+  }
+
+  const modalGroupBtn = $("modalGroupLinkBtn");
+  if (modalGroupBtn) {
+    if (effectiveGroupUrl) {
+      modalGroupBtn.style.display = "inline-flex";
+      modalGroupBtn.onclick = () => {
+        const rawUrl = String(effectiveGroupUrl).trim();
+        const targetUrl = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
+        window.open(targetUrl, "_blank");
+      };
+    } else {
+      modalGroupBtn.style.display = "none";
+      modalGroupBtn.onclick = null;
+    }
   }
   const notesBox = $("modalNotesBox");
   const notesText = $("modalNotesText");
