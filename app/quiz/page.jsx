@@ -64,18 +64,18 @@ const QUIZ_QUESTIONS = [
 function getLevelResult(avgScore) {
   if (avgScore < 2.25) {
     return {
-      title: "2.0 級（入門新手）",
-      systemSkill: "初學 (或第一次參加)",
+      title: "2.0 級（需教學新手）",
+      systemSkill: "需教學 (<2.0)",
       color: "#059669",
       bg: "#ecfdf5",
       border: "#a7f3d0",
-      desc: "您已大致了解匹克球基本規則，正在建立穩定的擊球手感！",
+      desc: "您剛接觸匹克球，正在了解基本規則與建立擊球手感！",
       advice: "建議報名：【新手友善團】、【新手教學場】或【不限程度歡樂暢打】，多練習發球、接發球的擊中率與基本走位。"
     };
   } else if (avgScore < 2.75) {
     return {
       title: "2.5 級（基礎初學）",
-      systemSkill: "初學",
+      systemSkill: "初學 (2.0-2.5)",
       color: "#0284c7",
       bg: "#f0f9ff",
       border: "#bae6fd",
@@ -85,7 +85,7 @@ function getLevelResult(avgScore) {
   } else if (avgScore < 3.25) {
     return {
       title: "3.0 級（一般中級）",
-      systemSkill: "一般",
+      systemSkill: "一般 (2.5-3.0)",
       color: "#16a34a",
       bg: "#f0fdf4",
       border: "#bbf7d0",
@@ -95,7 +95,7 @@ function getLevelResult(avgScore) {
   } else {
     return {
       title: "3.5+ 級（進階好手）",
-      systemSkill: "進階",
+      systemSkill: "進階 (3.0+)",
       color: "#7c3aed",
       bg: "#f5f3ff",
       border: "#ddd6fe",
