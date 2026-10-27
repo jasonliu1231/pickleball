@@ -1190,13 +1190,11 @@ async function toggleSchedule(meetup) {
   `;
 }
 
-async function toggleRoster(meetup) {
-  const el = $(`roster-${meetup.id}`);
-  if (el.classList.contains("show")) { el.classList.remove("show"); return; }
-  el.classList.add("show");
+async function renderRosterIntoElement(el, meetupId, dateStr) {
+  if (!el) return;
   el.innerHTML = `<p class="muted">讀取名單中...</p>`;
   try {
-    const rows = await fetchRoster(meetup.id, selectedDate);
+    const rows = await fetchRoster(meetupId, dateStr);
     if (!rows.length) {
       el.innerHTML = `<p class="muted">目前還沒有人報名。</p>`;
       return;
@@ -1235,13 +1233,20 @@ async function toggleRoster(meetup) {
       </div>`;
     };
     el.innerHTML = `
-      <strong>正取名單</strong>
+      <strong>正取名單 (${confirmedRows.length})</strong>
       <div class="roster-list">${confirmedRows.length ? confirmedRows.map(renderPerson).join("") : `<p class="muted">目前尚無正取。</p>`}</div>
-      <strong style="display:block;margin-top:12px;">備取名單</strong>
+      <strong style="display:block;margin-top:12px;">備取名單 (${waitlistRows.length})</strong>
       <div class="roster-list">${waitlistRows.length ? waitlistRows.map(renderPerson).join("") : `<p class="muted">目前尚無備取。</p>`}</div>`;
   } catch (e) {
     el.innerHTML = `<p class="muted">名單讀取失敗，請稍後再試。</p>`;
   }
+}
+
+async function toggleRoster(meetup) {
+  const el = $(`roster-${meetup.id}`);
+  if (el.classList.contains("show")) { el.classList.remove("show"); return; }
+  el.classList.add("show");
+  await renderRosterIntoElement(el, meetup.id, selectedDate);
 }
 
 function openSignup(meetup, initialPwd = null) {
@@ -1302,6 +1307,47 @@ function openSignup(meetup, initialPwd = null) {
       modalGroupBtn.onclick = null;
     }
   }
+  const cap = meetup.capacity_override ?? meetup.capacity ?? 0;
+  const realConfirmed = Number(meetup.confirmed_count || 0);
+  const displayConfirmed = Number(meetup.display_confirmed_count ?? (cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed));
+  const waitlistCount = Number(meetup.waitlist_count || 0);
+  const left = Math.max(0, cap - realConfirmed);
+  const full = cap > 0 && left <= 0;
+
+  const rosterBaseLabel = cap > 0
+    ? `📋 目前 ${displayConfirmed}/${cap} 人${waitlistCount > 0 ? `（備取 ${waitlistCount}）` : full ? "（已額滿・可備取）" : `（剩 ${left} 名額）`}`
+    : `📋 目前已報名 ${realConfirmed} 人`;
+
+  const rosterToggleBtn = $("modalRosterToggleBtn");
+  const rosterSummaryEl = $("modalRosterSummaryText");
+  const rosterArrowEl = $("modalRosterArrow");
+  const rosterListWrap = $("modalRosterListWrap");
+  if (rosterSummaryEl) {
+    rosterSummaryEl.textContent = `${rosterBaseLabel}・點擊查看名單`;
+  }
+  if (rosterArrowEl) {
+    rosterArrowEl.textContent = "▾";
+  }
+  if (rosterListWrap) {
+    rosterListWrap.style.display = "none";
+    rosterListWrap.innerHTML = "";
+  }
+  if (rosterToggleBtn && rosterListWrap) {
+    rosterToggleBtn.onclick = async () => {
+      const isOpen = rosterListWrap.style.display === "block";
+      if (isOpen) {
+        rosterListWrap.style.display = "none";
+        if (rosterArrowEl) rosterArrowEl.textContent = "▾";
+        if (rosterSummaryEl) rosterSummaryEl.textContent = `${rosterBaseLabel}・點擊查看名單`;
+      } else {
+        rosterListWrap.style.display = "block";
+        if (rosterArrowEl) rosterArrowEl.textContent = "▴";
+        if (rosterSummaryEl) rosterSummaryEl.textContent = `${rosterBaseLabel}・點擊收起名單`;
+        await renderRosterIntoElement(rosterListWrap, meetup.id, selectedDate);
+      }
+    };
+  }
+
   const sessionNoteBox = $("modalSessionNoteBox");
   const sessionNoteText = $("modalSessionNoteText");
   if (sessionNoteBox && sessionNoteText) {

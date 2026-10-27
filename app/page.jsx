@@ -118,6 +118,43 @@ export default function Page() {
                   📍 <span id="modalAddressText">--</span>
                 </span>
               </div>
+              <div id="modalRosterContainer" style={{ marginTop: "8px" }}>
+                <button
+                  type="button"
+                  id="modalRosterToggleBtn"
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: "#f8fafc",
+                    color: "#1e40af",
+                    border: "1px solid #cbd5e1",
+                    padding: "7px 12px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: "800",
+                    cursor: "pointer",
+                    textAlign: "left"
+                  }}
+                >
+                  <span id="modalRosterSummaryText">📋 目前 -- 人・點擊查看名單</span>
+                  <span id="modalRosterArrow" style={{ fontSize: "12px", color: "#64748b" }}>▾</span>
+                </button>
+                <div
+                  id="modalRosterListWrap"
+                  style={{
+                    display: "none",
+                    marginTop: "6px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    padding: "10px 12px"
+                  }}
+                ></div>
+              </div>
               <div id="modalSessionNoteBox" style={{ display: "none", background: "#eff6ff", border: "1px solid #bfdbfe", borderLeft: "4px solid #2563eb", padding: "10px 12px", borderRadius: "8px", color: "#1e40af", fontSize: "13px", fontWeight: "700", marginTop: "10px", lineHeight: "1.6", whiteSpace: "pre-line" }}>
                 <strong style={{ color: "#1e3a8a", display: "block", marginBottom: "3px" }}>📢 當日公告：</strong>
                 <span id="modalSessionNoteText"></span>
