@@ -4955,12 +4955,30 @@ async function handleBindPhoneSubmit(e) {
       updatePayload.is_beginner = isBeginner;
     }
 
-    const { data: updatedMember, error: updateErr } = await client
+    let { data: updatedMember, error: updateErr } = await client
       .from("users")
       .update(updatePayload)
       .eq("id", currentSystemMember?.id || currentUser.id)
       .select()
       .single();
+
+    if (updateErr && (updateErr.code === "23505" || String(updateErr.message || "").includes("users_phone_key"))) {
+      const mergeRes = await fetch("/api/user/merge-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentSystemMember?.id || currentUser.id,
+          phone,
+          name: nickname,
+          skill_level: updatePayload.skill_level
+        })
+      });
+      const mergeData = await mergeRes.json();
+      if (mergeRes.ok && mergeData.ok && mergeData.user) {
+        updatedMember = mergeData.user;
+        updateErr = null;
+      }
+    }
 
     if (updateErr) throw updateErr;
 
@@ -5042,6 +5060,27 @@ async function handleUpdateProfile(e) {
         .single();
       data = res.data;
       error = res.error;
+    }
+
+    if (error && (error.code === "23505" || String(error.message || "").includes("users_phone_key"))) {
+      const mergeRes = await fetch("/api/user/merge-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: currentSystemMember?.id || currentUser.id,
+          phone,
+          name: effectiveName,
+          display_name: customDisplayName,
+          skill_level,
+          rating: parsedDupr,
+          dupr_id: rawDuprId || null
+        })
+      });
+      const mergeData = await mergeRes.json();
+      if (mergeRes.ok && mergeData.ok && mergeData.user) {
+        data = mergeData.user;
+        error = null;
+      }
     }
 
     if (error) throw error;
