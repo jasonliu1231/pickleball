@@ -1,54 +1,62 @@
 export const runtime = "nodejs";
 
-import { supabase } from "@/lib/supabase";
+import { supabase, getSupabaseAdmin } from "@/lib/supabase";
 import { sendLinePushFlex, normalizePhone, fetchTokensForUser, sendExpoPush } from "@/lib/line";
 import { logUserNotification } from "@/lib/userNotifications";
 
 export async function POST(request) {
   try {
+    const client = getSupabaseAdmin() || supabase;
     const body = await request.json();
-    const { meetup_id, phone, nickname, reservation_date } = body;
+    const { meetup_id, phone, user_id, nickname, reservation_date } = body;
     
-    if (!phone) {
-      return Response.json({ ok: false, message: "Missing phone" }, { status: 400 });
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone && !user_id) {
+      return Response.json({ ok: false, message: "Missing phone or user_id" }, { status: 400 });
     }
     
-    // Normalize phone number (strip spaces/dashes)
-    const normalizedPhone = normalizePhone(phone);
+    // 1. Find user by user_id or phone number
+    let userObj = null;
+    if (user_id) {
+      const { data: u } = await client
+        .from("users")
+        .select("id, line_user_id, name, phone, expo_push_token")
+        .eq("id", user_id)
+        .maybeSingle();
+      userObj = u;
+    }
+    if (!userObj && normalizedPhone) {
+      const { data: users } = await client
+        .from("users")
+        .select("id, line_user_id, name, phone, expo_push_token")
+        .eq("phone", normalizedPhone);
+      userObj = users && users.length > 0 ? users[0] : null;
+    }
     
-    // 1. Find user by phone number
-    const { data: users } = await supabase
-      .from("users")
-      .select("id, line_user_id, name, expo_push_token")
-      .eq("phone", normalizedPhone);
-    
-    const userObj = users && users.length > 0 ? users[0] : null;
     const lineUserId = userObj?.line_user_id;
     const playerNickname = nickname || userObj?.name || "球友";
+    const effectivePhone = normalizedPhone || normalizePhone(userObj?.phone);
     
     // Check if user has App Push Tokens
-    const appPushTokens = await fetchTokensForUser(supabase, {
-      phone: normalizedPhone,
+    const appPushTokens = await fetchTokensForUser(client, {
+      phone: effectivePhone,
       userId: userObj?.id
     });
-    
-    if (!lineUserId && appPushTokens.length === 0) {
-      console.log(`No LINE user or App push token found for phone: ${normalizedPhone}`);
-      return Response.json({ ok: true, message: "No LINE ID or App Push Token linked to this phone" });
-    }
     
     // 2. Fetch meetup details, organizer_id and organizer name
     let meetupName = "球團活動";
     let orgName = "球友同樂會";
     let organizerId = null;
+    let isLinePushEnabled = true;
     if (meetup_id) {
-      const { data: meetups } = await supabase
+      const { data: meetups } = await client
         .from("meetups")
-        .select("name,organizer_id,creator_user_id,organizers(name),creator:users!creator_user_id(name)")
+        .select("name,organizer_id,creator_user_id,organizers(name,is_line_push_enabled),creator:users!creator_user_id(name)")
         .eq("id", meetup_id);
       if (meetups && meetups.length > 0) {
         meetupName = meetups[0].name;
         organizerId = meetups[0].organizer_id;
+        isLinePushEnabled = meetups[0].organizers?.is_line_push_enabled !== false;
         orgName = meetups[0].organizers?.name || meetups[0].creator?.name || (!meetups[0].organizer_id || meetups[0].creator_user_id ? "球友自發" : "球友同樂會");
       }
     }
@@ -291,12 +299,12 @@ export async function POST(request) {
     let canSendLine = false;
     let skipReason = "";
 
-    if (lineUserId) {
+    if (lineUserId && isLinePushEnabled) {
       try {
-        const { data: deductResult, error: rpcError } = await supabase.rpc("deduct_organizer_message_quota", {
+        const { data: deductResult, error: rpcError } = await client.rpc("deduct_organizer_message_quota", {
           p_organizer_id: organizerId,
           p_message_type: "waitlist",
-          p_recipient_phone: normalizedPhone,
+          p_recipient_phone: effectivePhone,
           p_content: `遞補成功: ${playerNickname} - ${formattedDate || reservation_date} - ${meetupName}`,
           p_cost: 1,
           p_allow_overdraft: false // 扣點制：數量沒了就不再發送
@@ -314,6 +322,8 @@ export async function POST(request) {
         console.error("Failed to deduct message quota:", deductErr);
         skipReason = "推播額度檢核異常";
       }
+    } else if (lineUserId && !isLinePushEnabled) {
+      skipReason = "團主已關閉 LINE 官方推播";
     }
     
     let lineSuccess = false;

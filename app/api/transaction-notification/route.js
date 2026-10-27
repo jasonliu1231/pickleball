@@ -1,11 +1,12 @@
 export const runtime = "nodejs";
 
-import { supabase } from "@/lib/supabase";
+import { supabase, getSupabaseAdmin } from "@/lib/supabase";
 import { sendLinePushFlex, fetchTokensForUser, sendExpoPush } from "@/lib/line";
 import { logUserNotification } from "@/lib/userNotifications";
 
 export async function POST(request) {
   try {
+    const client = getSupabaseAdmin() || supabase;
     const body = await request.json();
     const { member_id, amount, type, notes } = body;
     
@@ -14,9 +15,9 @@ export async function POST(request) {
     }
     
     // 1. Fetch organizer member details with user and organizer
-    const { data: members } = await supabase
+    const { data: members } = await client
       .from("organizer_members")
-      .select("id, user_id, organizer_id, balance, organizers(name), user:users(id, name, line_user_id, expo_push_token)")
+      .select("id, user_id, organizer_id, balance, organizers(name, is_line_push_enabled), user:users(id, name, phone, line_user_id, expo_push_token)")
       .eq("id", member_id);
     
     if (!members || members.length === 0) {
@@ -26,26 +27,22 @@ export async function POST(request) {
     const member = members[0];
     const userObj = member.user;
     const lineUserId = userObj?.line_user_id;
-    const appPushTokens = await fetchTokensForUser(supabase, {
+    const appPushTokens = await fetchTokensForUser(client, {
       userId: member.user_id,
       phone: userObj?.phone
     });
-    
-    if (!lineUserId && appPushTokens.length === 0) {
-      console.log(`No LINE user ID or App push token linked for organizer_member: ${member_id}`);
-      return Response.json({ ok: true, message: "No LINE ID or App push token linked to this member" });
-    }
     
     const balanceAmount = Number(member.balance || 0);
     const amountVal = Number(amount || 0);
     const orgName = member.organizers?.name || "未知團主";
     const playerNickname = member.user?.name || "會員";
-    const typeLabel = type || "checkin";
+    const typeLabel = type || (amountVal > 0 ? "topup" : "checkin");
 
     // 3. Format header and labels based on transaction type
     let headerTitle = "帳戶交易通知";
     let amountTextLabel = "交易點數";
     let amountSign = amountVal > 0 ? "+" : "";
+    let amountDisplay = amountVal > 0 ? `+${amountVal}` : `${amountVal}`;
     let amountColor = amountVal >= 0 ? "#4ade80" : "#f87171";
     let headerColor = "#fb923c"; // Default orange/amber
 
@@ -62,6 +59,10 @@ export async function POST(request) {
       amountTextLabel = "退回點數";
       headerColor = "#38bdf8"; // Light sky blue for refunds
     }
+
+    const notesText = notes || (typeLabel === "checkin" ? "簽到出席扣款" : typeLabel === "topup" ? "帳戶儲值" : "取消退款");
+    const notifTitle = `💰 ${headerTitle}`;
+    const notifBody = `【${orgName}】${notesText}：${amountDisplay} 點，目前最新餘額 ${balanceAmount.toLocaleString()} 點。`;
 
     const flexContents = {
       type: "bubble",
@@ -238,14 +239,30 @@ export async function POST(request) {
       }
     };
     
-    // 4. Send App Push (Expo Push)
+    // 4. Always log notification in user_notifications table for notification center (記錄文字)
+    if (member.user_id) {
+      await logUserNotification({
+        userId: member.user_id,
+        category: "billing_balance",
+        title: notifTitle,
+        body: notifBody,
+        data: {
+          type: "transaction",
+          transaction_type: typeLabel,
+          amount: amountVal,
+          balance: balanceAmount,
+        },
+      });
+    }
+
+    // 5. Send App Push (Expo Push) if push token exists
     let appPushSuccess = false;
     if (appPushTokens.length > 0) {
       try {
         const appMessages = appPushTokens.map((token) => ({
           to: token,
-          title: `💰 ${headerTitle}`,
-          body: `【${orgName}】${headerTitle}：${amountSign}$${Math.abs(amountVal)} 點，目前最新餘額 $${balanceAmount.toLocaleString()} 點。`,
+          title: notifTitle,
+          body: notifBody,
           sound: "default",
           channelId: "pickleball-alerts",
           data: {
@@ -262,33 +279,17 @@ export async function POST(request) {
       }
     }
 
-    // Log notification in user_notifications table for notification center
-    if (member.user_id) {
-      await logUserNotification({
-        userId: member.user_id,
-        category: "billing_balance",
-        title: `💰 ${headerTitle}`,
-        body: `【${orgName}】${headerTitle}：${amountSign}$${Math.abs(amountVal)} 點，目前最新餘額 $${balanceAmount.toLocaleString()} 點。`,
-        data: {
-          type: "transaction",
-          transaction_type: typeLabel,
-          amount: amountVal,
-          balance: balanceAmount,
-        },
-      });
-    }
-
-    // 5. Send LINE Push Message (if linked and organizer quota allows)
+    // 6. Send LINE Push Message (if linked and organizer LINE push enabled & quota allows)
     let lineSuccess = false;
     let skipReason = "";
 
-    if (lineUserId && member.organizer_id) {
+    if (lineUserId && member.organizer_id && member.organizers?.is_line_push_enabled !== false) {
       try {
-        const { data: deductResult, error: rpcError } = await supabase.rpc("deduct_organizer_message_quota", {
+        const { data: deductResult, error: rpcError } = await client.rpc("deduct_organizer_message_quota", {
           p_organizer_id: member.organizer_id,
           p_message_type: "transaction",
           p_recipient_phone: userObj?.phone || null,
-          p_content: `${headerTitle}: ${playerNickname} - ${amountSign}${amountVal} 點`,
+          p_content: `${headerTitle}: ${playerNickname} - ${amountDisplay} 點 (${notesText})`,
           p_cost: 1,
           p_allow_overdraft: false // 扣點制：數量沒了就不再發送
         });
@@ -305,6 +306,8 @@ export async function POST(request) {
         console.error("Failed to deduct transaction quota:", deductErr);
         skipReason = "推播額度檢核異常";
       }
+    } else if (lineUserId && member.organizers?.is_line_push_enabled === false) {
+      skipReason = "團主已關閉 LINE 官方推播";
     } else if (lineUserId && !member.organizer_id) {
       skipReason = "無關聯團長，略過 LINE 推播以節省成本";
     }

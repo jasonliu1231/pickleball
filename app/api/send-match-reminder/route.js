@@ -1,11 +1,12 @@
 export const runtime = "nodejs";
 
-import { supabase } from "@/lib/supabase";
+import { supabase, getSupabaseAdmin } from "@/lib/supabase";
 import { sendLinePushFlex, normalizePhone, fetchTokensForUser, sendExpoPush } from "@/lib/line";
 import { logBatchUserNotifications } from "@/lib/userNotifications";
 
 export async function POST(request) {
   try {
+    const client = getSupabaseAdmin() || supabase;
     const body = await request.json();
     const { meetup_id, date } = body;
     
@@ -14,9 +15,9 @@ export async function POST(request) {
     }
     
     // 1. Fetch meetup details, organizer_id and location
-    const { data: meetups } = await supabase
+    const { data: meetups } = await client
       .from("meetups")
-      .select("name,organizer_id,creator_user_id,city,address,organizers(name),creator:users!creator_user_id(name)")
+      .select("name,organizer_id,creator_user_id,city,address,organizers(name,is_line_push_enabled),creator:users!creator_user_id(name)")
       .eq("id", meetup_id);
     
     if (!meetups || meetups.length === 0) {
@@ -26,44 +27,82 @@ export async function POST(request) {
     const meetup = meetups[0];
     const meetupName = meetup.name;
     const organizerId = meetup.organizer_id;
+    const isLinePushEnabled = meetup.organizers?.is_line_push_enabled !== false;
     const orgName = meetup.organizers?.name || meetup.creator?.name || (!meetup.organizer_id || meetup.creator_user_id ? "球友自發" : "球友同樂會");
     const meetupLocation = [meetup.city, meetup.address].filter(Boolean).join(" ") || "未設定地點";
     
     // 2. Fetch session for this meetup and date
-    const { data: session } = await supabase
+    const { data: session } = await client
       .from("sessions")
       .select("id, status")
       .eq("meetup_id", meetup_id)
       .eq("session_date", date)
       .maybeSingle();
 
-    if (!session || session.status === "cancelled") {
-      return Response.json({ ok: true, sent_count: 0, skipped_count: 0, message: "當天場次未開放或已停開。" });
+    if (session && session.status === "cancelled") {
+      return Response.json({ ok: true, sent_count: 0, skipped_count: 0, message: "當天場次已停開。" });
     }
 
-    // 3. Fetch confirmed participants with user info
-    const { data: participants } = await supabase
-      .from("session_participants")
-      .select("id, status, user:users(id, name, phone, line_user_id, expo_push_token)")
-      .eq("session_id", session.id)
-      .in("status", ["confirmed", "attended"]);
+    // 3. Collect confirmed participants + fixed subscribed members
+    const playerMap = new Map();
+    const absentUserIds = new Set();
 
-    const playersToRemind = (participants || [])
-      .map(p => {
-        const cleanPh = normalizePhone(p.user?.phone);
-        return {
-          id: p.id,
-          userId: p.user?.id,
-          phone: cleanPh,
-          nickname: p.user?.name || "球友",
-          line_user_id: p.user?.line_user_id,
-          expo_push_token: p.user?.expo_push_token
-        };
-      })
-      .filter(p => !!p.line_user_id || !!p.expo_push_token);
+    if (session?.id) {
+      const { data: participants } = await client
+        .from("session_participants")
+        .select("id, status, user_id, user:users(id, name, phone, line_user_id, expo_push_token)")
+        .eq("session_id", session.id);
+
+      for (const p of participants || []) {
+        if (p.status === "absent" || p.status === "cancelled") {
+          if (p.user_id) absentUserIds.add(String(p.user_id));
+          continue;
+        }
+        if (p.user?.id && ["confirmed", "attended"].includes(p.status)) {
+          const cleanPh = normalizePhone(p.user.phone);
+          playerMap.set(String(p.user.id), {
+            id: p.id,
+            isMember: false,
+            memberId: null,
+            userId: p.user.id,
+            phone: cleanPh,
+            nickname: p.user.name || "球友",
+            line_user_id: p.user.line_user_id,
+            expo_push_token: p.user.expo_push_token
+          });
+        }
+      }
+    }
+
+    const { data: subs } = await client
+      .from("member_meetup_subscriptions")
+      .select("organizer_member_id, organizer_member:organizer_members(id, status, user_id, user:users(id, name, phone, line_user_id, expo_push_token))")
+      .eq("meetup_id", meetup_id);
+
+    for (const s of subs || []) {
+      const om = s.organizer_member;
+      if (om && om.status === "active" && om.user?.id) {
+        const uid = String(om.user.id);
+        if (!absentUserIds.has(uid) && !playerMap.has(uid)) {
+          const cleanPh = normalizePhone(om.user.phone);
+          playerMap.set(uid, {
+            id: null,
+            isMember: true,
+            memberId: om.id,
+            userId: om.user.id,
+            phone: cleanPh,
+            nickname: om.user.name || "固定會員",
+            line_user_id: om.user.line_user_id,
+            expo_push_token: om.user.expo_push_token
+          });
+        }
+      }
+    }
+
+    const playersToRemind = Array.from(playerMap.values());
 
     if (playersToRemind.length === 0) {
-      return Response.json({ ok: true, sent_count: 0, skipped_count: 0, message: "當天沒有已綁定 LINE 或 App 推播的確認名單。" });
+      return Response.json({ ok: true, sent_count: 0, skipped_count: 0, message: "當天沒有確認出席名單。" });
     }
 
     // Format date from YYYY-MM-DD to MM/DD
@@ -78,21 +117,24 @@ export async function POST(request) {
     let sentCount = 0;
     let skippedCount = 0;
     const appPushMessages = [];
+    const seenTokens = new Set();
     const userNotificationRows = [];
 
-    // 4. Broadcast to each player who has a linked LINE ID or App Push Token
+    // 4. Broadcast to each player (記錄文字 + App Push + LINE Official Push)
     for (const player of playersToRemind) {
       const lineUserId = player.line_user_id;
       const playerNickname = player.nickname || "球友";
-      const cancelUrl = `https://pickleball.jason1231.com/api/cancel-match-booking?type=signup&id=${player.id}`;
+      const cancelUrl = player.isMember
+        ? `https://pickleball.jason1231.com/api/cancel-match-booking?type=member&member_id=${player.memberId}&meetup_id=${meetup_id}&date=${date}`
+        : `https://pickleball.jason1231.com/api/cancel-match-booking?type=signup&id=${player.id}`;
 
-      // A. Collect Notification History & App Push Notification
+      // A. Always collect Notification History (記錄文字)
       if (player.userId) {
         userNotificationRows.push({
           userId: player.userId,
           category: "match_reminder",
-          title: "⏰ 明日球聚行前提醒",
-          body: `哈囉 ${playerNickname}！提醒您明天 ${formattedDate || date} 有預約「${meetupName}」，地點：${meetupLocation}，期待在球場相見！`,
+          title: "⏰ 球聚行前提醒",
+          body: `哈囉 ${playerNickname}！提醒您 ${formattedDate || date} 有預約「${meetupName}」，地點：${meetupLocation}，期待在球場相見！`,
           data: {
             type: "match_reminder",
             meetup_id,
@@ -101,30 +143,38 @@ export async function POST(request) {
         });
       }
 
-      if (player.expo_push_token) {
-        appPushMessages.push({
-          to: player.expo_push_token,
-          title: "⏰ 明日球聚行前提醒",
-          body: `哈囉 ${playerNickname}！提醒您明天 ${formattedDate || date} 有預約「${meetupName}」，地點：${meetupLocation}，期待在球場相見！`,
-          sound: "default",
-          channelId: "pickleball-alerts",
-          data: {
-            type: "match_reminder",
-            meetup_id,
-            date
-          }
-        });
+      // B. Collect App Push Notifications via fetchTokensForUser
+      const tokens = await fetchTokensForUser(client, {
+        userId: player.userId,
+        phone: player.phone
+      });
+      for (const tk of tokens) {
+        if (!seenTokens.has(tk)) {
+          seenTokens.add(tk);
+          appPushMessages.push({
+            to: tk,
+            title: "⏰ 球聚行前提醒",
+            body: `哈囉 ${playerNickname}！提醒您 ${formattedDate || date} 有預約「${meetupName}」，地點：${meetupLocation}，期待在球場相見！`,
+            sound: "default",
+            channelId: "pickleball-alerts",
+            data: {
+              type: "match_reminder",
+              meetup_id,
+              date
+            }
+          });
+        }
       }
 
-      // B. If no LINE user ID, skip LINE part
-      if (!lineUserId) {
+      // C. If no LINE user ID or organizer disabled LINE push, skip LINE part
+      if (!lineUserId || !isLinePushEnabled) {
         continue;
       }
       
       // Deduct 1 point from organizer quota (扣點制：數量沒了就不再發送)
       if (organizerId) {
         try {
-          const { data: deductResult, error: rpcError } = await supabase.rpc("deduct_organizer_message_quota", {
+          const { data: deductResult, error: rpcError } = await client.rpc("deduct_organizer_message_quota", {
             p_organizer_id: organizerId,
             p_message_type: "reminder",
             p_recipient_phone: player.phone,
