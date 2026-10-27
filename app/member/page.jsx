@@ -141,6 +141,35 @@ export default function MemberPage() {
                       <button type="button" className="skill-chip-btn" data-value="advanced">進階 (3.0+)</button>
                     </div>
                   </div>
+                  <div className="modern-input-group" style={{ gridColumn: "1 / -1", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px" }}>
+                    <label htmlFor="profileDuprRating" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
+                      <span>🏆 DUPR 雙打分數綁定 <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "normal" }}>（選填，有填寫時才會顯示於報名名單，與上方程度互不影響）</span></span>
+                    </label>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                      <input
+                        id="profileDuprRating"
+                        className="modern-text-input"
+                        style={{ flex: "1", minWidth: "140px", background: "#ffffff" }}
+                        placeholder="雙打分數 (例如：3.25，留空則不顯示)"
+                        inputMode="decimal"
+                      />
+                      <input
+                        id="profileDuprId"
+                        className="modern-text-input"
+                        style={{ flex: "1", minWidth: "130px", background: "#ffffff", textTransform: "uppercase" }}
+                        placeholder="DUPR ID (選填，如 X7K9P2)"
+                        maxLength={12}
+                      />
+                      <button
+                        type="button"
+                        id="syncDuprBtn"
+                        className="btn-secondary"
+                        style={{ height: "40px", padding: "0 12px", fontSize: "12.5px", fontWeight: "800", whiteSpace: "nowrap" }}
+                      >
+                        🔍 依 ID 帶入
+                      </button>
+                    </div>
+                  </div>
                 </div>
                 <button className="btn-primary save-profile-btn" type="submit">儲存修改</button>
               </form>

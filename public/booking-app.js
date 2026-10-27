@@ -755,7 +755,7 @@ async function fetchRoster(meetupId, dateStr) {
         phone: om.user?.phone || "",
         is_beginner: om.user?.is_beginner ?? true,
         skill_level: om.user?.skill_level || "beginner",
-        rating: om.user?.rating || 1000,
+        rating: (om.user?.rating && Number(om.user.rating) > 0 && Number(om.user.rating) <= 10) ? Number(om.user.rating) : null,
         people_count: 1,
         status: "confirmed",
         note: memberPart?.note || om.note || "",
@@ -779,7 +779,7 @@ async function fetchRoster(meetupId, dateStr) {
         phone: x.user?.phone || "",
         is_beginner: x.user?.is_beginner ?? true,
         skill_level: x.user?.skill_level || "beginner",
-        rating: x.user?.rating || 1000,
+        rating: (x.user?.rating && Number(x.user.rating) > 0 && Number(x.user.rating) <= 10) ? Number(x.user.rating) : null,
         people_count: x.people_count || 1,
         status: x.status === "attended" ? "confirmed" : x.status,
         note: x.note,
@@ -1217,13 +1217,21 @@ async function toggleRoster(meetup) {
         skillBadgeStyle = "background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff;";
       }
 
+      const hasDupr = r.rating && !isNaN(Number(r.rating)) && Number(r.rating) > 0 && Number(r.rating) <= 10;
+      const duprBadgeHtml = hasDupr
+        ? `<span class="pill" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; font-weight: 800; font-size: 11px; padding: 2px 7px; border-radius: 99px;">DUPR ${Number(r.rating).toFixed(2)}</span>`
+        : "";
+
       return `
       <div class="person">
         <div class="person-main">
           <div class="person-name">${idx + 1}. ${escapeHtml(r.display_name || r.nickname || "球友")}${countSuffix} ${r.source === "member" ? "<span class=\"pill member-pill\" style=\"background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;font-size:10.5px;padding:1px 6px;margin-left:4px;\">會員</span>" : ""}</div>
           ${r.note ? `<div class="person-note">${escapeHtml(r.note)}</div>` : ""}
         </div>
-        <span class="pill" style="${skillBadgeStyle}; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 99px;">${escapeHtml(skillName)}</span>
+        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+          ${duprBadgeHtml}
+          <span class="pill" style="${skillBadgeStyle}; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 99px;">${escapeHtml(skillName)}</span>
+        </div>
       </div>`;
     };
     el.innerHTML = `
@@ -1468,7 +1476,7 @@ async function renderPickupRosterList(meetup) {
   try {
     const { data: parts, error } = await client
       .from("session_participants")
-      .select("id, session_id, user_id, status, people_count, note, created_at, user:users(id, name, phone)")
+      .select("id, session_id, user_id, status, people_count, note, created_at, user:users(id, name, phone, rating)")
       .eq("session_id", meetup.session_id)
       .neq("status", "cancelled")
       .order("created_at", { ascending: true });
@@ -1547,13 +1555,18 @@ async function renderPickupRosterList(meetup) {
         const userName = p.user?.name || "球友";
         const count = p.people_count || 1;
         const countBadge = count > 1 ? `<span style="background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px;">${count}人</span>` : "";
+        const uRating = Number(p.user?.rating);
+        const duprBadge = (uRating && !isNaN(uRating) && uRating > 0 && uRating <= 10)
+          ? `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px;">DUPR ${uRating.toFixed(2)}</span>`
+          : "";
 
         html += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 14px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <span style="font-weight: 900; font-size: 13px; color: var(--muted); width: 20px;">${idx + 1}.</span>
               <strong style="font-size: 14px; color: var(--text);">${escapeHtml(userName)}</strong>
               ${countBadge}
+              ${duprBadge}
               ${isCreator ? `<span style="background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; border: 1px solid #fde68a;">👑 發起人</span>` : ""}
             </div>
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
@@ -1594,13 +1607,18 @@ async function renderPickupRosterList(meetup) {
         const userName = p.user?.name || "球友";
         const count = p.people_count || 1;
         const countBadge = count > 1 ? `<span style="background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px;">${count}人</span>` : "";
+        const uRating = Number(p.user?.rating);
+        const duprBadge = (uRating && !isNaN(uRating) && uRating > 0 && uRating <= 10)
+          ? `<span style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px;">DUPR ${uRating.toFixed(2)}</span>`
+          : "";
 
         html += `
           <div style="display: flex; justify-content: space-between; align-items: center; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 10px; padding: 10px 14px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <span style="font-weight: 900; font-size: 13px; color: #b45309; width: 24px;">備${idx + 1}.</span>
               <strong style="font-size: 14px; color: var(--text);">${escapeHtml(userName)}</strong>
               ${countBadge}
+              ${duprBadge}
             </div>
             <div style="display: flex; align-items: center; gap: 6px;">
               <button type="button" class="btn-ghost promote-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 9px; border-radius: 6px; font-weight: 800; color: #15803d; border: 1px solid #86efac; background: #f0fdf4; cursor: pointer;">
@@ -3642,6 +3660,14 @@ async function loadMemberDashboard() {
     btn.classList.toggle("active", btn.dataset.value === userSkill);
   });
 
+  if ($("profileDuprRating")) {
+    const rNum = Number(currentSystemMember.rating);
+    $("profileDuprRating").value = (!isNaN(rNum) && rNum > 0 && rNum <= 10) ? rNum.toFixed(2) : "";
+  }
+  if ($("profileDuprId")) {
+    $("profileDuprId").value = currentSystemMember.dupr_id || "";
+  }
+
   const cleanPh = cleanPhone(currentSystemMember.phone);
 
   // ==========================================
@@ -4971,8 +4997,19 @@ async function handleUpdateProfile(e) {
   const phone = rawPhone ? cleanPhone(rawPhone) : (currentSystemMember.phone || "");
   const skill_level = $("profileSkillLevel")?.value || "beginner";
   const is_beginner = (skill_level === "first_time" || skill_level === "beginner");
+  const rawDuprRating = $("profileDuprRating") ? $("profileDuprRating").value.trim() : "";
+  const rawDuprId = $("profileDuprId") ? $("profileDuprId").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
   const msgEl = $("profileMessage");
   if (phone && !validatePhone(phone)) return setMessage(msgEl, "手機格式不正確", false);
+
+  let parsedDupr = null;
+  if (rawDuprRating !== "") {
+    const num = parseFloat(rawDuprRating);
+    if (isNaN(num) || num < 1.0 || num > 8.5) {
+      return setMessage(msgEl, "請輸入有效的 DUPR 雙打分數（介於 1.00 ~ 8.00 之間的小數，如 3.25）", false);
+    }
+    parsedDupr = Number(num.toFixed(2));
+  }
 
   try {
     setMessage(msgEl, "更新中...", true);
@@ -4982,6 +5019,8 @@ async function handleUpdateProfile(e) {
       phone,
       skill_level,
       is_beginner,
+      rating: parsedDupr,
+      dupr_id: rawDuprId || null,
       updated_at: new Date().toISOString()
     };
 
@@ -4992,8 +5031,9 @@ async function handleUpdateProfile(e) {
       .select()
       .single();
 
-    if (error && error.message?.includes("display_name")) {
-      delete updatePayload.display_name;
+    if (error && (error.message?.includes("display_name") || error.message?.includes("dupr_id"))) {
+      if (error.message?.includes("display_name")) delete updatePayload.display_name;
+      if (error.message?.includes("dupr_id")) delete updatePayload.dupr_id;
       const res = await client
         .from("users")
         .update(updatePayload)
@@ -5306,6 +5346,45 @@ $("deleteAccountBtn")?.addEventListener("click", async () => {
 $("lineLoginBtn")?.addEventListener("click", handleLineLogin);
 $("authForm")?.addEventListener("submit", handleAuthSubmit);
 $("updateProfileForm")?.addEventListener("submit", handleUpdateProfile);
+$("syncDuprBtn")?.addEventListener("click", async () => {
+  if (!currentSystemMember?.id) return alert("請先登入會員");
+  const duprIdVal = $("profileDuprId")?.value?.trim();
+  if (!duprIdVal) return alert("請先輸入您的 6 碼 DUPR ID (例如 X7K9P2)");
+  const btn = $("syncDuprBtn");
+  const msgEl = $("profileMessage");
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "查詢中...";
+    }
+    const res = await fetch("/api/dupr-sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: currentSystemMember.id,
+        dupr_id: duprIdVal,
+        action: "lookup"
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "無法自動同步，請直接輸入雙打分數並儲存");
+    }
+    if ($("profileDuprRating") && data.rating) {
+      $("profileDuprRating").value = Number(data.rating).toFixed(2);
+    }
+    currentSystemMember.rating = data.rating;
+    currentSystemMember.dupr_id = data.dupr_id;
+    setMessage(msgEl, `✅ ${data.message}`, true);
+  } catch (err) {
+    setMessage(msgEl, err.message, false);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "🔍 依 ID 帶入";
+    }
+  }
+});
 $("bindPhoneForm")?.addEventListener("submit", handleBindPhoneSubmit);
 $("skipBindPhoneBtn")?.addEventListener("click", () => closeBindPhoneModal(true));
 $("closeBindPhoneModal")?.addEventListener("click", () => closeBindPhoneModal(true));
