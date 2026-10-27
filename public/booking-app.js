@@ -634,8 +634,8 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
           session_date: s.session_date,
           capacity_override: s.capacity_override,
           capacity: cap,
-          session_notes: s.session_notes || null,
-          notes: s.session_notes || m.notes,
+          session_notes: s.session_notes && String(s.session_notes).trim() ? String(s.session_notes).trim() : null,
+          notes: m.notes && String(m.notes).trim() ? String(m.notes).trim() : null,
           status: s.status || "open",
           match_schedule: s.match_schedule || null,
           confirmed_count: realConfirmed,
@@ -1013,8 +1013,8 @@ function renderMeetups(meetups) {
         ${hasRatingThreshold(m) ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${formatRatingMin(m.rating_min)}</div>` : ""}
       </div>
       ${capBarHtml}
-      ${m.notes ? `<p class="note" style="white-space: pre-line; line-height: 1.6;">${escapeHtml(m.notes)}</p>` : ""}
       ${m.session_notes ? `<div class="session-note-banner" style="white-space: pre-line; line-height: 1.6;">📢 <strong>當日公告：</strong>${escapeHtml(m.session_notes)}</div>` : ""}
+      ${m.notes ? `<p class="note" style="white-space: pre-line; line-height: 1.6;">${escapeHtml(m.notes)}</p>` : ""}
       <div class="card-actions-wrapper" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
         <div class="card-secondary-actions" style="display:flex;gap:6px;">
           <button class="btn-secondary roster-btn" style="flex:1;height:38px;font-size:13px;">查看名單</button>
@@ -1252,9 +1252,20 @@ function openSignup(meetup, initialPwd = null) {
   }
   const notesBox = $("modalNotesBox");
   const notesText = $("modalNotesText");
-  const fullNotes = [meetup.notes, meetup.session_notes, meetup.weekday_notes].filter(Boolean).join(" ｜ ");
+  const noteParts = [];
+  if (meetup.session_notes && String(meetup.session_notes).trim()) {
+    noteParts.push(`📢 當日公告：${String(meetup.session_notes).trim()}`);
+  }
+  if (meetup.notes && String(meetup.notes).trim()) {
+    noteParts.push(String(meetup.notes).trim());
+  }
+  if (meetup.weekday_notes && String(meetup.weekday_notes).trim()) {
+    noteParts.push(String(meetup.weekday_notes).trim());
+  }
+  const fullNotes = noteParts.join("\n\n");
   if (notesBox && notesText) {
     if (fullNotes && fullNotes.trim()) {
+      notesText.style.whiteSpace = "pre-line";
       notesText.textContent = fullNotes.trim();
       notesBox.style.display = "block";
     } else {
@@ -2049,11 +2060,87 @@ async function handleSignup(e) {
   $("submitBtn").disabled = true;
   $("submitBtn").textContent = "送出中...";
   try {
-    // 1. Find or create user
-    let user = null;
+    // 1. Find or create session
+    let session = null;
+    const { data: existingSession } = await client
+      .from("sessions")
+      .select("id, capacity_override, confirmed_count, waitlist_count, status")
+      .eq("meetup_id", currentMeetup.id)
+      .eq("session_date", selectedDate)
+      .maybeSingle();
 
-    // 若為登入會員，直接對齊當前會員身分，並將表單選擇的程度同步更新至會員資料
-    if (currentUser && currentSystemMember?.id) {
+    if (existingSession) {
+      session = existingSession;
+    } else {
+      const { data: newSession, error: createSessErr } = await client
+        .from("sessions")
+        .insert({
+          meetup_id: currentMeetup.id,
+          session_date: selectedDate,
+          status: "open"
+        })
+        .select()
+        .single();
+      if (createSessErr) throw createSessErr;
+      session = newSession;
+    }
+
+    // 2. Find or create user (預設帶入登入者資料，若修改表單則為改後的報名人)
+    let user = null;
+    const memberPhone = cleanPhone(currentSystemMember?.phone || "");
+    const memberName = String(currentSystemMember?.nickname || currentSystemMember?.name || "").trim();
+
+    // 若登入者修改了表單暱稱（要幫別人報名），卻忘了把預設帶入的本人手機號碼改掉，提示填寫對方手機，避免覆蓋本人資料
+    if (
+      currentUser &&
+      currentSystemMember?.id &&
+      memberPhone &&
+      phone === memberPhone &&
+      memberName &&
+      memberName !== "球友" &&
+      nickname !== memberName
+    ) {
+      return setMessage(
+        $("formMessage"),
+        `手機號碼 ${phone} 為「${memberName}」的號碼！若要幫「${nickname}」報名，請一併修改為對方的手機號碼。`,
+        false
+      );
+    }
+
+    const { data: existingUserByPhone } = await client
+      .from("users")
+      .select("id, name, phone, skill_level")
+      .eq("phone", phone)
+      .maybeSingle();
+
+    // 若該手機號碼已報名本場次，但表單填寫了不同暱稱，阻擋覆蓋並提示填寫對方手機
+    if (existingUserByPhone && session?.id) {
+      const { data: existingPartCheck } = await client
+        .from("session_participants")
+        .select("id, status")
+        .eq("session_id", session.id)
+        .eq("user_id", existingUserByPhone.id)
+        .in("status", ["confirmed", "waitlist", "attended"])
+        .maybeSingle();
+
+      const existingName = String(existingUserByPhone.name || "").trim();
+      if (existingPartCheck && existingName && existingName !== nickname) {
+        return setMessage(
+          $("formMessage"),
+          `手機號碼 ${phone} 已由「${existingName}」報名本場次！若要幫「${nickname}」報名，請填寫對方的手機號碼。`,
+          false
+        );
+      }
+    }
+
+    // 僅當表單手機與登入者本人一致（或登入者尚未綁定手機且未改名為他人）時，才視為登入者本人報名並同步會員資料
+    const isLoggedInMemberSelf =
+      currentUser &&
+      currentSystemMember?.id &&
+      ((memberPhone && phone === memberPhone && (!memberName || nickname === memberName)) ||
+        (!memberPhone && !existingUserByPhone && nickname === memberName));
+
+    if (isLoggedInMemberSelf) {
       user = currentSystemMember;
       try {
         const { data: updatedMember } = await client
@@ -2078,67 +2165,30 @@ async function handleSignup(e) {
       } catch (uErr) {
         console.warn("Update currentSystemMember in handleSignup non-fatal:", uErr);
       }
-    }
-
-    // 若非登入會員，以手機號碼查找或建立訪客使用者，他寫什麼程度就帶什麼程度
-    if (!user) {
-      const { data: existingUser } = await client
+    } else if (existingUserByPhone) {
+      user = existingUserByPhone;
+      await client
         .from("users")
-        .select("id, name, phone, skill_level")
-        .eq("phone", phone)
-        .maybeSingle();
-
-      if (existingUser) {
-        user = existingUser;
-        // 球友填寫報名，他選什麼程度就帶什麼程度，更新該球友紀錄
-        await client
-          .from("users")
-          .update({
-            name: nickname,
-            skill_level: skillLevel,
-            is_beginner: isBeginner,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", user.id);
-      } else {
-        const { data: newUser, error: createErr } = await client
-          .from("users")
-          .insert({
-            phone: phone,
-            name: nickname,
-            skill_level: skillLevel,
-            is_beginner: isBeginner
-          })
-          .select()
-          .single();
-        if (createErr) throw createErr;
-        user = newUser;
-      }
-    }
-
-    // 2. Find or create session
-    let session = null;
-    const { data: existingSession } = await client
-      .from("sessions")
-      .select("id, capacity_override, confirmed_count, waitlist_count, status")
-      .eq("meetup_id", currentMeetup.id)
-      .eq("session_date", selectedDate)
-      .maybeSingle();
-
-    if (existingSession) {
-      session = existingSession;
+        .update({
+          name: nickname,
+          skill_level: skillLevel,
+          is_beginner: isBeginner,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", user.id);
     } else {
-      const { data: newSession, error: createSessErr } = await client
-        .from("sessions")
+      const { data: newUser, error: createErr } = await client
+        .from("users")
         .insert({
-          meetup_id: currentMeetup.id,
-          session_date: selectedDate,
-          status: "open"
+          phone: phone,
+          name: nickname,
+          skill_level: skillLevel,
+          is_beginner: isBeginner
         })
         .select()
         .single();
-      if (createSessErr) throw createSessErr;
-      session = newSession;
+      if (createErr) throw createErr;
+      user = newUser;
     }
 
     // 檢查該球友是否已經是正取，避免重複報名或修改備註時被系統誤踢去備取
