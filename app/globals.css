@@ -3524,8 +3524,31 @@ body:has(.modal.active) {
 /* ==========================================================================
    Notification Center (通知中心) Styles
    ========================================================================== */
+#notifCategoryBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 10px 2px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0 !important;
+  min-height: 54px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#notifCategoryBar::-webkit-scrollbar {
+  display: none;
+}
 .notif-tab {
-  padding: 6px 14px;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  line-height: 1 !important;
+  padding: 0 14px !important;
   border-radius: 999px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
@@ -3535,6 +3558,7 @@ body:has(.modal.active) {
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
+  box-sizing: border-box;
 }
 .notif-tab:hover {
   background: #f1f5f9;
