@@ -1556,11 +1556,19 @@ async function renderPickupRosterList(meetup) {
               ${countBadge}
               ${isCreator ? `<span style="background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 999px; border: 1px solid #fde68a;">👑 發起人</span>` : ""}
             </div>
-            <div>
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
               ${isCreator ? `
-                <span style="font-size: 12px; color: var(--muted); font-weight: 700;">本人</span>
+                <div style="display: flex; align-items: center; gap: 4px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 2px 6px;">
+                  <span style="font-size: 11px; color: #64748b; font-weight: 700;">攜伴含本人</span>
+                  <button type="button" class="adjust-pickup-count-btn" data-part-id="${p.id}" data-new-count="${Math.max(1, count - 1)}" ${count <= 1 ? "disabled" : ""} style="width: 22px; height: 22px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; font-weight: 900; cursor: pointer; color: #334155;">-</button>
+                  <span style="font-size: 12px; font-weight: 900; min-width: 24px; text-align: center; color: #0f172a;">${count}人</span>
+                  <button type="button" class="adjust-pickup-count-btn" data-part-id="${p.id}" data-new-count="${count + 1}" style="width: 22px; height: 22px; border: 1px solid #e2e8f0; border-radius: 4px; background: #f8fafc; font-weight: 900; cursor: pointer; color: #334155;">+</button>
+                </div>
               ` : `
-                <button type="button" class="btn-ghost remove-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 10px; border-radius: 6px; font-weight: 800; color: #dc2626; border: 1px solid #fca5a5; background: #fff5f5; cursor: pointer;">
+                <button type="button" class="btn-ghost demote-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" style="font-size: 12px; height: 28px; padding: 0 9px; border-radius: 6px; font-weight: 800; color: #b45309; border: 1px solid #fcd34d; background: #fffbeb; cursor: pointer;">
+                  ⬇️ 改備取
+                </button>
+                <button type="button" class="btn-ghost remove-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 9px; border-radius: 6px; font-weight: 800; color: #dc2626; border: 1px solid #fca5a5; background: #fff5f5; cursor: pointer;">
                   🗑️ 移除
                 </button>
               `}
@@ -1594,8 +1602,11 @@ async function renderPickupRosterList(meetup) {
               <strong style="font-size: 14px; color: var(--text);">${escapeHtml(userName)}</strong>
               ${countBadge}
             </div>
-            <div>
-              <button type="button" class="btn-ghost remove-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 10px; border-radius: 6px; font-weight: 800; color: #dc2626; border: 1px solid #fca5a5; background: #fff; cursor: pointer;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button type="button" class="btn-ghost promote-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 9px; border-radius: 6px; font-weight: 800; color: #15803d; border: 1px solid #86efac; background: #f0fdf4; cursor: pointer;">
+                ⬆️ 轉正取
+              </button>
+              <button type="button" class="btn-ghost remove-pickup-member-btn" data-part-id="${p.id}" data-name="${escapeHtml(userName)}" data-count="${count}" style="font-size: 12px; height: 28px; padding: 0 9px; border-radius: 6px; font-weight: 800; color: #dc2626; border: 1px solid #fca5a5; background: #fff; cursor: pointer;">
                 🗑️ 移除
               </button>
             </div>
@@ -1607,6 +1618,109 @@ async function renderPickupRosterList(meetup) {
     }
 
     listEl.innerHTML = html;
+
+    // 綁定調整發起人攜伴人數按鈕事件
+    listEl.querySelectorAll(".adjust-pickup-count-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const partId = btn.dataset.partId;
+        const newCount = Number(btn.dataset.newCount);
+        if (!newCount || newCount < 1) return;
+        try {
+          btn.disabled = true;
+          if (msgEl) clearMessage(msgEl);
+          const res = await fetch("/api/remove-pickup-participant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              creator_user_id: currentSystemMember.id,
+              participant_id: partId,
+              meetup_id: meetup.id,
+              action: "update_count",
+              people_count: newCount
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || "調整人數失敗");
+          if (msgEl) {
+            let msg = `✅ ${data.message || "已更新人數"}`;
+            if (data.promoted) msg += `，候補球友「${data.promoted.name}」已自動遞補為正取！`;
+            setMessage(msgEl, msg, true);
+          }
+          await renderPickupRosterList(meetup);
+          if (typeof loadMemberDashboard === "function") loadMemberDashboard().catch(() => {});
+        } catch (err) {
+          alert(err.message || "調整人數失敗");
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // 綁定「轉正取」按鈕事件
+    listEl.querySelectorAll(".promote-pickup-member-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const partId = btn.dataset.partId;
+        const userName = btn.dataset.name;
+        const count = btn.dataset.count;
+        if (!confirm(`確定要將候補球友「${userName}」(${count}人) 轉為正取，並發送遞補通知嗎？`)) return;
+        try {
+          btn.disabled = true;
+          btn.textContent = "處理中...";
+          if (msgEl) clearMessage(msgEl);
+          const res = await fetch("/api/remove-pickup-participant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              creator_user_id: currentSystemMember.id,
+              participant_id: partId,
+              meetup_id: meetup.id,
+              action: "promote"
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || "轉正取失敗");
+          if (msgEl) setMessage(msgEl, `✅ ${data.message}`, true);
+          await renderPickupRosterList(meetup);
+          if (typeof loadMemberDashboard === "function") loadMemberDashboard().catch(() => {});
+        } catch (err) {
+          alert(err.message || "轉正取失敗");
+          btn.disabled = false;
+          btn.textContent = "⬆️ 轉正取";
+        }
+      });
+    });
+
+    // 綁定「改備取」按鈕事件
+    listEl.querySelectorAll(".demote-pickup-member-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const partId = btn.dataset.partId;
+        const userName = btn.dataset.name;
+        if (!confirm(`確定要將正取球友「${userName}」改為候補嗎？`)) return;
+        try {
+          btn.disabled = true;
+          btn.textContent = "處理中...";
+          if (msgEl) clearMessage(msgEl);
+          const res = await fetch("/api/remove-pickup-participant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              creator_user_id: currentSystemMember.id,
+              participant_id: partId,
+              meetup_id: meetup.id,
+              action: "demote"
+            })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || "改備取失敗");
+          if (msgEl) setMessage(msgEl, `✅ ${data.message}`, true);
+          await renderPickupRosterList(meetup);
+          if (typeof loadMemberDashboard === "function") loadMemberDashboard().catch(() => {});
+        } catch (err) {
+          alert(err.message || "改備取失敗");
+          btn.disabled = false;
+          btn.textContent = "⬇️ 改備取";
+        }
+      });
+    });
 
     // 綁定移除按鈕事件
     listEl.querySelectorAll(".remove-pickup-member-btn").forEach(btn => {
@@ -1629,7 +1743,8 @@ async function renderPickupRosterList(meetup) {
             body: JSON.stringify({
               creator_user_id: currentSystemMember.id,
               participant_id: partId,
-              meetup_id: meetup.id
+              meetup_id: meetup.id,
+              action: "remove"
             })
           });
 
@@ -1720,7 +1835,7 @@ async function handleUpdatePickup(e) {
       throw new Error(data.error || "儲存修改失敗");
     }
 
-    setMessage($("editPickupMessage"), "✅ 自揪活動修改成功！", true);
+    setMessage($("editPickupMessage"), `✅ ${data.message || "自揪活動修改成功！"}`, true);
     setTimeout(async () => {
       closeEditPickupModal();
       clearRosterCache();
@@ -2224,10 +2339,18 @@ async function handleSignup(e) {
       );
     if (partErr) throw partErr;
 
-    setMessage($("formMessage"), targetStatus === "waitlist" ? "目前正取已滿，已幫您加入備取。" : "報名成功，您目前為正取。", true);
-    notifyNewSignup({ meetup: currentMeetup, meetupId: currentMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
+    const signedMeetup = currentMeetup;
+    notifyNewSignup({ meetup: signedMeetup, meetupId: signedMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
+    closeSignup();
     clearRosterCache();
     await refreshMeetupListOnly();
+    const rosterEl = $(`roster-${signedMeetup.id}`);
+    if (rosterEl) {
+      rosterEl.classList.remove("show");
+      await toggleRoster(signedMeetup);
+      rosterEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    alert(targetStatus === "waitlist" ? "⏳ 報名成功！目前正取已滿，已幫您加入備取，為您開啟最新名單。" : "🎉 報名成功！已為您保留正取名額，為您展開最新名單。");
   } catch (err) {
     setMessage($("formMessage"), err.message || "報名失敗，請稍後再試。", false);
   } finally {
@@ -2328,10 +2451,16 @@ async function handleQuickSignup(meetup, btn) {
     if (partErr) throw partErr;
 
     const msg = targetStatus === "waitlist" ? "正取已滿，已幫您排入備取！" : "恭喜！您已成功預約正取！";
-    alert(msg);
     notifyNewSignup({ meetup, meetupId: meetup.id, reservationDate: selectedDate, nickname: currentSystemMember.nickname, skillLevel: skillLevelVal });
     clearRosterCache();
     await refreshMeetupListOnly();
+    const rosterEl = $(`roster-${meetup.id}`);
+    if (rosterEl) {
+      rosterEl.classList.remove("show");
+      await toggleRoster(meetup);
+      rosterEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    alert(msg);
   } catch (err) {
     alert("預約失敗：" + (err.message || String(err)));
   } finally {
@@ -4152,7 +4281,7 @@ async function loadMemberDashboard() {
           btn.addEventListener("click", async () => {
             const meetupId = btn.dataset.id;
             const name = btn.dataset.name;
-            if (!confirm(`確定要取消自揪活動「${name}」嗎？取消後球友將無法再預約。`)) return;
+            if (!confirm(`確定要取消自揪活動「${name}」嗎？取消後球友將無法再預約，系統將自動推播通知已報名球友。`)) return;
             try {
               btn.disabled = true;
               const res = await fetch("/api/cancel-member-pickup", {
@@ -4165,7 +4294,7 @@ async function loadMemberDashboard() {
               });
               const data = await res.json();
               if (!res.ok || !data.ok) throw new Error(data.error || "取消失敗");
-              alert("自揪活動已成功取消！");
+              alert(data.message || "自揪活動已成功取消！");
               clearRosterCache();
               await loadAvailableWeekdays(true);
               await loadMeetupsByDate(selectedDate);
