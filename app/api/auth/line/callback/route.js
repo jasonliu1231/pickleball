@@ -15,7 +15,7 @@ export async function GET(request) {
   const error = searchParams.get("error");
   const errorDescription = searchParams.get("error_description");
 
-  // 解析 state 中是否指定了 App 端自訂返回網址 (e.g. exp://... 或 pickleballceilidh://...)
+  // 解析 state 中是否指定了返回網址 (Web 原頁面或 App 端自訂返回網址 e.g. exp://... 或 pickleballceilidh://...)
   let appReturnUrl = null;
   if (state) {
     try {
@@ -23,18 +23,31 @@ export async function GET(request) {
       if (parsed.returnUrl) appReturnUrl = parsed.returnUrl;
     } catch (e) {
       try {
-        const decoded = Buffer.from(state, "base64").toString("utf-8");
-        const parsed = JSON.parse(decoded);
+        const parsed = JSON.parse(state);
         if (parsed.returnUrl) appReturnUrl = parsed.returnUrl;
-      } catch (e2) {}
+      } catch (e1) {
+        try {
+          const decoded = Buffer.from(state, "base64").toString("utf-8");
+          const parsed = JSON.parse(decoded);
+          if (parsed.returnUrl) appReturnUrl = parsed.returnUrl;
+        } catch (e2) {}
+      }
     }
   }
+  const isWebReturnUrl = Boolean(appReturnUrl && /^https?:\/\//i.test(appReturnUrl));
 
   // 1. 若 LINE 授權回傳錯誤
   if (error || !code) {
     console.error("LINE Auth callback error from provider:", error, errorDescription);
     const msg = errorDescription || error || "未收到 LINE 授權碼";
     if (appReturnUrl) {
+      if (isWebReturnUrl) {
+        const cleanWebReturn = appReturnUrl.split("#")[0];
+        const sep = cleanWebReturn.includes("?") ? "&" : "?";
+        return NextResponse.redirect(
+          `${cleanWebReturn}${sep}error=${encodeURIComponent(error || "no_code")}&error_description=${encodeURIComponent(msg)}`
+        );
+      }
       const baseReturn = appReturnUrl.split("#")[0].split("?")[0];
       return NextResponse.redirect(
         `${baseReturn}?error=${encodeURIComponent(error || "no_code")}&error_description=${encodeURIComponent(msg)}#error=${encodeURIComponent(error || "no_code")}`
@@ -254,9 +267,14 @@ export async function GET(request) {
       }
     }
 
-    // 8. 成功導回：若來自 App，跳轉回 App 專屬協定；若來自 Web，導回 /member
+    // 8. 成功導回：若來自 Web 指定原頁面則導回該頁；若來自 App，跳轉回 App 專屬協定；否則預設導回 /member
     // Supabase JS Client 會在頁面載入時自動解析 #access_token=...，完成身分驗證並持久化至 localStorage！
     if (appReturnUrl) {
+      if (isWebReturnUrl) {
+        const cleanWebReturn = appReturnUrl.split("#")[0];
+        const redirectUrl = `${cleanWebReturn}#access_token=${access_token}&refresh_token=${refresh_token}&token_type=bearer&type=recovery`;
+        return NextResponse.redirect(redirectUrl);
+      }
       const baseReturn = appReturnUrl.split("#")[0].split("?")[0];
       const redirectUrl = `${baseReturn}?access_token=${access_token}&refresh_token=${refresh_token}#access_token=${access_token}&refresh_token=${refresh_token}&token_type=bearer&type=recovery`;
       return NextResponse.redirect(redirectUrl);
@@ -267,6 +285,13 @@ export async function GET(request) {
   } catch (err) {
     console.error("Fatal exception in LINE callback:", err);
     if (appReturnUrl) {
+      if (isWebReturnUrl) {
+        const cleanWebReturn = appReturnUrl.split("#")[0];
+        const sep = cleanWebReturn.includes("?") ? "&" : "?";
+        return NextResponse.redirect(
+          `${cleanWebReturn}${sep}error=server_error&error_description=${encodeURIComponent(err.message || "伺服器換證發生錯誤")}`
+        );
+      }
       const baseReturn = appReturnUrl.split("#")[0].split("?")[0];
       return NextResponse.redirect(
         `${baseReturn}?error=server_error&error_description=${encodeURIComponent(err.message || "伺服器換證發生錯誤")}#error=server_error`

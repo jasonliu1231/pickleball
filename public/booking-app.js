@@ -4985,7 +4985,7 @@ function hideLoginWaiting() {
   }
 }
 
-async function handleLineLogin() {
+async function handleLineLogin(customReturnUrl) {
   const lineBtn = $("lineLoginBtn");
   if (lineBtn) {
     if (lineBtn.disabled) return;
@@ -5000,13 +5000,26 @@ async function handleLineLogin() {
     "LINE 官方授權連線中，請勿關閉視窗"
   );
 
-  // 採用後端直通架構：直接導向 LINE 官方授權端點
+  // 採用後端直通架構：直接導向 LINE 官方授權端點，並記錄觸發登入的來源頁面以便授權後導回原處
   const clientId = "2010841175";
   const redirectUri = window.location.origin + "/api/auth/line/callback";
-  const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
-  sessionStorage.setItem("line_login_state", state);
+  const returnUrlParam = new URLSearchParams(window.location.search).get("returnUrl");
+  let targetReturnUrl = "";
+  if (typeof customReturnUrl === "string" && customReturnUrl.trim()) {
+    targetReturnUrl = customReturnUrl.trim();
+  } else if (returnUrlParam && returnUrlParam.startsWith("/")) {
+    targetReturnUrl = window.location.origin + returnUrlParam;
+  } else {
+    targetReturnUrl = window.location.origin + (window.location.pathname || "/") + (window.location.search || "");
+  }
 
-  const authUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;
+  const statePayload = JSON.stringify({
+    nonce: Math.random().toString(36).substring(2) + Date.now().toString(36),
+    returnUrl: targetReturnUrl
+  });
+  sessionStorage.setItem("line_login_state", statePayload);
+
+  const authUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(statePayload)}&scope=profile%20openid`;
   
   setTimeout(() => {
     window.location.href = authUrl;
@@ -5224,6 +5237,18 @@ document.addEventListener("click", (e) => {
       activeMemberPromise = ensureSystemMember(user).then(async (m) => {
         currentSystemMember = m;
         toggleAuthView(true);
+        // 若報名彈窗已在畫面上開啟（例如透過分享短網址進入並完成自動登入），自動帶入會員預設資料
+        if (m && $("signupModal")?.classList.contains("show")) {
+          if ($("nickname") && !$("nickname").value.trim()) {
+            $("nickname").value = m.nickname || "";
+          }
+          if ($("phone") && !$("phone").value.trim()) {
+            $("phone").value = m.phone || "";
+          }
+          if ($("skillLevel") && m.skill_level) {
+            $("skillLevel").value = mapSkillToSelect(m.skill_level);
+          }
+        }
         if ($("memberDashboard")) {
           showLoginWaiting(
             "會員個人中心載入中...",
@@ -5256,10 +5281,11 @@ document.addEventListener("click", (e) => {
   try {
     // 若網址 Hash 含有剛換發之 access_token 與 refresh_token，直接呼叫 setSession
     if (window.location.hash.includes("access_token")) {
+      const isMemberPage = Boolean($("memberDashboard"));
       showLoginWaiting(
         "LINE 登入驗證中...",
-        "LINE 授權成功！正在同步會員個人資料與近期預約紀錄...",
-        "即將進入個人中心"
+        "LINE 授權成功！正在同步會員個人資料...",
+        isMemberPage ? "即將進入個人中心" : "即將返回預約畫面"
       );
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
       const accessToken = hashParams.get("access_token");
