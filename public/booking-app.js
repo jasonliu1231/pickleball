@@ -498,6 +498,7 @@ async function loadAvailableWeekdays(forceRefresh = false) {
             is_one_off: false,
             one_off_date: null,
             start_date: m.start_date || null,
+            end_date: m.end_date || null,
             city: city
           });
         });
@@ -524,6 +525,7 @@ function hasAvailableMeetupOnDate(dateStr) {
       if (rule.one_off_date !== dateStr) return false;
     } else {
       if (rule.start_date && dateStr < rule.start_date) return false;
+      if (rule.end_date && dateStr > rule.end_date) return false;
       if (Number(rule.weekday) !== weekday) return false;
     }
 
@@ -612,6 +614,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         const m = s.meetup || {};
         if (m.is_active === false) return;
         if (m.start_date && dateStr < m.start_date) return;
+        if (!m.is_one_off && m.end_date && dateStr > m.end_date) return;
 
         const meetupCity = getMeetupCity(m);
 
@@ -665,7 +668,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
 
         const meetupCity = getMeetupCity(m);
 
-        const matchesWeekday = !m.is_one_off && (m.weekdays || []).includes(weekday) && (!m.start_date || dateStr >= m.start_date);
+        const matchesWeekday = !m.is_one_off && (m.weekdays || []).includes(weekday) && (!m.start_date || dateStr >= m.start_date) && (!m.end_date || dateStr <= m.end_date);
         const matchesOneOff = m.is_one_off && m.one_off_date === dateStr;
         if (matchesWeekday || matchesOneOff) {
           const cap = m.capacity ?? 0;
