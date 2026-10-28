@@ -297,6 +297,8 @@ if (typeof window !== "undefined" && window.location.pathname.startsWith("/s/"))
       const d = parts[1];
       if (/^\d{8}$/.test(d)) {
         urlDate = `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+      } else if (/^\d{6}$/.test(d)) {
+        urlDate = `20${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4, 6)}`;
       } else if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
         urlDate = d;
       }
@@ -1075,7 +1077,7 @@ function renderMeetups(meetups) {
     card.querySelector(".schedule-btn")?.addEventListener("click", () => toggleSchedule(meetup));
     card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
     card.querySelector(".share-link-btn")?.addEventListener("click", () => {
-      const shareUrl = makeShortShareUrl(meetup.id, selectedDate, meetup.join_password);
+      const shareUrl = makeShortShareUrl(meetup.short_id || meetup.id, selectedDate, meetup.join_password);
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareUrl).then(() => {
           alert(`🎉 已複製專屬短網址報名連結！可直接傳給朋友或貼到 LINE 群組：\n\n${shareUrl}`);
@@ -1088,9 +1090,13 @@ function renderMeetups(meetups) {
     });
   });
 
-  // Auto-scroll and auto-open signup modal if meetup_id is passed in URL
+  // Auto-scroll and auto-open signup modal if meetup_id is passed in URL (supports both short_id and UUID id)
   if (urlMeetupId && !hasHandledUrlMeetup && meetups && meetups.length) {
-    const target = meetups.find((x) => String(x.id) === String(urlMeetupId));
+    const target = meetups.find(
+      (x) =>
+        String(x.id) === String(urlMeetupId) ||
+        (x.short_id !== undefined && x.short_id !== null && String(x.short_id) === String(urlMeetupId))
+    );
     if (target) {
       hasHandledUrlMeetup = true;
       setTimeout(() => {
@@ -2148,7 +2154,7 @@ async function handleCreatePickup(e) {
       throw new Error(data.error || "發起揪團失敗");
     }
 
-    const newMeetupId = data?.meetup_id;
+    const newMeetupId = data?.short_id || data?.meetup_id;
     try {
       localStorage.setItem("last_pickup_venue", JSON.stringify({
         city,
@@ -4356,7 +4362,7 @@ async function loadMemberDashboard() {
             statusBadge = `<span class="status-badge confirmed" style="white-space:nowrap;">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
           }
 
-          const shareUrl = makeShortShareUrl(m.id, m.start_date, m.join_password);
+          const shareUrl = makeShortShareUrl(m.short_id || m.id, m.start_date, m.join_password);
           const mDurationText = calculateDurationText(m.start_time, m.end_time);
           const mDurationBadgeHtml = mDurationText ? `<span class="badge duration-badge" style="margin-left: 6px; font-size: 11px; padding: 2px 7px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 800; border-radius: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 3px;">⏱️ ${mDurationText}</span>` : "";
 

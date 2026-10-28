@@ -153,6 +153,7 @@ export async function POST(request) {
     return Response.json({
       ok: true,
       meetup_id: newMeetup.id,
+      short_id: newMeetup.short_id ?? null,
       session_id: newSession.id,
       date: date
     });
