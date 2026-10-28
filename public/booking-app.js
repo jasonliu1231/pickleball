@@ -415,10 +415,19 @@ function maskPhone(phone) {
   return `${p.slice(0,4)}***${p.slice(-3)}`;
 }
 function setMessage(el, text, ok) {
-  el.textContent = text || "";
+  if (!el) return;
+  if (!text) {
+    clearMessage(el);
+    return;
+  }
+  el.textContent = text;
   el.className = `message show ${ok ? "ok" : "err"}`;
 }
-function clearMessage(el) { el.textContent = ""; el.className = "message"; }
+function clearMessage(el) {
+  if (!el) return;
+  el.textContent = "";
+  el.className = "message";
+}
 
 function renderCityFilter() {
   const select = $("cityFilter");
@@ -2212,7 +2221,6 @@ async function handleQueryCancel() {
   clearMessage($("cancelMessage"));
   $("queryCancelBtn").disabled = true;
   $("queryCancelBtn").textContent = "查詢中...";
-  setMessage($("cancelMessage"), "");
   window._pendingCancelTarget = null;
 
   try {
