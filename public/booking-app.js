@@ -3051,7 +3051,7 @@ async function ensureSystemMember(user) {
   let data = null;
   const { data: userById } = await client
     .from("users")
-    .select("id, name, phone, line_user_id, skill_level, is_beginner, rating, line_name, display_name")
+    .select("*")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -3061,7 +3061,7 @@ async function ensureSystemMember(user) {
     // 2. 若以 ID 查無資料，但有 LINE User ID，比對既有已匯入/已綁定的球友 (防止 duplicate key 衝突)
     const { data: userByLine } = await client
       .from("users")
-      .select("id, name, phone, line_user_id, skill_level, is_beginner, rating, line_name, display_name")
+      .select("*")
       .eq("line_user_id", lineUserId)
       .maybeSingle();
     if (userByLine) {
@@ -3082,7 +3082,7 @@ async function ensureSystemMember(user) {
       if (insertError.code === "23505" && lineUserId) {
         const { data: retryUser } = await client
           .from("users")
-          .select("id, name, phone, line_user_id, skill_level, is_beginner, rating, line_name, display_name")
+          .select("*")
           .eq("line_user_id", lineUserId)
           .maybeSingle();
         if (retryUser) return { ...retryUser, nickname: retryUser.name };
@@ -3805,6 +3805,7 @@ async function loadMemberDashboard() {
   if ($("profileDuprId")) {
     $("profileDuprId").value = currentSystemMember.dupr_id || "";
   }
+  updateDuprStatusBadge(currentSystemMember.dupr_id, currentSystemMember.rating);
 
   const cleanPh = cleanPhone(currentSystemMember.phone);
 
@@ -5140,6 +5141,42 @@ async function handleBindPhoneSubmit(e) {
   }
 }
 
+function updateDuprStatusBadge(duprId, rating) {
+  const badgeEl = $("profileDuprStatusBadge");
+  const unbindBtn = $("unbindDuprBtn");
+  const cleanId = (duprId || "").trim().toUpperCase();
+  const rNum = Number(rating);
+  const hasValidScore = !isNaN(rNum) && rNum > 0 && rNum <= 10;
+
+  if (unbindBtn) {
+    unbindBtn.style.display = (cleanId || hasValidScore) ? "inline-flex" : "none";
+    unbindBtn.style.alignItems = "center";
+  }
+  if (!badgeEl) return;
+
+  if (cleanId && hasValidScore) {
+    badgeEl.style.background = "#eff6ff";
+    badgeEl.style.color = "#1d4ed8";
+    badgeEl.style.border = "1px solid #bfdbfe";
+    badgeEl.innerHTML = `✅ 已綁定 DUPR ID：<b>${escapeHtml(cleanId)}</b> ・ 目前雙打分數：<b>DUPR ${rNum.toFixed(2)}</b>`;
+  } else if (cleanId) {
+    badgeEl.style.background = "#fefce8";
+    badgeEl.style.color = "#a16207";
+    badgeEl.style.border = "1px solid #fde047";
+    badgeEl.innerHTML = `✅ 已綁定 DUPR ID：<b>${escapeHtml(cleanId)}</b> ・ 目前尚無積分 (NR)，報名名單顯示自評程度`;
+  } else if (hasValidScore) {
+    badgeEl.style.background = "#eff6ff";
+    badgeEl.style.color = "#1d4ed8";
+    badgeEl.style.border = "1px solid #bfdbfe";
+    badgeEl.innerHTML = `✅ 目前雙打分數：<b>DUPR ${rNum.toFixed(2)}</b>`;
+  } else {
+    badgeEl.style.background = "#f1f5f9";
+    badgeEl.style.color = "#64748b";
+    badgeEl.style.border = "none";
+    badgeEl.textContent = "尚未綁定 DUPR ID（報名名單將顯示上方的預設程度等級）";
+  }
+}
+
 async function handleUpdateProfile(e) {
   e.preventDefault();
   if (!currentUser || !currentSystemMember) return;
@@ -5153,22 +5190,38 @@ async function handleUpdateProfile(e) {
   const phone = rawPhone ? cleanPhone(rawPhone) : (currentSystemMember.phone || "");
   const skill_level = $("profileSkillLevel")?.value || "beginner";
   const is_beginner = (skill_level === "first_time" || skill_level === "beginner");
-  const rawDuprRating = $("profileDuprRating") ? $("profileDuprRating").value.trim() : "";
   const rawDuprId = $("profileDuprId") ? $("profileDuprId").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
   const msgEl = $("profileMessage");
   if (phone && !validatePhone(phone)) return setMessage(msgEl, "手機格式不正確", false);
 
-  let parsedDupr = null;
-  if (rawDuprRating !== "") {
-    const num = parseFloat(rawDuprRating);
-    if (isNaN(num) || num < 1.0 || num > 8.5) {
-      return setMessage(msgEl, "請輸入有效的 DUPR 雙打分數（介於 1.00 ~ 8.00 之間的小數，如 3.25）", false);
-    }
-    parsedDupr = Number(num.toFixed(2));
-  }
-
   try {
     setMessage(msgEl, "更新中...", true);
+
+    let parsedDupr = null;
+    if (rawDuprId) {
+      // 自動透過 DUPR ID 查詢雙打分數（若為 NR 則 rating 為 null，名單顯示自評程度）
+      try {
+        const syncRes = await fetch("/api/dupr-sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: currentSystemMember?.id || currentUser.id,
+            dupr_id: rawDuprId,
+            action: "lookup"
+          })
+        });
+        const syncData = await syncRes.json();
+        if (syncRes.ok && syncData.ok) {
+          parsedDupr = syncData.rating ?? null;
+        } else if (syncRes.status === 404) {
+          return setMessage(msgEl, syncData.error || `查無 DUPR ID「${rawDuprId}」`, false);
+        }
+      } catch (e) {
+        const curRating = Number(currentSystemMember?.rating);
+        parsedDupr = (!isNaN(curRating) && curRating > 0 && curRating <= 10) ? curRating : null;
+      }
+    }
+
     const updatePayload = {
       name: effectiveName,
       display_name: customDisplayName,
@@ -5222,7 +5275,8 @@ async function handleUpdateProfile(e) {
     }
 
     if (error) throw error;
-    currentSystemMember = { ...data, nickname: data.name, display_name: customDisplayName, line_name: currentSystemMember.line_name };
+    currentSystemMember = { ...data, dupr_id: rawDuprId || null, rating: parsedDupr, nickname: data.name, display_name: customDisplayName, line_name: currentSystemMember.line_name };
+    updateDuprStatusBadge(currentSystemMember.dupr_id, currentSystemMember.rating);
 
     setMessage(msgEl, "個人資料更新成功！", true);
     toggleAuthView(true);
@@ -5525,8 +5579,8 @@ $("authForm")?.addEventListener("submit", handleAuthSubmit);
 $("updateProfileForm")?.addEventListener("submit", handleUpdateProfile);
 $("syncDuprBtn")?.addEventListener("click", async () => {
   if (!currentSystemMember?.id) return alert("請先登入會員");
-  const duprIdVal = $("profileDuprId")?.value?.trim();
-  if (!duprIdVal) return alert("請先輸入您的 6 碼 DUPR ID (例如 X7K9P2)");
+  const duprIdVal = $("profileDuprId")?.value?.trim()?.toUpperCase()?.replace(/[^A-Z0-9]/g, "");
+  if (!duprIdVal) return alert("請先輸入您的 6 碼 DUPR ID (例如 WMLGQQ)");
   const btn = $("syncDuprBtn");
   const msgEl = $("profileMessage");
   try {
@@ -5545,21 +5599,48 @@ $("syncDuprBtn")?.addEventListener("click", async () => {
     });
     const data = await res.json();
     if (!res.ok || !data.ok) {
-      throw new Error(data.error || "無法自動同步，請直接輸入雙打分數並儲存");
+      throw new Error(data.error || "無法完成 DUPR 綁定，請確認 ID 是否正確");
     }
-    if ($("profileDuprRating") && data.rating) {
-      $("profileDuprRating").value = Number(data.rating).toFixed(2);
+    if ($("profileDuprId")) $("profileDuprId").value = data.dupr_id || duprIdVal;
+    if ($("profileDuprRating")) {
+      $("profileDuprRating").value = data.rating ? Number(data.rating).toFixed(2) : "";
     }
-    currentSystemMember.rating = data.rating;
-    currentSystemMember.dupr_id = data.dupr_id;
+    currentSystemMember.rating = data.rating ?? null;
+    currentSystemMember.dupr_id = data.dupr_id || duprIdVal;
+    updateDuprStatusBadge(currentSystemMember.dupr_id, currentSystemMember.rating);
     setMessage(msgEl, `✅ ${data.message}`, true);
   } catch (err) {
     setMessage(msgEl, err.message, false);
   } finally {
     if (btn) {
       btn.disabled = false;
-      btn.textContent = "🔍 依 ID 帶入";
+      btn.textContent = "🔗 綁定 / 同步";
     }
+  }
+});
+$("unbindDuprBtn")?.addEventListener("click", async () => {
+  if (!currentSystemMember?.id) return;
+  if (!confirm("確定要解除 DUPR 綁定嗎？解除後報名名單將恢復顯示您的自評程度。")) return;
+  const msgEl = $("profileMessage");
+  try {
+    const res = await fetch("/api/dupr-sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: currentSystemMember.id,
+        action: "unbind"
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || "解除失敗");
+    if ($("profileDuprId")) $("profileDuprId").value = "";
+    if ($("profileDuprRating")) $("profileDuprRating").value = "";
+    currentSystemMember.rating = null;
+    currentSystemMember.dupr_id = null;
+    updateDuprStatusBadge(null, null);
+    setMessage(msgEl, "✅ 已解除 DUPR 綁定，報名名單將顯示您的自評程度。", true);
+  } catch (err) {
+    setMessage(msgEl, err.message, false);
   }
 });
 $("bindPhoneForm")?.addEventListener("submit", handleBindPhoneSubmit);

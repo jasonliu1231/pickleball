@@ -142,32 +142,40 @@ export default function MemberPage() {
                     </div>
                   </div>
                   <div className="modern-input-group" style={{ gridColumn: "1 / -1", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "12px" }}>
-                    <label htmlFor="profileDuprRating" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
-                      <span>🏆 DUPR 雙打分數綁定 <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "normal" }}>（選填，有填寫時才會顯示於報名名單，與上方程度互不影響）</span></span>
+                    <label htmlFor="profileDuprId" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
+                      <span>🏆 DUPR 官方積分綁定 <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "normal" }}>（輸入 6 碼 ID 自動查分；若尚無積分 NR 則顯示自評程度）</span></span>
                     </label>
+                    <input type="hidden" id="profileDuprRating" />
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                      <input
-                        id="profileDuprRating"
-                        className="modern-text-input"
-                        style={{ flex: "1", minWidth: "140px", background: "#ffffff" }}
-                        placeholder="雙打分數 (例如：3.25，留空則不顯示)"
-                        inputMode="decimal"
-                      />
                       <input
                         id="profileDuprId"
                         className="modern-text-input"
-                        style={{ flex: "1", minWidth: "130px", background: "#ffffff", textTransform: "uppercase" }}
-                        placeholder="DUPR ID (選填，如 X7K9P2)"
+                        style={{ flex: "1", minWidth: "160px", background: "#ffffff", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "800" }}
+                        placeholder="輸入 6 碼 DUPR ID (例如 WMLGQQ)"
                         maxLength={12}
                       />
                       <button
                         type="button"
                         id="syncDuprBtn"
                         className="btn-secondary"
-                        style={{ height: "40px", padding: "0 12px", fontSize: "12.5px", fontWeight: "800", whiteSpace: "nowrap" }}
+                        style={{ height: "40px", padding: "0 14px", fontSize: "12.5px", fontWeight: "800", whiteSpace: "nowrap", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe" }}
                       >
-                        🔍 依 ID 帶入
+                        🔗 綁定 / 同步
                       </button>
+                      <button
+                        type="button"
+                        id="unbindDuprBtn"
+                        className="btn-secondary"
+                        style={{ display: "none", height: "40px", padding: "0 12px", fontSize: "12px", fontWeight: "700", whiteSpace: "nowrap", background: "#fff1f2", color: "#e11d48", border: "1px solid #fecdd3" }}
+                      >
+                        解除
+                      </button>
+                    </div>
+                    <div
+                      id="profileDuprStatusBadge"
+                      style={{ marginTop: "8px", fontSize: "12px", fontWeight: "700", color: "#64748b", background: "#f1f5f9", padding: "6px 10px", borderRadius: "8px" }}
+                    >
+                      尚未綁定 DUPR ID（報名名單將顯示上方的預設程度等級）
                     </div>
                   </div>
                 </div>

@@ -148,73 +148,54 @@ export async function POST(request) {
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, "");
 
-    let finalRating = null;
-    let playerName = null;
-
-    // 2. 若有帶入 DUPR ID 且要求自動查詢 (或未填手動分數)
-    if (cleanDuprId && (action === "lookup" || manual_rating === undefined || manual_rating === "")) {
-      const lookup = await fetchDuprProfileById(cleanDuprId);
-      if (lookup.ok && lookup.player) {
-        playerName = lookup.player.fullName || [lookup.player.firstName, lookup.player.lastName].filter(Boolean).join(" ");
-        const rawDoubles =
-          lookup.player.ratings?.doubles ??
-          lookup.player.doubles ??
-          lookup.player.ratings?.default;
-        const numDoubles = parseFloat(rawDoubles);
-        if (!isNaN(numDoubles) && numDoubles >= 1.0 && numDoubles <= 8.5) {
-          finalRating = Number(numDoubles.toFixed(2));
-        } else {
-          return Response.json(
-            {
-              ok: false,
-              error: `查詢到 DUPR 球員「${playerName || cleanDuprId}」，但目前雙打分數為 NR (尚無計分紀錄)，請直接手動輸入您的雙打分數。`
-            },
-            { status: 400 }
-          );
-        }
-      } else if (action === "lookup") {
-        if (lookup.reason === "no_token") {
-          return Response.json(
-            {
-              ok: false,
-              error: "可直接於下方輸入您的 DUPR 雙打分數（如 3.25）並點選儲存綁定！"
-            },
-            { status: 400 }
-          );
-        }
-        return Response.json(
-          {
-            ok: false,
-            error: `查無 DUPR ID「${cleanDuprId}」，請確認 ID 是否正確，或直接填寫雙打分數儲存。`
-          },
-          { status: 404 }
-        );
-      }
-    }
-
-    // 3. 若有手動填寫的雙打分數
-    if (finalRating === null && manual_rating !== undefined && manual_rating !== null && String(manual_rating).trim() !== "") {
-      const parsed = parseFloat(String(manual_rating).trim());
-      if (isNaN(parsed) || parsed < 1.0 || parsed > 8.5) {
-        return Response.json(
-          { ok: false, error: "請輸入有效的 DUPR 雙打分數（介於 1.00 ~ 8.00 之間的小數，例如 3.25）" },
-          { status: 400 }
-        );
-      }
-      finalRating = Number(parsed.toFixed(2));
-    }
-
-    if (finalRating === null) {
+    if (!cleanDuprId) {
       return Response.json(
-        { ok: false, error: "請輸入 DUPR 雙打分數（例如 3.25）" },
+        { ok: false, error: "請輸入您的 6 碼 DUPR ID（例如 WMLGQQ）" },
         { status: 400 }
       );
     }
 
-    // 4. 寫入 users 資料表（不連動修改 skill_level 程度自評）
+    let finalRating = null;
+    let playerName = null;
+    let isNr = false;
+
+    // 2. 透過 DUPR ID 自動向官方查詢雙打分數
+    const lookup = await fetchDuprProfileById(cleanDuprId);
+    if (lookup.ok && lookup.player) {
+      playerName =
+        lookup.player.fullName ||
+        [lookup.player.firstName, lookup.player.lastName].filter(Boolean).join(" ") ||
+        null;
+      const rawDoubles =
+        lookup.player.ratings?.doubles ??
+        lookup.player.doubles ??
+        lookup.player.ratings?.default;
+      const numDoubles = parseFloat(rawDoubles);
+      if (!isNaN(numDoubles) && numDoubles >= 1.0 && numDoubles <= 8.5) {
+        finalRating = Number(numDoubles.toFixed(2));
+      } else {
+        // 雙打分數為 NR (尚無計分紀錄)：記錄 DUPR ID，並將 rating 設為 null（名單顯示自評程度）
+        finalRating = null;
+        isNr = true;
+      }
+    } else if (lookup.reason === "not_found") {
+      return Response.json(
+        {
+          ok: false,
+          error: `查無 DUPR ID「${cleanDuprId}」，請確認您的 6 碼 ID 是否正確。`
+        },
+        { status: 404 }
+      );
+    } else {
+      // 若後端尚未設定 DUPR 查詢憑證 (no_token)，仍先記錄玩家的 DUPR ID，rating 維持 null (顯示自評程度)
+      finalRating = null;
+      isNr = true;
+    }
+
+    // 3. 寫入 users 資料表（不連動修改 skill_level 程度自評）
     const updatePayload = {
       rating: finalRating,
-      dupr_id: cleanDuprId || null,
+      dupr_id: cleanDuprId,
       updated_at: new Date().toISOString()
     };
 
@@ -242,14 +223,24 @@ export async function POST(request) {
       throw updateErr;
     }
 
+    let message = "";
+    if (finalRating !== null) {
+      message = playerName
+        ? `已綁定 DUPR (${playerName}・${cleanDuprId})，雙打分數：${finalRating.toFixed(2)}！`
+        : `已綁定 DUPR ID (${cleanDuprId})，雙打分數：${finalRating.toFixed(2)}！`;
+    } else {
+      message = playerName
+        ? `已綁定 DUPR (${playerName}・${cleanDuprId})！目前尚無積分 (NR)，名單將顯示您的自評程度。`
+        : `已綁定 DUPR ID (${cleanDuprId})！目前尚無積分 (NR)，名單將顯示您的自評程度。`;
+    }
+
     return Response.json({
       ok: true,
-      dupr_id: cleanDuprId || null,
+      dupr_id: cleanDuprId,
       rating: finalRating,
+      is_nr: isNr,
       player_name: playerName,
-      message: playerName
-        ? `已成功同步 DUPR (${playerName}) 雙打分數：${finalRating.toFixed(2)}！`
-        : `已成功綁定 DUPR 雙打分數：${finalRating.toFixed(2)}！`
+      message
     });
   } catch (error) {
     console.error("dupr-sync error:", error);
