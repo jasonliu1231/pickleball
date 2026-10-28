@@ -1216,9 +1216,9 @@ async function renderRosterIntoElement(el, meetupId, dateStr) {
       }
 
       const hasDupr = r.rating && !isNaN(Number(r.rating)) && Number(r.rating) > 0 && Number(r.rating) <= 10;
-      const duprBadgeHtml = hasDupr
-        ? `<span class="pill" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; font-weight: 800; font-size: 11px; padding: 2px 7px; border-radius: 99px;">DUPR ${Number(r.rating).toFixed(2)}</span>`
-        : "";
+      const rightBadgeHtml = hasDupr
+        ? `<span class="pill" style="background: #eff6ff; color: #1d4ed8; border: 1px solid #93c5fd; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 99px;">DUPR ${Number(r.rating).toFixed(2)}</span>`
+        : `<span class="pill" style="${skillBadgeStyle}; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 99px;">${escapeHtml(skillName)}</span>`;
 
       return `
       <div class="person">
@@ -1227,8 +1227,7 @@ async function renderRosterIntoElement(el, meetupId, dateStr) {
           ${r.note ? `<div class="person-note">${escapeHtml(r.note)}</div>` : ""}
         </div>
         <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-          ${duprBadgeHtml}
-          <span class="pill" style="${skillBadgeStyle}; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 99px;">${escapeHtml(skillName)}</span>
+          ${rightBadgeHtml}
         </div>
       </div>`;
     };
@@ -1418,6 +1417,19 @@ function openSignup(meetup, initialPwd = null) {
       pwdRow.style.display = "none";
       if ($("signupPassword")) $("signupPassword").value = "";
     }
+  }
+
+  const submitBtnEl = $("submitBtn");
+  if (submitBtnEl) {
+    const btnLabel = full
+      ? "加入備取（目前正取已滿）"
+      : cap > 0
+      ? `確認報名（尚餘 ${left} 名額）`
+      : "確認報名";
+    submitBtnEl.textContent = btnLabel;
+    submitBtnEl.dataset.defaultText = btnLabel;
+    submitBtnEl.style.background = full ? "#d97706" : "";
+    submitBtnEl.style.borderColor = full ? "#b45309" : "";
   }
 
   setModalVisible($("signupModal"), true);
@@ -2472,8 +2484,11 @@ async function handleSignup(e) {
   } catch (err) {
     setMessage($("formMessage"), err.message || "報名失敗，請稍後再試。", false);
   } finally {
-    $("submitBtn").disabled = false;
-    $("submitBtn").textContent = "確認報名";
+    const submitBtnEl = $("submitBtn");
+    if (submitBtnEl) {
+      submitBtnEl.disabled = false;
+      submitBtnEl.textContent = submitBtnEl.dataset.defaultText || "確認報名";
+    }
   }
 }
 
@@ -2488,6 +2503,13 @@ async function handleQuickSignup(meetup, btn) {
   if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) {
     openBindPhoneModal("使用「快速」預約前，請先完成手機號碼綁定！");
     return;
+  }
+
+  if (meetup.session_notes && String(meetup.session_notes).trim()) {
+    const confirmNotice = confirm(
+      `📢 本場次當日公告提醒：\n\n${String(meetup.session_notes).trim()}\n\n請問已閱讀並確認要繼續快速報名「${meetup.name}」嗎？`
+    );
+    if (!confirmNotice) return;
   }
 
   let passwordVal = null;
