@@ -113,7 +113,18 @@ function startCountdownTicker() {
         card.removeAttribute("data-open-time");
         const isFull = card.dataset.isFull === "true";
         btn.disabled = false;
-        btn.textContent = isFull ? "加入備取" : "我要報名";
+        btn.textContent = isFull ? "候補" : "報名";
+        if (isFull) {
+          btn.style.background = "#fef3c7";
+          btn.style.border = "1px solid #fde68a";
+          btn.style.color = "#d97706";
+          btn.style.boxShadow = "none";
+        } else {
+          btn.style.background = "";
+          btn.style.border = "";
+          btn.style.color = "";
+          btn.style.boxShadow = "";
+        }
         
         const badge = card.querySelector(".badge");
         if (badge && badge.textContent.includes("尚未開放")) {
@@ -1023,7 +1034,7 @@ function renderMeetups(meetups) {
         </div>
         <div class="card-primary-actions" style="display:flex;gap:6px;width:100%;">
           ${quickSignupBtnHtml}
-          <button class="btn-primary signup-btn" ${btnDisabledAttr} style="flex:1;height:42px;font-size:14px;font-weight:900;border-radius:12px;">${primaryBtnText}</button>
+          <button class="btn-primary signup-btn" ${btnDisabledAttr} style="flex:1;height:42px;font-size:14px;font-weight:900;border-radius:12px;${(!btnDisabledAttr && full) ? "background:#fef3c7;border:1px solid #fde68a;color:#d97706;box-shadow:none;" : ""}">${primaryBtnText}</button>
           <button class="btn-secondary cancel-btn" style="flex:1;height:42px;font-size:14px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-weight:900;border-radius:12px;">✕ 取消</button>
         </div>
       </div>
@@ -1428,8 +1439,10 @@ function openSignup(meetup, initialPwd = null) {
       : "確認報名";
     submitBtnEl.textContent = btnLabel;
     submitBtnEl.dataset.defaultText = btnLabel;
-    submitBtnEl.style.background = full ? "#d97706" : "";
-    submitBtnEl.style.borderColor = full ? "#b45309" : "";
+    submitBtnEl.style.background = full ? "#fef3c7" : "";
+    submitBtnEl.style.border = full ? "1px solid #fde68a" : "";
+    submitBtnEl.style.color = full ? "#d97706" : "";
+    submitBtnEl.style.boxShadow = full ? "none" : "";
   }
 
   setModalVisible($("signupModal"), true);
