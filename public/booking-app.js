@@ -651,9 +651,13 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         });
         const signupConfirmed = nonMemberConfirmedCount;
         const realConfirmed = memberCount + signupConfirmed;
+        const hasGuestFeeOverride = s.guest_fee_override !== null && s.guest_fee_override !== undefined && String(s.guest_fee_override).trim() !== "";
+        const effectiveGuestFee = hasGuestFeeOverride ? String(s.guest_fee_override).trim() : m.guest_fee;
 
         rows.push({
           ...m,
+          guest_fee: effectiveGuestFee,
+          guest_fee_override: hasGuestFeeOverride ? String(s.guest_fee_override).trim() : null,
           city: meetupCity,
           session_id: s.id,
           session_date: s.session_date,
@@ -896,7 +900,8 @@ function formatFeeDisplay(m) {
     const str = String(gFee).trim();
     if (str.includes("平分") || str.includes("均分") || str.includes("分攤")) return "場租平分";
     if (str === "免費" || str === "免收") return "免費";
-    return str.startsWith("$") ? str : `$${str}`;
+    if (str.includes("$") || !/^\d/.test(str)) return str;
+    return `$${str}`;
   }
   if (gFee === null || gFee === undefined || gFee === "") {
     if (m.creator_user_id || m.is_one_off) {
