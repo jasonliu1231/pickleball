@@ -1278,19 +1278,11 @@ function openSignup(meetup, initialPwd = null) {
   $("modalSubtitle").textContent = `${formatDate(selectedDate)}｜${timeText(meetup.start_time, meetup.end_time)}`;
   
   if ($("modalFeeText")) {
-    $("modalFeeText").textContent = formatFeeDisplay(meetup);
-  }
-  const paymentMethodsWrap = $("modalPaymentMethodsWrap");
-  if (paymentMethodsWrap) {
     const methods = Array.isArray(meetup.payment_methods) && meetup.payment_methods.length > 0
-      ? meetup.payment_methods
+      ? meetup.payment_methods.map((pm) => String(pm).trim()).filter(Boolean)
       : ["現金"];
-    paymentMethodsWrap.innerHTML = methods
-      .map(
-        (pm) =>
-          `<span style="display:inline-flex;align-items:center;background:#f8fafc;color:#475569;border:1px solid #cbd5e1;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;">${escapeHtml(String(pm).trim())}</span>`
-      )
-      .join("");
+    const pmText = methods.length > 0 ? `｜${methods.join(" / ")}` : "";
+    $("modalFeeText").textContent = `${formatFeeDisplay(meetup)}${pmText}`;
   }
   if ($("modalAddressText")) {
     const loc = [meetup.city, meetup.address].filter(Boolean).join(" ");

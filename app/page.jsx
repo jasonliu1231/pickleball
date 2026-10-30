@@ -104,10 +104,9 @@ export default function Page() {
               <p className="muted" id="modalSubtitle">--</p>
               <div id="modalInfoBadges" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", marginTop: "10px" }}>
                 <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", maxWidth: "100%" }}>
-                  <span id="modalFeeBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 9px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", whiteSpace: "nowrap", flexShrink: 0 }}>
+                  <span id="modalFeeBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 10px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", lineHeight: "1.4" }}>
                     💰 <span id="modalFeeText">--</span>
                   </span>
-                  <div id="modalPaymentMethodsWrap" style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: "5px" }}></div>
                 </div>
                 <div id="modalContactButtonsRow" style={{ display: "none", flexWrap: "wrap", alignItems: "center", gap: "6px", maxWidth: "100%" }}>
                   <button type="button" id="modalLineContactBtn" style={{ display: "none", alignItems: "center", gap: "4px", background: "#06C755", color: "#ffffff", border: "none", padding: "4px 9px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(6,199,85,0.2)", whiteSpace: "nowrap", flexShrink: 0 }} title="一鍵加團主好友">
