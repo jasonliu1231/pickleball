@@ -240,15 +240,17 @@ a {
 }
 
 .btn-pickup-trigger {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-weight: 900;
+  font-size: 13.5px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 5px;
   background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
   color: #0f172a;
-  font-weight: 900;
-  font-size: 12px;
-  padding: 5px 12px;
-  border-radius: 99px;
   border: none;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(234, 179, 8, 0.3);
@@ -2224,8 +2226,9 @@ body:has(.modal.active) {
   }
 
   .btn-pickup-trigger {
-    padding: 4px 8px;
-    font-size: 11px;
+    height: 40px;
+    padding: 0 16px;
+    font-size: 13.5px;
   }
 
   .quiz-home-banner {
@@ -2306,7 +2309,8 @@ body:has(.modal.active) {
   
   .booking-controls {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 8px;
   }
   
   .city-filter-label {

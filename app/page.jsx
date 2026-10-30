@@ -3,17 +3,6 @@
 export default function Page() {
   return (
     <>
-      {/* Slim Daily Pulse Banner */}
-      <div className="daily-pulse-banner" id="dailyPulseBanner">
-        <div className="pulse-content">
-          <span className="pulse-icon" id="pulseIcon">🎾</span>
-          <span className="pulse-text" id="pulseText">今日球團載入中...</span>
-        </div>
-        <button className="btn-pickup-trigger" id="openCreatePickupBtn">
-          <span>➕</span> 自揪
-        </button>
-      </div>
-
       {/* App Download Recommendation Banner (Compact & Slim) */}
       <div className="app-download-home-banner" id="openAppDownloadBanner">
         <div className="app-banner-main">
@@ -65,6 +54,9 @@ export default function Page() {
                   </select>
                 </label>
                 <button className="btn-secondary" id="refreshBtn">重新整理</button>
+                <button className="btn-pickup-trigger" id="openCreatePickupBtn">
+                  <span>➕</span> 自揪
+                </button>
               </div>
             </div>
             <div className="booking-card">
