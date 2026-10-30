@@ -990,9 +990,10 @@ function renderMeetups(meetups) {
     const effectiveGroupUrl = m.group_url || null;
     const effectiveDoorUrl = m.door_url || null;
 
-    const lineContactBtnHtml = effectiveLineId ? `<button class="line-contact-btn" data-contact="${escapeHtml(effectiveLineId)}" style="margin-left: 4px; display: inline-flex; align-items: center; gap: 3px; background: #06C755; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2.5px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(6,199,85,0.2);" title="一鍵加團主好友">💬 加 LINE</button>` : "";
-    const groupBtnHtml = effectiveGroupUrl ? `<button class="group-link-btn" data-url="${escapeHtml(effectiveGroupUrl)}" style="margin-left: 4px; display: inline-flex; align-items: center; gap: 3px; background: #059669; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2.5px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(5,150,105,0.2);" title="加入 LINE 活動群組">👥 LINE 群組</button>` : "";
-    const doorBtnHtml = effectiveDoorUrl ? `<button class="door-link-btn" data-url="${escapeHtml(effectiveDoorUrl)}" style="margin-left: 4px; display: inline-flex; align-items: center; gap: 3px; background: #2563eb; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 2.5px 8px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(37,99,235,0.2);" title="開啟球場開門網址">🚪 球場開門</button>` : "";
+    const lineContactBtnHtml = effectiveLineId ? `<button class="line-contact-btn" data-contact="${escapeHtml(effectiveLineId)}" style="display: inline-flex; align-items: center; gap: 3px; background: #06C755; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 3px 9px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(6,199,85,0.2);" title="一鍵加團主好友">💬 加 LINE</button>` : "";
+    const groupBtnHtml = effectiveGroupUrl ? `<button class="group-link-btn" data-url="${escapeHtml(effectiveGroupUrl)}" style="display: inline-flex; align-items: center; gap: 3px; background: #059669; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 3px 9px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(5,150,105,0.2);" title="加入 LINE 活動群組">👥 LINE 群組</button>` : "";
+    const doorBtnHtml = effectiveDoorUrl ? `<button class="door-link-btn" data-url="${escapeHtml(effectiveDoorUrl)}" style="display: inline-flex; align-items: center; gap: 3px; background: #2563eb; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 3px 9px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(37,99,235,0.2);" title="開啟球場開門網址">🚪 球場開門</button>` : "";
+    const hasContactBtns = Boolean(lineContactBtnHtml || groupBtnHtml || doorBtnHtml);
 
     return `<article class="meetup-card" id="meetup-card-${m.id}" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
@@ -1020,10 +1021,8 @@ function renderMeetups(meetups) {
       <div class="info-grid">
         <div class="info" style="grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
           <strong>發起人</strong>${escapeHtml(m.organizer_name || (!m.organizer_id ? "球友自發" : "球友同樂會"))}${(m.creator_user_id || m.creator_member_id) && currentSystemMember && String(m.creator_user_id || m.creator_member_id) === String(currentSystemMember.id) ? ' <span style="color:var(--primary);font-weight:bold;">(我)</span>' : ''}
-          ${lineContactBtnHtml}
-          ${groupBtnHtml}
-          ${doorBtnHtml}
         </div>
+        ${hasContactBtns ? `<div style="grid-column: 1 / -1; width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: -2px 0 2px;">${lineContactBtnHtml}${groupBtnHtml}${doorBtnHtml}</div>` : ""}
         <div class="info"><strong>時間</strong>${timeText(m.start_time, m.end_time)}</div>
         <div class="info"><strong>費用</strong>${escapeHtml(formatFeeDisplay(m))}</div>
         <div class="info"><strong>人數</strong>${cap > 0 ? `${displayConfirmed}/${cap} 人` : `${realConfirmed} 人`}</div>
@@ -1281,6 +1280,18 @@ function openSignup(meetup, initialPwd = null) {
   if ($("modalFeeText")) {
     $("modalFeeText").textContent = formatFeeDisplay(meetup);
   }
+  const paymentMethodsWrap = $("modalPaymentMethodsWrap");
+  if (paymentMethodsWrap) {
+    const methods = Array.isArray(meetup.payment_methods) && meetup.payment_methods.length > 0
+      ? meetup.payment_methods
+      : ["現金"];
+    paymentMethodsWrap.innerHTML = methods
+      .map(
+        (pm) =>
+          `<span style="display:inline-flex;align-items:center;background:#f8fafc;color:#475569;border:1px solid #cbd5e1;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;">${escapeHtml(String(pm).trim())}</span>`
+      )
+      .join("");
+  }
   if ($("modalAddressText")) {
     const loc = [meetup.city, meetup.address].filter(Boolean).join(" ");
     $("modalAddressText").textContent = loc ? `${loc}${meetup.street_address ? ` (${meetup.street_address})` : ""}` : "地點另行公告";
@@ -1328,6 +1339,10 @@ function openSignup(meetup, initialPwd = null) {
       modalGroupBtn.style.display = "none";
       modalGroupBtn.onclick = null;
     }
+  }
+  const modalContactRow = $("modalContactButtonsRow");
+  if (modalContactRow) {
+    modalContactRow.style.display = (effectiveLineId || effectiveGroupUrl) ? "flex" : "none";
   }
   const cap = meetup.capacity_override ?? meetup.capacity ?? 0;
   const realConfirmed = Number(meetup.confirmed_count || 0);
@@ -1568,6 +1583,10 @@ function openEditPickupModal(m) {
     else displayFee = m.fee;
   }
   if ($("editPickupFee")) $("editPickupFee").value = displayFee;
+  const editPmMethods = Array.isArray(m.payment_methods) && m.payment_methods.length > 0 ? m.payment_methods : ["現金"];
+  document.querySelectorAll('input[name="editPickupPaymentMethod"]').forEach((cb) => {
+    cb.checked = editPmMethods.includes(cb.value);
+  });
   if ($("editPickupNotes")) $("editPickupNotes").value = m.notes || "";
   if ($("editPickupLineId")) $("editPickupLineId").value = m.line_id || "";
   if ($("editPickupGroupUrl")) $("editPickupGroupUrl").value = m.group_url || "";
@@ -1945,6 +1964,8 @@ async function handleUpdatePickup(e) {
   const streetAddress = $("editPickupStreetAddress")?.value?.trim() || "";
   const capacity = parseInt($("editPickupCapacity")?.value || "4", 10);
   const fee = $("editPickupFee")?.value?.trim() || "";
+  const paymentMethods = Array.from(document.querySelectorAll('input[name="editPickupPaymentMethod"]:checked')).map((cb) => cb.value);
+  if (paymentMethods.length === 0) paymentMethods.push("現金");
   const notes = $("editPickupNotes")?.value?.trim() || "";
   const lineId = $("editPickupLineId")?.value?.trim() || "";
   const groupUrl = $("editPickupGroupUrl")?.value?.trim() || "";
@@ -1981,7 +2002,8 @@ async function handleUpdatePickup(e) {
         join_password: joinPassword,
         line_id: lineId,
         group_url: groupUrl,
-        door_url: doorUrl
+        door_url: doorUrl,
+        payment_methods: paymentMethods
       })
     });
 
@@ -2107,6 +2129,10 @@ function openCreatePickupModal(presetDate, duplicateFrom = null) {
       else displayFee = duplicateFrom.fee;
     }
     if ($("pickupFee")) $("pickupFee").value = displayFee;
+    const dupPmMethods = Array.isArray(duplicateFrom.payment_methods) && duplicateFrom.payment_methods.length > 0 ? duplicateFrom.payment_methods : ["現金"];
+    document.querySelectorAll('input[name="pickupPaymentMethod"]').forEach((cb) => {
+      cb.checked = dupPmMethods.includes(cb.value);
+    });
     if ($("pickupNotes")) $("pickupNotes").value = duplicateFrom.notes || "";
     if ($("pickupLineId")) $("pickupLineId").value = duplicateFrom.line_id || "";
     if ($("pickupGroupUrl")) $("pickupGroupUrl").value = duplicateFrom.group_url || "";
@@ -2119,6 +2145,9 @@ function openCreatePickupModal(presetDate, duplicateFrom = null) {
       if ($("pickupJoinPassword")) $("pickupJoinPassword").value = duplicateFrom.join_password || "";
     }
   } else {
+    document.querySelectorAll('input[name="pickupPaymentMethod"]').forEach((cb) => {
+      cb.checked = cb.value === "現金";
+    });
     if (addrInput && !addrInput.value) {
       try {
         const saved = JSON.parse(localStorage.getItem("last_pickup_venue") || "null");
@@ -2153,6 +2182,8 @@ async function handleCreatePickup(e) {
   const streetAddress = $("pickupStreetAddress")?.value?.trim() || "";
   const capacity = parseInt($("pickupCapacity")?.value || "4", 10);
   const fee = $("pickupFee")?.value?.trim() || "";
+  const paymentMethods = Array.from(document.querySelectorAll('input[name="pickupPaymentMethod"]:checked')).map((cb) => cb.value);
+  if (paymentMethods.length === 0) paymentMethods.push("現金");
   const notes = $("pickupNotes")?.value?.trim() || "";
   const lineId = $("pickupLineId")?.value?.trim() || "";
   const groupUrl = $("pickupGroupUrl")?.value?.trim() || "";
@@ -2194,7 +2225,8 @@ async function handleCreatePickup(e) {
         join_password: joinPassword,
         line_id: lineId,
         group_url: groupUrl,
-        door_url: doorUrl
+        door_url: doorUrl,
+        payment_methods: paymentMethods
       })
     });
 

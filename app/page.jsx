@@ -103,10 +103,13 @@ export default function Page() {
               <h2 className="section-title" id="modalTitle" style={{ fontSize: "24px" }}>我要報名</h2>
               <p className="muted" id="modalSubtitle">--</p>
               <div id="modalInfoBadges" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", marginTop: "10px" }}>
-                <div style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: "6px", maxWidth: "100%" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", maxWidth: "100%" }}>
                   <span id="modalFeeBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#ecfdf5", color: "#065f46", border: "1px solid #a7f3d0", padding: "4px 9px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", whiteSpace: "nowrap", flexShrink: 0 }}>
                     💰 <span id="modalFeeText">--</span>
                   </span>
+                  <div id="modalPaymentMethodsWrap" style={{ display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: "5px" }}></div>
+                </div>
+                <div id="modalContactButtonsRow" style={{ display: "none", flexWrap: "wrap", alignItems: "center", gap: "6px", maxWidth: "100%" }}>
                   <button type="button" id="modalLineContactBtn" style={{ display: "none", alignItems: "center", gap: "4px", background: "#06C755", color: "#ffffff", border: "none", padding: "4px 9px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(6,199,85,0.2)", whiteSpace: "nowrap", flexShrink: 0 }} title="一鍵加團主好友">
                     💬 加 LINE
                   </button>
@@ -298,6 +301,23 @@ export default function Page() {
             <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
               💡 <strong>費用說明：</strong>填 <strong>0</strong> 代表免費；<strong>留空</strong>代表均分；填<strong>數字</strong>代表每人固定費用。
             </p>
+            <div>
+              <span style={{ display: "block", fontSize: "13.5px", fontWeight: "800", color: "var(--text)", marginBottom: "6px" }}>收款方式（可複選）</span>
+              <div id="pickupPaymentMethodsGroup" style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "6px" }}>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                  <input type="checkbox" name="pickupPaymentMethod" value="現金" defaultChecked style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                  <span>現金</span>
+                </label>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                  <input type="checkbox" name="pickupPaymentMethod" value="LINE Pay" style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                  <span>LINE Pay</span>
+                </label>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                  <input type="checkbox" name="pickupPaymentMethod" value="銀行轉帳" style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                  <span>銀行轉帳</span>
+                </label>
+              </div>
+            </div>
             <label>備註說明（選填）
               <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
             </label>

@@ -20,7 +20,8 @@ export async function POST(request) {
       join_password,
       line_id,
       group_url,
-      door_url
+      door_url,
+      payment_methods
     } = body;
 
     if (!creator_user_id) {
@@ -65,6 +66,10 @@ export async function POST(request) {
       }
     }
 
+    const normalizedPaymentMethods = Array.isArray(payment_methods) && payment_methods.length > 0
+      ? payment_methods.map((m) => String(m).trim()).filter(Boolean)
+      : ["現金"];
+
     // 2. 建立自揪活動 (meetups)
     const meetupInsertPayload = {
       creator_user_id: user.id,
@@ -86,6 +91,7 @@ export async function POST(request) {
       line_id: (line_id || "").trim() || null,
       group_url: (group_url || "").trim() || null,
       door_url: (door_url || "").trim() || null,
+      payment_methods: normalizedPaymentMethods,
       weekdays: [weekday],
       sort_order: 50
     };
@@ -97,10 +103,11 @@ export async function POST(request) {
       .single();
 
     // 若資料庫尚未遷移新欄位，自動移除並重試，避免開團中斷
-    if (meetupErr && (meetupErr.message?.includes("line_id") || meetupErr.message?.includes("group_url") || meetupErr.message?.includes("door_url"))) {
+    if (meetupErr && (meetupErr.message?.includes("line_id") || meetupErr.message?.includes("group_url") || meetupErr.message?.includes("door_url") || meetupErr.message?.includes("payment_methods"))) {
       if (meetupErr.message?.includes("line_id")) delete meetupInsertPayload.line_id;
       if (meetupErr.message?.includes("group_url")) delete meetupInsertPayload.group_url;
       if (meetupErr.message?.includes("door_url")) delete meetupInsertPayload.door_url;
+      if (meetupErr.message?.includes("payment_methods")) delete meetupInsertPayload.payment_methods;
       const retry = await supabase
         .from("meetups")
         .insert(meetupInsertPayload)

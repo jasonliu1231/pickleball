@@ -21,7 +21,8 @@ export async function POST(request) {
       join_password,
       line_id,
       group_url,
-      door_url
+      door_url,
+      payment_methods
     } = body;
 
     if (!creator_user_id || !meetup_id) {
@@ -99,6 +100,10 @@ export async function POST(request) {
       }
     }
 
+    const normalizedPaymentMethods = Array.isArray(payment_methods) && payment_methods.length > 0
+      ? payment_methods.map((m) => String(m).trim()).filter(Boolean)
+      : ["現金"];
+
     // 更新 meetup
     const updatePayload = {
       name: name.trim(),
@@ -114,7 +119,8 @@ export async function POST(request) {
       join_password: (join_password || "").trim() || null,
       line_id: (line_id || "").trim() || null,
       group_url: (group_url || "").trim() || null,
-      door_url: (door_url || "").trim() || null
+      door_url: (door_url || "").trim() || null,
+      payment_methods: normalizedPaymentMethods
     };
 
     let { error: updateErr } = await client
@@ -127,11 +133,13 @@ export async function POST(request) {
       updateErr &&
       (updateErr.message?.includes("line_id") ||
         updateErr.message?.includes("group_url") ||
-        updateErr.message?.includes("door_url"))
+        updateErr.message?.includes("door_url") ||
+        updateErr.message?.includes("payment_methods"))
     ) {
       if (updateErr.message?.includes("line_id")) delete updatePayload.line_id;
       if (updateErr.message?.includes("group_url")) delete updatePayload.group_url;
       if (updateErr.message?.includes("door_url")) delete updatePayload.door_url;
+      if (updateErr.message?.includes("payment_methods")) delete updatePayload.payment_methods;
       const retry = await client.from("meetups").update(updatePayload).eq("id", meetup_id);
       updateErr = retry.error;
     }

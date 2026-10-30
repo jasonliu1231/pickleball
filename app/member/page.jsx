@@ -333,6 +333,23 @@ export default function MemberPage() {
                 <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
                   💡 <strong>費用說明：</strong>填 <strong>0</strong> 代表免費；<strong>留空</strong>代表均分；填<strong>數字</strong>代表每人固定費用。
                 </p>
+                <div>
+                  <span style={{ display: "block", fontSize: "13.5px", fontWeight: "800", color: "var(--text)", marginBottom: "6px" }}>收款方式（可複選）</span>
+                  <div id="editPickupPaymentMethodsGroup" style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "6px" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                      <input type="checkbox" name="editPickupPaymentMethod" value="現金" defaultChecked style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                      <span>現金</span>
+                    </label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                      <input type="checkbox" name="editPickupPaymentMethod" value="LINE Pay" style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                      <span>LINE Pay</span>
+                    </label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                      <input type="checkbox" name="editPickupPaymentMethod" value="銀行轉帳" style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                      <span>銀行轉帳</span>
+                    </label>
+                  </div>
+                </div>
                 <label>備註說明（選填）
                   <textarea id="editPickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球"></textarea>
                 </label>
@@ -428,6 +445,23 @@ export default function MemberPage() {
                 <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
                   💡 <strong>費用說明：</strong>填 <strong>0</strong> 代表免費；<strong>留空</strong>代表均分；填<strong>數字</strong>代表每人固定費用。
                 </p>
+                <div>
+                  <span style={{ display: "block", fontSize: "13.5px", fontWeight: "800", color: "var(--text)", marginBottom: "6px" }}>收款方式（可複選）</span>
+                  <div id="pickupPaymentMethodsGroup" style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "6px" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                      <input type="checkbox" name="pickupPaymentMethod" value="現金" defaultChecked style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                      <span>現金</span>
+                    </label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                      <input type="checkbox" name="pickupPaymentMethod" value="LINE Pay" style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                      <span>LINE Pay</span>
+                    </label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", flexDirection: "row", margin: 0, padding: "6px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#f8fafc", cursor: "pointer", fontSize: "13px", fontWeight: "700" }}>
+                      <input type="checkbox" name="pickupPaymentMethod" value="銀行轉帳" style={{ width: "16px", height: "16px", margin: 0, cursor: "pointer" }} />
+                      <span>銀行轉帳</span>
+                    </label>
+                  </div>
+                </div>
                 <label>備註說明（選填）
                   <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
                 </label>
