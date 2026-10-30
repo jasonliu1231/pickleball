@@ -118,6 +118,7 @@ export async function POST(request) {
     let skippedCount = 0;
     const appPushMessages = [];
     const seenTokens = new Set();
+    const seenLineUserIds = new Set();
     const userNotificationRows = [];
 
     // 4. Broadcast to each player (記錄文字 + App Push + LINE Official Push)
@@ -166,10 +167,11 @@ export async function POST(request) {
         }
       }
 
-      // C. If no LINE user ID or organizer disabled LINE push, skip LINE part
-      if (!lineUserId || !isLinePushEnabled) {
+      // C. If no LINE user ID, already sent to this LINE ID, or organizer disabled LINE push, skip LINE part
+      if (!lineUserId || seenLineUserIds.has(lineUserId) || !isLinePushEnabled) {
         continue;
       }
+      seenLineUserIds.add(lineUserId);
       
       // Deduct 1 point from organizer quota (扣點制：數量沒了就不再發送)
       if (organizerId) {

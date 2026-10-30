@@ -239,6 +239,7 @@ async function handleCronMatchReminder(request) {
       const confirmedUsers = Array.from(playerMap.values());
       const appPushMessages = [];
       const seenTokens = new Set();
+      const seenLineUserIds = new Set();
       const userNotificationRows = [];
 
       for (const u of confirmedUsers) {
@@ -288,8 +289,9 @@ async function handleCronMatchReminder(request) {
           }
         }
 
-        // (3) 若有 LINE User ID 且有團主 ID，透過扣點制發送 LINE 官方 Flex 卡片
-        if (organizerId && u.line_user_id) {
+        // (3) 若有 LINE User ID 且有團主 ID，透過扣點制發送 LINE 官方 Flex 卡片（加防重複保護）
+        if (organizerId && u.line_user_id && !seenLineUserIds.has(u.line_user_id)) {
+          seenLineUserIds.add(u.line_user_id);
           try {
             const { data: deductResult, error: rpcError } = await client.rpc("deduct_organizer_message_quota", {
               p_organizer_id: organizerId,
