@@ -161,10 +161,9 @@ export default function Page() {
                 <strong style={{ color: "#1e3a8a", display: "block", marginBottom: "3px" }}>📢 當日公告：</strong>
                 <span id="modalSessionNoteText"></span>
               </div>
-              <div id="modalNotesBox" style={{ display: "none", background: "#f8fafc", border: "1px solid #e2e8f0", borderLeft: "4px solid var(--accent, #10b981)", padding: "10px 12px", borderRadius: "8px", color: "#334155", fontSize: "13px", fontWeight: "600", marginTop: "10px", lineHeight: "1.6" }}>
-                <strong style={{ color: "var(--accent, #10b981)", display: "block", marginBottom: "3px" }}>📝 開團備註說明：</strong>
-                <div id="modalNotesText" style={{ whiteSpace: "pre-line" }}></div>
-                <div id="modalNotesToggleHint" style={{ display: "none", fontSize: "11.5px", color: "var(--primary, #2563eb)", fontWeight: "700", marginTop: "4px" }}>展開完整說明 ▼</div>
+              <div id="modalNotesBox" style={{ display: "none", background: "#f8fafc", border: "1px solid #e2e8f0", borderLeft: "4px solid var(--accent, #10b981)", padding: "8px 12px", borderRadius: "8px", color: "#334155", fontSize: "13px", fontWeight: "600", marginTop: "8px", lineHeight: "1.4" }}>
+                <div id="modalNotesText" style={{ whiteSpace: "pre-line", lineHeight: "1.4" }}></div>
+                <div id="modalNotesToggleHint" style={{ display: "none", fontSize: "11.5px", color: "var(--primary, #2563eb)", fontWeight: "700", marginTop: "2px" }}>展開完整說明 ▼</div>
               </div>
               <div id="ratingLimitWarning" style={{ display: "none", background: "#FEF3C7", border: "1px solid #D97706", padding: "10px 12px", borderRadius: "10px", color: "#B45309", fontSize: "13px", fontWeight: "700", marginTop: "10px", lineHeight: "1.4" }}></div>
             </div>

@@ -1031,13 +1031,11 @@ function renderMeetups(meetups) {
         ${hasRatingThreshold(m) ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${formatRatingMin(m.rating_min)}</div>` : ""}
       </div>
       ${capBarHtml}
-      ${m.session_notes ? `<div class="session-note-banner" style="white-space: pre-line; line-height: 1.6;">📢 <strong>當日公告：</strong>${escapeHtml(m.session_notes)}</div>` : ""}
-      ${m.notes ? (() => {
-        const isLongNote = String(m.notes).length > 60 || String(m.notes).includes("\n");
-        return `<div class="note ${isLongNote ? 'collapsible-note' : ''}" style="${isLongNote ? 'cursor: pointer;' : ''}">
-          <div class="note-content" style="white-space: pre-line; line-height: 1.6; ${isLongNote ? 'display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;' : ''}">${escapeHtml(m.notes)}</div>
-          ${isLongNote ? `<span class="note-toggle-hint" style="display: block; font-size: 11.5px; color: var(--primary, #2563eb); font-weight: 700; margin-top: 4px;">展開完整說明 ▼</span>` : ""}
-        </div>`;
+      ${m.session_notes ? `<div class="session-note-banner" style="white-space: pre-line; line-height: 1.4;">📢 <strong>當日公告：</strong>${escapeHtml(String(m.session_notes).trim())}</div>` : ""}
+      ${m.notes && String(m.notes).trim() ? (() => {
+        const cleanNote = String(m.notes).trim();
+        const isLongNote = cleanNote.length > 60 || cleanNote.split("\n").length > 2;
+        return `<div class="note ${isLongNote ? 'collapsible-note' : ''}" style="white-space: normal; line-height: 1.4; ${isLongNote ? 'cursor: pointer;' : ''}"><div class="note-content" style="white-space: pre-line; line-height: 1.4; ${isLongNote ? 'display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;' : ''}">${escapeHtml(cleanNote)}</div>${isLongNote ? `<span class="note-toggle-hint" style="display: inline-block; font-size: 11.5px; color: var(--primary, #2563eb); font-weight: 700; margin-top: 2px;">展開完整說明 ▼</span>` : ""}</div>`;
       })() : ""}
       <div class="card-actions-wrapper" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
         <div class="card-secondary-actions" style="display:flex;gap:6px;">
@@ -1088,7 +1086,7 @@ function renderMeetups(meetups) {
       if (isExpanded) {
         noteEl.dataset.expanded = "false";
         contentEl.style.display = "-webkit-box";
-        contentEl.style.webkitLineClamp = "3";
+        contentEl.style.webkitLineClamp = "2";
         contentEl.style.webkitBoxOrient = "vertical";
         contentEl.style.overflow = "hidden";
         hintEl.textContent = "展開完整說明 ▼";
@@ -1431,9 +1429,9 @@ function openSignup(meetup, initialPwd = null) {
   if (notesBox && notesText) {
     if (fullNotes && fullNotes.trim()) {
       const cleanNotes = fullNotes.trim();
-      const isLongModalNote = cleanNotes.length > 50 || cleanNotes.includes("\n");
+      const isLongModalNote = cleanNotes.length > 50 || cleanNotes.split("\n").length > 2;
       notesText.style.whiteSpace = "pre-line";
-      notesText.textContent = cleanNotes;
+      notesText.innerHTML = `<strong style="color: var(--accent, #10b981);">📝 開團備註說明：</strong>${escapeHtml(cleanNotes)}`;
       notesBox.style.display = "block";
 
       if (isLongModalNote) {
