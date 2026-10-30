@@ -236,9 +236,9 @@ export default function MemberPage() {
               <div className="dashboard-panel-card" style={{ width: "100%" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
                   <h4 className="panel-header-title" style={{ margin: 0 }}>🏓 我發起的自揪團</h4>
-                  <a href="/#createPickupModal" id="memberCenterCreatePickupBtn" className="btn-secondary" style={{ fontSize: "13px", padding: "6px 14px", textDecoration: "none", borderRadius: "10px", fontWeight: "800", background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <button type="button" id="memberCenterCreatePickupBtn" className="btn-secondary" style={{ fontSize: "13px", padding: "6px 14px", borderRadius: "10px", fontWeight: "800", background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8", display: "inline-flex", alignItems: "center", gap: "4px", cursor: "pointer" }}>
                     ➕ 發起新揪團
-                  </a>
+                  </button>
                 </div>
                 <div id="myPickupsList" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <p style={{ color: "var(--muted)", fontSize: "13px", fontStyle: "italic" }}>載入自揪活動中...</p>
@@ -384,6 +384,84 @@ export default function MemberPage() {
                 <p style={{ color: "var(--muted)", textAlign: "center", padding: "20px" }}>載入名單中...</p>
               </div>
               <div className="message" id="pickupRosterMessage" style={{ marginTop: "10px" }}></div>
+            </div>
+          </div>
+
+          {/* Create Member Pickup Modal */}
+          <div className="modal" id="createPickupModal">
+            <div className="modal-card" style={{ maxWidth: "520px" }}>
+              <div className="modal-head">
+                <div>
+                  <h2 className="section-title" style={{ fontSize: "24px" }}>發起單日自揪</h2>
+                  <p className="muted">自發臨時揪團，發起後系統會自動將您加入正取第 1 位！</p>
+                </div>
+                <button className="close-btn" id="closeCreatePickupModal">×</button>
+              </div>
+              <form className="form" id="createPickupForm">
+                <label>活動主題
+                  <input id="pickupName" placeholder="例如：週六下午暢打、新手交流" required />
+                </label>
+                <label>活動日期
+                  <input id="pickupDate" type="date" required />
+                </label>
+                <label>開始時間
+                  <input id="pickupStartTime" type="time" defaultValue="14:00" required />
+                </label>
+                <label>結束時間
+                  <input id="pickupEndTime" type="time" defaultValue="16:00" required />
+                </label>
+                <label>活動縣市
+                  <select id="pickupCity" required></select>
+                </label>
+                <label>球場地點
+                  <input id="pickupAddress" placeholder="例如：南屯匹克球場 2 號場" required />
+                </label>
+                <label>詳細地址（選填，供導航）
+                  <input id="pickupStreetAddress" placeholder="例如：文心南七路 (填寫後可直接在地圖導航)" />
+                </label>
+                <label>人數上限
+                  <input id="pickupCapacity" type="number" min="2" max="32" defaultValue="4" required />
+                </label>
+                <label>每人費用
+                  <input id="pickupFee" placeholder="例如：200、或留空" defaultValue="" />
+                </label>
+                <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
+                  💡 <strong>費用說明：</strong>填 <strong>0</strong> 代表免費；<strong>留空</strong>代表均分；填<strong>數字</strong>代表每人固定費用。
+                </p>
+                <label>備註說明（選填）
+                  <textarea id="pickupNotes" placeholder="例如：自備球拍，使用 Dura 40 競賽球，歡迎友善切磋交流。"></textarea>
+                </label>
+                <label>團主 LINE ID（選填）
+                  <input id="pickupLineId" placeholder="例如：jason123 (球友點擊可一鍵加好友)" />
+                </label>
+                <label>LINE 群組連結（選填）
+                  <input id="pickupGroupUrl" placeholder="例如：https://line.me/ti/g2/... (LINE 群組或社群邀請連結)" />
+                </label>
+                <label>球場開門連結（選填）
+                  <input id="pickupDoorUrl" placeholder="例如：https://... (球館門禁、智慧鎖或開門網址)" />
+                </label>
+                <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
+                  💡 以上資訊皆為非必填，填寫後卡片會自動產生對應的專屬按鈕供球友使用。
+                </p>
+                <div style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: 0, userSelect: "none" }}>
+                    <input type="checkbox" id="pickupIsPrivate" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
+                    <span style={{ fontSize: "14px", fontWeight: "800", color: "#0f172a" }}>🔒 設為私人密碼團（先讓朋友報名）</span>
+                  </label>
+                  <div id="pickupPasswordWrap" style={{ display: "none", marginTop: "10px" }}>
+                    <label style={{ margin: 0, fontSize: "13px" }}>設定通關密碼 (例如：1234 或通關暗號)
+                      <input id="pickupJoinPassword" placeholder="輸入通關密碼，朋友憑此密碼報名" style={{ marginTop: "4px" }} />
+                    </label>
+                    <p className="muted" style={{ fontSize: "12px", margin: "4px 0 0 0", color: "#64748b" }}>
+                      💡 好友報名確認後，發起人可隨時在「預約管理」將密碼清空，直接轉為公開團開放大眾！
+                    </p>
+                  </div>
+                </div>
+                <button className="btn-primary" id="submitPickupBtn" type="submit" style={{ height: "46px", fontSize: "15px", marginTop: "12px" }}>
+                  確認發起揪團
+                </button>
+              </form>
+              <div className="message" id="pickupFormMessage"></div>
             </div>
           </div>
         </section>

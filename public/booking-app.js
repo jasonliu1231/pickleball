@@ -2012,7 +2012,7 @@ async function handleUpdatePickup(e) {
   }
 }
 
-function openCreatePickupModal(presetDate) {
+function openCreatePickupModal(presetDate, duplicateFrom = null) {
   if (!currentUser || !currentSystemMember) {
     if (confirm("發起自揪活動需要登入會員帳號，是否前往會員登入？")) {
       window.location.href = "/member";
@@ -2025,7 +2025,9 @@ function openCreatePickupModal(presetDate) {
   }
 
   initPickupModal();
-  const targetDate = presetDate || selectedDate || toISODate(new Date());
+  const todayStr = toISODate(new Date());
+  const dupDate = duplicateFrom?.start_date || duplicateFrom?.one_off_date || "";
+  const targetDate = presetDate || (dupDate && dupDate >= todayStr ? dupDate : null) || selectedDate || todayStr;
   if ($("pickupDate")) $("pickupDate").value = targetDate;
   if ($("pickupCity") && selectedCity && selectedCity !== "all") {
     $("pickupCity").value = selectedCity;
@@ -2063,18 +2065,6 @@ function openCreatePickupModal(presetDate) {
     addrInput.parentNode.insertBefore(presetContainer, addrInput);
   }
 
-  if (addrInput && !addrInput.value) {
-    try {
-      const saved = JSON.parse(localStorage.getItem("last_pickup_venue") || "null");
-      if (saved?.address) {
-        addrInput.value = saved.address;
-        if (saved.city && $("pickupCity")) $("pickupCity").value = saved.city;
-        if (saved.streetAddress && $("pickupStreetAddress")) $("pickupStreetAddress").value = saved.streetAddress;
-      }
-    } catch (_) {}
-  }
-
-  clearMessage($("pickupFormMessage"));
   const privateCheckbox = $("pickupIsPrivate");
   const pwdWrap = $("pickupPasswordWrap");
   if (privateCheckbox && pwdWrap) {
@@ -2086,6 +2076,62 @@ function openCreatePickupModal(presetDate) {
       if (privateCheckbox.checked) $("pickupJoinPassword")?.focus();
     };
   }
+
+  if (duplicateFrom) {
+    let addr = duplicateFrom.address || "";
+    let streetAddr = duplicateFrom.street_address || "";
+    if (!streetAddr && addr.includes("(") && addr.endsWith(")")) {
+      const match = addr.match(/^(.*?)\s*\((.*?)\)$/);
+      if (match) {
+        addr = match[1].trim();
+        streetAddr = match[2].trim();
+      }
+    }
+    if ($("pickupName")) $("pickupName").value = `複製-${duplicateFrom.name || ""}`;
+    if ($("pickupStartTime")) $("pickupStartTime").value = duplicateFrom.start_time ? duplicateFrom.start_time.slice(0, 5) : "14:00";
+    if ($("pickupEndTime")) $("pickupEndTime").value = duplicateFrom.end_time ? duplicateFrom.end_time.slice(0, 5) : "16:00";
+    if ($("pickupCity")) $("pickupCity").value = duplicateFrom.city || "台中市";
+    if ($("pickupAddress")) $("pickupAddress").value = addr;
+    if ($("pickupStreetAddress")) $("pickupStreetAddress").value = streetAddr;
+    if ($("pickupCapacity")) $("pickupCapacity").value = duplicateFrom.capacity || 4;
+
+    let displayFee = "";
+    if (duplicateFrom.guest_fee !== null && duplicateFrom.guest_fee !== undefined) {
+      const gNum = Number(duplicateFrom.guest_fee);
+      if (gNum === 0) displayFee = "0";
+      else if (!isNaN(gNum) && gNum > 0) displayFee = String(gNum);
+      else displayFee = "";
+    } else if (duplicateFrom.fee) {
+      if (duplicateFrom.fee === "免費" || duplicateFrom.fee === "0") displayFee = "0";
+      else if (duplicateFrom.fee === "場租平分") displayFee = "";
+      else displayFee = duplicateFrom.fee;
+    }
+    if ($("pickupFee")) $("pickupFee").value = displayFee;
+    if ($("pickupNotes")) $("pickupNotes").value = duplicateFrom.notes || "";
+    if ($("pickupLineId")) $("pickupLineId").value = duplicateFrom.line_id || "";
+    if ($("pickupGroupUrl")) $("pickupGroupUrl").value = duplicateFrom.group_url || "";
+    if ($("pickupDoorUrl")) $("pickupDoorUrl").value = duplicateFrom.door_url || "";
+
+    if (privateCheckbox && pwdWrap) {
+      const hasPwd = !!duplicateFrom.join_password;
+      privateCheckbox.checked = hasPwd;
+      pwdWrap.style.display = hasPwd ? "block" : "none";
+      if ($("pickupJoinPassword")) $("pickupJoinPassword").value = duplicateFrom.join_password || "";
+    }
+  } else {
+    if (addrInput && !addrInput.value) {
+      try {
+        const saved = JSON.parse(localStorage.getItem("last_pickup_venue") || "null");
+        if (saved?.address) {
+          addrInput.value = saved.address;
+          if (saved.city && $("pickupCity")) $("pickupCity").value = saved.city;
+          if (saved.streetAddress && $("pickupStreetAddress")) $("pickupStreetAddress").value = saved.streetAddress;
+        }
+      } catch (_) {}
+    }
+  }
+
+  clearMessage($("pickupFormMessage"));
   setModalVisible($("createPickupModal"), true);
 }
 
@@ -4390,6 +4436,9 @@ async function loadMemberDashboard() {
                   <button type="button" class="btn-secondary copy-link-btn" data-url="${escapeHtml(shareUrl)}">
                     🔗 複製連結
                   </button>
+                  <button type="button" class="btn-secondary duplicate-pickup-btn" data-id="${m.id}">
+                    📋 複製開團
+                  </button>
                   ${m.session_id ? `
                     <button type="button" class="btn-secondary manage-roster-btn" data-id="${m.id}">
                       👥 名單管理
@@ -4439,6 +4488,14 @@ async function loadMemberDashboard() {
             const mId = btn.dataset.id;
             const meetup = myMeetups.find(x => String(x.id) === String(mId));
             if (meetup) openPickupRosterModal(meetup);
+          });
+        });
+
+        myPickupsList.querySelectorAll(".duplicate-pickup-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const mId = btn.dataset.id;
+            const meetup = myMeetups.find(x => String(x.id) === String(mId));
+            if (meetup) openCreatePickupModal(null, meetup);
           });
         });
 
@@ -5547,6 +5604,7 @@ $("closeEditPickupModal")?.addEventListener("click", closeEditPickupModal);
 $("closePickupRosterModal")?.addEventListener("click", closePickupRosterModal);
 $("openCreatePickupBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
 $("openCreatePickupInlineBtn")?.addEventListener("click", () => openCreatePickupModal(selectedDate));
+$("memberCenterCreatePickupBtn")?.addEventListener("click", () => openCreatePickupModal(toISODate(new Date())));
 $("closeTransactionModal")?.addEventListener("click", () => setModalVisible($("transactionModal"), false));
 $("transactionModal")?.addEventListener("click", (e) => { if (e.target.id === "transactionModal") setModalVisible($("transactionModal"), false); });
 $("signupModal")?.addEventListener("click", (e) => { if (e.target.id === "signupModal") closeSignup(); });
