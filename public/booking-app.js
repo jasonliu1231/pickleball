@@ -903,19 +903,8 @@ function formatFeeDisplay(m) {
     if (str.includes("$") || !/^\d/.test(str)) return str;
     return `$${str}`;
   }
-  if (gFee === null || gFee === undefined || gFee === "") {
-    if (m.creator_user_id || m.is_one_off) {
-      return "場租平分";
-    }
-  }
-  if (mFee !== null && mFee !== undefined && mFee !== "") {
-    const mNum = Number(mFee);
-    if (!isNaN(mNum)) {
-      if (mNum === -1) return "場租平分";
-      if (mNum === 0) return "免費";
-      return `$${mNum} / 人`;
-    }
-    return String(mFee);
+  if (gFee === null || gFee === undefined || String(gFee).trim() === "") {
+    return "場租平分";
   }
   return "現場公告";
 }
