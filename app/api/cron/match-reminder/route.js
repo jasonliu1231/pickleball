@@ -168,6 +168,7 @@ async function handleCronMatchReminder(request) {
     let totalSentNotifications = 0;
     let totalSentLine = 0;
     const processedSessionIds = [];
+    const processedMeetupNames = [];
 
     // 3. 遍歷符合條件的場次，發送推播並記錄歷史通知
     for (const item of sessionsToRemind) {
@@ -195,25 +196,54 @@ async function handleCronMatchReminder(request) {
         console.error(`[Cron:MatchReminder] Exception marking reminder_2h_sent_at for session ${s.id}:`, markEx);
       }
 
-      // 抓取該場次正取/已出席名單 (含 line_user_id)
-      const { data: participants, error: partErr } = await client
-        .from("session_participants")
-        .select("id, status, user:users(id, name, phone, line_user_id, expo_push_token)")
-        .eq("session_id", s.id)
-        .in("status", ["confirmed", "attended"]);
+      // 抓取該場次名單 (包含單場報名 session_participants 與固定班底 member_meetup_subscriptions)
+      const [{ data: allSessionParts, error: partErr }, { data: subsData }] = await Promise.all([
+        client
+          .from("session_participants")
+          .select("id, status, user_id, user:users(id, name, phone, line_user_id, expo_push_token)")
+          .eq("session_id", s.id),
+        client
+          .from("member_meetup_subscriptions")
+          .select("organizer_member_id, organizer_member:organizer_members(id, status, user_id, user:users(id, name, phone, line_user_id, expo_push_token))")
+          .eq("meetup_id", meetup.id)
+      ]);
 
       if (partErr) {
         console.warn(`[Cron:MatchReminder] Failed to fetch participants for session ${s.id}:`, partErr);
         continue;
       }
 
-      const confirmedParticipants = participants || [];
+      const absentUserIds = new Set();
+      const playerMap = new Map();
+
+      for (const p of allSessionParts || []) {
+        if (p.status === "absent" || p.status === "cancelled") {
+          if (p.user_id) absentUserIds.add(String(p.user_id));
+          continue;
+        }
+        if (p.user?.id && ["confirmed", "attended"].includes(p.status)) {
+          playerMap.set(String(p.user.id), p.user);
+        }
+      }
+
+      for (const sub of subsData || []) {
+        const om = sub.organizer_member;
+        if (om && om.status === "active" && om.user?.id) {
+          const uid = String(om.user.id);
+          if (!absentUserIds.has(uid) && !playerMap.has(uid)) {
+            playerMap.set(uid, om.user);
+          }
+        }
+      }
+
+      const confirmedUsers = Array.from(playerMap.values());
       const appPushMessages = [];
+      const seenTokens = new Set();
       const userNotificationRows = [];
 
-      for (const p of confirmedParticipants) {
-        const userId = p.user?.id;
-        const playerNickname = p.user?.name || "球友";
+      for (const u of confirmedUsers) {
+        const userId = u.id;
+        const playerNickname = u.name || "球友";
         const title = "⏰ 球聚即將開打提醒";
         const body = `哈囉 ${playerNickname}！您預約的「${meetupName}」即將在（${startTimeStr}）於 ${location} 開打，請準備整裝出發囉！🎾`;
 
@@ -234,30 +264,37 @@ async function handleCronMatchReminder(request) {
           });
         }
 
-        // (2) 若有手機 App 推播 Token，收集發送
-        if (p.user?.expo_push_token) {
-          appPushMessages.push({
-            to: p.user.expo_push_token,
-            title,
-            body,
-            sound: "default",
-            channelId: "pickleball-alerts",
-            data: {
-              type: "match_reminder_2h",
-              meetup_id: meetup.id,
-              session_id: s.id,
-              session_date: s.session_date,
-            },
-          });
+        // (2) 透過 fetchTokensForUser 取得該球友所有裝置之 App 推播 Token (含 user_push_tokens 與 users.expo_push_token)
+        const tokens = await fetchTokensForUser(client, {
+          userId,
+          phone: normalizePhone(u.phone),
+        });
+        for (const tk of tokens) {
+          if (!seenTokens.has(tk)) {
+            seenTokens.add(tk);
+            appPushMessages.push({
+              to: tk,
+              title,
+              body,
+              sound: "default",
+              channelId: "pickleball-alerts",
+              data: {
+                type: "match_reminder_2h",
+                meetup_id: meetup.id,
+                session_id: s.id,
+                session_date: s.session_date,
+              },
+            });
+          }
         }
 
         // (3) 若有 LINE User ID 且有團主 ID，透過扣點制發送 LINE 官方 Flex 卡片
-        if (organizerId && p.user?.line_user_id) {
+        if (organizerId && u.line_user_id) {
           try {
             const { data: deductResult, error: rpcError } = await client.rpc("deduct_organizer_message_quota", {
               p_organizer_id: organizerId,
               p_message_type: "reminder",
-              p_recipient_phone: p.user.phone || "",
+              p_recipient_phone: u.phone || "",
               p_content: `即將開打提醒: ${playerNickname} - ${s.session_date} ${startTimeStr} - ${meetupName}`,
               p_cost: 1,
               p_allow_overdraft: false
@@ -363,10 +400,10 @@ async function handleCronMatchReminder(request) {
                 }
               };
 
-              const sent = await sendLinePushFlex(p.user.line_user_id, flexContents, `⏰ 開賽提醒：${meetupName} 即將於 ${startTimeStr} 開打！`);
+              const sent = await sendLinePushFlex(u.line_user_id, flexContents, `⏰ 開賽提醒：${meetupName} 即將於 ${startTimeStr} 開打！`);
               if (sent) totalSentLine++;
             } else {
-              console.log(`[Cron:MatchReminder] Skipped LINE push for ${p.user.phone}: ${deductRes?.message || rpcError?.message}`);
+              console.log(`[Cron:MatchReminder] Skipped LINE push for ${u.phone}: ${deductRes?.message || rpcError?.message}`);
             }
           } catch (lineErr) {
             console.error("[Cron:MatchReminder] LINE push error:", lineErr);
@@ -391,6 +428,7 @@ async function handleCronMatchReminder(request) {
       // (5) 記錄已處理場次與通知計數
       totalSentNotifications += userNotificationRows.length;
       processedSessionIds.push(s.id);
+      processedMeetupNames.push(meetupName);
     }
 
     // 4. 若有成功發送開賽提醒，同步發送一筆「管理員系統回報」給 Jason（免費 App 原生推播 + 站內通知）
@@ -403,8 +441,9 @@ async function handleCronMatchReminder(request) {
         .maybeSingle();
 
       if (adminUser) {
+        const meetupNamesStr = processedMeetupNames.map((n) => `「${n}」`).join("、");
         const adminTitle = "🤖 系統回報：開打提醒已順利發送";
-        const adminBody = `系統剛完成開打提醒！共計為 ${processedSessionIds.length} 個場次發送通知，通知 ${totalSentNotifications} 人次，送出 LINE 官方推播 ${totalSentLine} 則，系統正常運行中！`;
+        const adminBody = `系統剛完成 ${meetupNamesStr} 開打提醒！共通知 ${totalSentNotifications} 人次，送出 LINE 官方推播 ${totalSentLine} 則，系統正常運行中！`;
 
         // (1) 寫入 Jason 站內通知紀錄
         await logBatchUserNotifications([
