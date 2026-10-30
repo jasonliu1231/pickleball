@@ -1032,7 +1032,13 @@ function renderMeetups(meetups) {
       </div>
       ${capBarHtml}
       ${m.session_notes ? `<div class="session-note-banner" style="white-space: pre-line; line-height: 1.6;">📢 <strong>當日公告：</strong>${escapeHtml(m.session_notes)}</div>` : ""}
-      ${m.notes ? `<p class="note" style="white-space: pre-line; line-height: 1.6;">${escapeHtml(m.notes)}</p>` : ""}
+      ${m.notes ? (() => {
+        const isLongNote = String(m.notes).length > 60 || String(m.notes).includes("\n");
+        return `<div class="note ${isLongNote ? 'collapsible-note' : ''}" style="${isLongNote ? 'cursor: pointer;' : ''}">
+          <div class="note-content" style="white-space: pre-line; line-height: 1.6; ${isLongNote ? 'display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;' : ''}">${escapeHtml(m.notes)}</div>
+          ${isLongNote ? `<span class="note-toggle-hint" style="display: block; font-size: 11.5px; color: var(--primary, #2563eb); font-weight: 700; margin-top: 4px;">展開完整說明 ▼</span>` : ""}
+        </div>`;
+      })() : ""}
       <div class="card-actions-wrapper" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
         <div class="card-secondary-actions" style="display:flex;gap:6px;">
           <button class="btn-secondary roster-btn" style="flex:1;height:38px;font-size:13px;">查看名單</button>
@@ -1071,6 +1077,27 @@ function renderMeetups(meetups) {
       if (rawUrl) {
         const targetUrl = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
         window.open(targetUrl, "_blank");
+      }
+    });
+    card.querySelector(".collapsible-note")?.addEventListener("click", (e) => {
+      const noteEl = e.currentTarget;
+      const contentEl = noteEl.querySelector(".note-content");
+      const hintEl = noteEl.querySelector(".note-toggle-hint");
+      if (!contentEl || !hintEl) return;
+      const isExpanded = noteEl.dataset.expanded === "true";
+      if (isExpanded) {
+        noteEl.dataset.expanded = "false";
+        contentEl.style.display = "-webkit-box";
+        contentEl.style.webkitLineClamp = "3";
+        contentEl.style.webkitBoxOrient = "vertical";
+        contentEl.style.overflow = "hidden";
+        hintEl.textContent = "展開完整說明 ▼";
+      } else {
+        noteEl.dataset.expanded = "true";
+        contentEl.style.display = "block";
+        contentEl.style.webkitLineClamp = "unset";
+        contentEl.style.overflow = "visible";
+        hintEl.textContent = "收起說明 ▲";
       }
     });
     card.querySelector(".signup-btn")?.addEventListener("click", () => openSignup(meetup));
@@ -1392,6 +1419,7 @@ function openSignup(meetup, initialPwd = null) {
 
   const notesBox = $("modalNotesBox");
   const notesText = $("modalNotesText");
+  const notesToggleHint = $("modalNotesToggleHint");
   const noteParts = [];
   if (meetup.notes && String(meetup.notes).trim()) {
     noteParts.push(String(meetup.notes).trim());
@@ -1402,9 +1430,46 @@ function openSignup(meetup, initialPwd = null) {
   const fullNotes = noteParts.join("\n\n");
   if (notesBox && notesText) {
     if (fullNotes && fullNotes.trim()) {
+      const cleanNotes = fullNotes.trim();
+      const isLongModalNote = cleanNotes.length > 50 || cleanNotes.includes("\n");
       notesText.style.whiteSpace = "pre-line";
-      notesText.textContent = fullNotes.trim();
+      notesText.textContent = cleanNotes;
       notesBox.style.display = "block";
+
+      if (isLongModalNote) {
+        notesBox.style.cursor = "pointer";
+        notesText.style.display = "-webkit-box";
+        notesText.style.webkitLineClamp = "2";
+        notesText.style.webkitBoxOrient = "vertical";
+        notesText.style.overflow = "hidden";
+        if (notesToggleHint) {
+          notesToggleHint.style.display = "block";
+          notesToggleHint.textContent = "展開完整說明 ▼";
+        }
+        let expanded = false;
+        notesBox.onclick = () => {
+          expanded = !expanded;
+          if (expanded) {
+            notesText.style.display = "block";
+            notesText.style.webkitLineClamp = "unset";
+            notesText.style.overflow = "visible";
+            if (notesToggleHint) notesToggleHint.textContent = "收起說明 ▲";
+          } else {
+            notesText.style.display = "-webkit-box";
+            notesText.style.webkitLineClamp = "2";
+            notesText.style.webkitBoxOrient = "vertical";
+            notesText.style.overflow = "hidden";
+            if (notesToggleHint) notesToggleHint.textContent = "展開完整說明 ▼";
+          }
+        };
+      } else {
+        notesBox.style.cursor = "default";
+        notesBox.onclick = null;
+        notesText.style.display = "block";
+        notesText.style.webkitLineClamp = "unset";
+        notesText.style.overflow = "visible";
+        if (notesToggleHint) notesToggleHint.style.display = "none";
+      }
     } else {
       notesBox.style.display = "none";
     }
