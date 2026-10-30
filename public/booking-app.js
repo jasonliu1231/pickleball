@@ -2593,22 +2593,42 @@ async function handleSignup(e) {
       user = newUser;
     }
 
-    // 檢查該球友是否已經是正取，避免重複報名或修改備註時被系統誤踢去備取
-    const { data: existingPart } = await client
-      .from("session_participants")
-      .select("id, status, people_count")
-      .eq("session_id", session.id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // 檢查該球友是否已經報名過本場次（正取、備取或固定班底未請假），避免重複報名與重複發送推播通知
+    const [{ data: existingPart }, { data: subsCheck }] = await Promise.all([
+      client
+        .from("session_participants")
+        .select("id, status, people_count")
+        .eq("session_id", session.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      client
+        .from("member_meetup_subscriptions")
+        .select("organizer_member_id, organizer_member:organizer_members(user_id, status)")
+        .eq("meetup_id", currentMeetup.id)
+    ]);
 
-    const isAlreadyConfirmed = existingPart?.status === "confirmed";
+    const isActiveSubMember = (subsCheck || []).some(
+      s => s.organizer_member?.status === "active" && String(s.organizer_member?.user_id) === String(user.id)
+    ) && existingPart?.status !== "absent";
+
+    if (existingPart && ["confirmed", "waitlist", "attended"].includes(existingPart.status)) {
+      const statusLabel = existingPart.status === "waitlist" ? "備取" : "正取";
+      const dupMsg = `✅ 您（${nickname}）已報名過本場次（目前為：${statusLabel}），無須重複報名！`;
+      setMessage($("formMessage"), dupMsg, true);
+      alert(dupMsg);
+      return;
+    }
+    if (isActiveSubMember) {
+      const dupMsg = `✅ 您（${nickname}）為本場次固定班底（正取），無須重複報名！`;
+      setMessage($("formMessage"), dupMsg, true);
+      alert(dupMsg);
+      return;
+    }
 
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
     const confirmed = Number(currentMeetup?.confirmed_count ?? session.confirmed_count ?? 0);
-    const targetStatus = isAlreadyConfirmed
-      ? "confirmed"
-      : (capacity > 0 && confirmed + peopleCount > capacity) ? "waitlist" : "confirmed";
+    const targetStatus = (capacity > 0 && confirmed + peopleCount > capacity) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
@@ -2715,22 +2735,38 @@ async function handleQuickSignup(meetup, btn) {
       session = newSession;
     }
 
-    // 檢查該球友是否已經是正取
-    const { data: existingPart } = await client
-      .from("session_participants")
-      .select("id, status, people_count")
-      .eq("session_id", session.id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    // 檢查該球友是否已經報名過本場次（正取、備取或固定班底未請假），避免重複報名與重複發送推播通知
+    const [{ data: existingPart }, { data: subsCheck }] = await Promise.all([
+      client
+        .from("session_participants")
+        .select("id, status, people_count")
+        .eq("session_id", session.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      client
+        .from("member_meetup_subscriptions")
+        .select("organizer_member_id, organizer_member:organizer_members(user_id, status)")
+        .eq("meetup_id", meetup.id)
+    ]);
 
-    const isAlreadyConfirmed = existingPart?.status === "confirmed";
+    const isActiveSubMember = (subsCheck || []).some(
+      s => s.organizer_member?.status === "active" && String(s.organizer_member?.user_id) === String(user.id)
+    ) && existingPart?.status !== "absent";
+
+    if (existingPart && ["confirmed", "waitlist", "attended"].includes(existingPart.status)) {
+      const statusLabel = existingPart.status === "waitlist" ? "備取" : "正取";
+      alert(`✅ 您已報名過本場次（目前為：${statusLabel}），無須重複報名！`);
+      return;
+    }
+    if (isActiveSubMember) {
+      alert(`✅ 您為本場次固定班底（正取），無須重複報名！`);
+      return;
+    }
 
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? meetup.capacity ?? 0;
     const confirmed = Number(meetup?.confirmed_count ?? session.confirmed_count ?? 0);
-    const targetStatus = isAlreadyConfirmed
-      ? "confirmed"
-      : (capacity > 0 && confirmed + 1 > capacity) ? "waitlist" : "confirmed";
+    const targetStatus = (capacity > 0 && confirmed + 1 > capacity) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
