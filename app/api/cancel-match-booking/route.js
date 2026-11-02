@@ -95,7 +95,7 @@ export async function GET(request) {
       // 1. Fetch participant details
       const { data: participants } = await supabase
         .from("session_participants")
-        .select("id, status, session:sessions(session_date, meetup:meetups(name))")
+        .select("id, user_id, session_id, status, session:sessions(id, meetup_id, session_date, meetup:meetups(id, name))")
         .eq("id", signupId);
       
       if (!participants || participants.length === 0) {
@@ -106,24 +106,73 @@ export async function GET(request) {
       
       const part = participants[0];
       const meetupName = part.session?.meetup?.name || "活動";
+      const meetupId = part.session?.meetup_id || part.session?.meetup?.id;
       const dateStr = part.session?.session_date || "";
       
-      if (part.status === "cancelled") {
+      if (part.status === "cancelled" || part.status === "absent") {
         return new Response(makeHtmlResponse(true, "已取消預約", `此筆預約項目先前已成功取消。<br>活動：${meetupName}<br>日期：${dateStr}`), {
           headers: { "Content-Type": "text/html; charset=utf-8" }
         });
       }
+
+      // Check if this user is a fixed subscribed member for this meetup
+      let nextStatus = "cancelled";
+      if (part.user_id && meetupId) {
+        const { data: subs } = await supabase
+          .from("member_meetup_subscriptions")
+          .select("id, member:organizer_members!inner(id, user_id, status)")
+          .eq("meetup_id", meetupId)
+          .eq("member.user_id", part.user_id)
+          .eq("member.status", "active");
+        if (subs && subs.length > 0) {
+          nextStatus = "absent";
+        }
+      }
       
-      // 2. Perform cancellation
+      // 2. Perform cancellation / absence
       const { error: cancelError } = await supabase
         .from("session_participants")
         .update({
-          status: "cancelled",
+          status: nextStatus,
           updated_at: new Date().toISOString()
         })
         .eq("id", signupId);
       
       if (cancelError) throw cancelError;
+
+      // 3. Auto-promote waitlist if a confirmed spot was released
+      if (part.status === "confirmed" && part.session_id) {
+        try {
+          const { data: waitlist } = await supabase
+            .from("session_participants")
+            .select("id, user_id, user:users(id, name, phone)")
+            .eq("session_id", part.session_id)
+            .eq("status", "waitlist")
+            .order("created_at", { ascending: true })
+            .limit(1);
+          if (waitlist && waitlist.length > 0) {
+            const promoted = waitlist[0];
+            await supabase
+              .from("session_participants")
+              .update({ status: "confirmed", updated_at: new Date().toISOString() })
+              .eq("id", promoted.id);
+            const origin = new URL(request.url).origin;
+            fetch(`${origin}/api/waitlist-notification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                meetup_id: meetupId,
+                user_id: promoted.user_id,
+                phone: promoted.user?.phone || "",
+                nickname: promoted.user?.name || "球友",
+                reservation_date: dateStr
+              })
+            }).catch(() => {});
+          }
+        } catch (e) {
+          console.warn("Waitlist promote error:", e);
+        }
+      }
       
       return new Response(makeHtmlResponse(true, "取消預約成功！", `已成功為您取消此場活動的預約。<br>活動：${meetupName}<br>日期：${dateStr}`), {
         headers: { "Content-Type": "text/html; charset=utf-8" }
@@ -191,6 +240,37 @@ export async function GET(request) {
             },
             { onConflict: "session_id,user_id" }
           );
+
+        try {
+          const { data: waitlist } = await supabase
+            .from("session_participants")
+            .select("id, user_id, user:users(id, name, phone)")
+            .eq("session_id", session.id)
+            .eq("status", "waitlist")
+            .order("created_at", { ascending: true })
+            .limit(1);
+          if (waitlist && waitlist.length > 0) {
+            const promoted = waitlist[0];
+            await supabase
+              .from("session_participants")
+              .update({ status: "confirmed", updated_at: new Date().toISOString() })
+              .eq("id", promoted.id);
+            const origin = new URL(request.url).origin;
+            fetch(`${origin}/api/waitlist-notification`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                meetup_id: meetupId,
+                user_id: promoted.user_id,
+                phone: promoted.user?.phone || "",
+                nickname: promoted.user?.name || "球友",
+                reservation_date: date
+              })
+            }).catch(() => {});
+          }
+        } catch (e) {
+          console.warn("Waitlist promote error:", e);
+        }
       }
       
       return new Response(makeHtmlResponse(true, "取消預約成功！", `已成功為會員【${memberName}】完成該場次請假，釋出正取名額。<br>活動：${meetupName}<br>日期：${date}`), {

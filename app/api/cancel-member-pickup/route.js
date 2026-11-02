@@ -98,7 +98,7 @@ export async function POST(request) {
           }
         }
 
-        await logBatchUserNotifications(client, notifRows);
+        await logBatchUserNotifications(notifRows);
         if (pushMessages.length > 0) {
           await sendExpoPush(pushMessages);
         }

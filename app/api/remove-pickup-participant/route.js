@@ -290,7 +290,7 @@ export async function POST(request) {
       if (participant.user_id) {
         const title = "⏳ 報名狀態調整通知";
         const bodyText = `您報名的自揪活動「${meetup.name}」(${sessionDate})，主辦人已將您的名額調整為「候補」，請留意最新名單狀態。`;
-        await logUserNotification(client, {
+        await logUserNotification({
           userId: participant.user_id,
           category: "booking",
           title,

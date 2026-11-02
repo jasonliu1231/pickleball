@@ -4020,11 +4020,26 @@ async function loadMemberDashboard() {
   const pClubs = (async () => {
     const { data: rows } = await client
       .from("organizer_members")
-      .select("id, balance, member_type, status, note, organizer:organizers(id, name)")
+      .select("id, balance, member_type, status, note, payer_member_id, organizer:organizers(id, name)")
       .eq("user_id", currentSystemMember.id);
-    return (rows || []).map(r => ({
+    const list = rows || [];
+    const payerIds = [...new Set(list.map(r => r.payer_member_id).filter(Boolean))];
+    let payerMap = {};
+    if (payerIds.length > 0) {
+      const { data: payers } = await client
+        .from("organizer_members")
+        .select("id, balance")
+        .in("id", payerIds);
+      if (payers) {
+        payers.forEach(p => { payerMap[p.id] = Number(p.balance || 0); });
+      }
+    }
+    return list.map(r => ({
       id: r.id,
-      balance: Number(r.balance || 0),
+      payer_member_id: r.payer_member_id || null,
+      balance: r.payer_member_id && payerMap[r.payer_member_id] !== undefined
+        ? payerMap[r.payer_member_id]
+        : Number(r.balance || 0),
       remaining_times: null,
       status: r.status,
       rating: currentSystemMember.rating || 1000,
