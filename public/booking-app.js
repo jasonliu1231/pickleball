@@ -776,7 +776,7 @@ async function fetchRoster(meetupId, dateStr) {
       const uId = String(om.user?.id || om.user_id);
       if (absentUserIds.has(uId)) return; // 請假不列入
       const memberPart = participants.find(p => String(p.user?.id || p.user_id) === uId && p.status !== 'cancelled');
-      const rawMemberNote = memberPart?.note || om.note || "";
+      const rawMemberNote = memberPart?.note || "";
       const cleanMemberNote = ["會員線上自主請假", "LINE行前提醒自主請假", "已登記請假"].includes(String(rawMemberNote).trim()) ? "" : rawMemberNote;
       memberRows.push({
         id: memberPart?.id || `member-${om.id}`,
@@ -1006,7 +1006,7 @@ function renderMeetups(meetups) {
         <div>
           <h3 class="meetup-title">
             ${(m.creator_user_id || m.creator_member_id || !m.organizer_id) ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
-            ${(m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
+            ${(m.join_password || m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
             ${escapeHtml(m.name || "未命名活動")}
             ${durationBadgeHtml}
           </h3>
@@ -1505,7 +1505,7 @@ function openSignup(meetup, initialPwd = null) {
 
   const pwdRow = $("signupPasswordRow");
   if (pwdRow) {
-    if (meetup.has_password || meetup.is_private) {
+    if (meetup.join_password || meetup.has_password || meetup.is_private) {
       pwdRow.style.display = "block";
       if ($("signupPassword")) $("signupPassword").value = initialPwd || "";
     } else {
@@ -4198,8 +4198,8 @@ async function loadMemberDashboard() {
 
         const isAbsent = existingParticipant?.status === "absent";
         const status = isAbsent ? "absent" : (existingParticipant?.status || "confirmed");
-        const rawPartNote = existingParticipant?.note || c.omNote || "";
-        const cleanPartNote = ["會員線上自主請假", "LINE行前提醒自主請假", "已登記請假"].includes(String(rawPartNote).trim()) ? (c.omNote || "") : rawPartNote;
+        const rawPartNote = existingParticipant?.note || "";
+        const cleanPartNote = ["會員線上自主請假", "LINE行前提醒自主請假", "已登記請假"].includes(String(rawPartNote).trim()) ? "" : rawPartNote;
 
         memberUpcoming.push({
           id: existingParticipant?.id || `member-${c.omId}-${c.dateStr}`,
