@@ -1064,13 +1064,43 @@ function renderMeetups(meetups) {
         window.open(targetUrl, "_blank");
       }
     });
-    card.querySelector(".door-link-btn")?.addEventListener("click", (e) => {
+    card.querySelector(".door-link-btn")?.addEventListener("click", async (e) => {
       e.stopPropagation();
-      const rawUrl = e.currentTarget.dataset.url;
-      if (rawUrl) {
-        const targetUrl = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
-        window.open(targetUrl, "_blank");
+      const btn = e.currentTarget;
+      const rawUrl = btn.dataset.url;
+      if (!rawUrl) return;
+
+      const doorMatch = rawUrl.match(/\/door(?:\/(\d+))?/i);
+      const isHengfuUrl = /hengfu-i\.com/i.test(rawUrl);
+      if (doorMatch || isHengfuUrl) {
+        const deviceId = doorMatch?.[1] ? Number(doorMatch[1]) : 612;
+        if (!confirm("🚪 確定要立即開啟球場大門嗎？（請確認已抵達球館門口）")) return;
+        const origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = "⏳ 開門中...";
+        try {
+          const res = await fetch("/api/open-door", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ device_id: deviceId }),
+          });
+          const data = await res.json();
+          if (data.ok) {
+            alert("✅ 球場大門已開啟！請直接進入球場。");
+          } else {
+            alert("❌ 開門失敗：" + (data.error || "請稍後再試"));
+          }
+        } catch (err) {
+          alert("❌ 網路連線失敗，請稍後再試");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
+        return;
       }
+
+      const targetUrl = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
+      window.open(targetUrl, "_blank");
     });
     card.querySelector(".collapsible-note")?.addEventListener("click", (e) => {
       const noteEl = e.currentTarget;
