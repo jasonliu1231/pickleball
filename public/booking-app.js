@@ -775,7 +775,9 @@ async function fetchRoster(meetupId, dateStr) {
       if (!om || om.status !== 'active') return;
       const uId = String(om.user?.id || om.user_id);
       if (absentUserIds.has(uId)) return; // 請假不列入
-      const memberPart = participants.find(p => String(p.user?.id || p.user_id) === uId);
+      const memberPart = participants.find(p => String(p.user?.id || p.user_id) === uId && p.status !== 'cancelled');
+      const rawMemberNote = memberPart?.note || om.note || "";
+      const cleanMemberNote = ["會員線上自主請假", "LINE行前提醒自主請假", "已登記請假"].includes(String(rawMemberNote).trim()) ? "" : rawMemberNote;
       memberRows.push({
         id: memberPart?.id || `member-${om.id}`,
         user_id: uId,
@@ -787,7 +789,7 @@ async function fetchRoster(meetupId, dateStr) {
         rating: (om.user?.rating && Number(om.user.rating) > 0 && Number(om.user.rating) <= 10) ? Number(om.user.rating) : null,
         people_count: 1,
         status: "confirmed",
-        note: memberPart?.note || om.note || "",
+        note: cleanMemberNote,
         created_at: om.created_at || null,
         source: "member"
       });
@@ -811,7 +813,7 @@ async function fetchRoster(meetupId, dateStr) {
         rating: (x.user?.rating && Number(x.user.rating) > 0 && Number(x.user.rating) <= 10) ? Number(x.user.rating) : null,
         people_count: x.people_count || 1,
         status: x.status === "attended" ? "confirmed" : x.status,
-        note: x.note,
+        note: ["會員線上自主請假", "LINE行前提醒自主請假", "已登記請假"].includes(String(x.note || "").trim()) ? "" : x.note,
         created_at: x.created_at,
         source: "signup"
       }));
@@ -2791,7 +2793,8 @@ async function handleQuickSignup(meetup, btn) {
           user_id: user.id,
           people_count: 1,
           status: targetStatus,
-          payment_method: "cash"
+          payment_method: "cash",
+          note: null
         },
         { onConflict: "session_id,user_id" }
       );
@@ -4195,6 +4198,8 @@ async function loadMemberDashboard() {
 
         const isAbsent = existingParticipant?.status === "absent";
         const status = isAbsent ? "absent" : (existingParticipant?.status || "confirmed");
+        const rawPartNote = existingParticipant?.note || c.omNote || "";
+        const cleanPartNote = ["會員線上自主請假", "LINE行前提醒自主請假", "已登記請假"].includes(String(rawPartNote).trim()) ? (c.omNote || "") : rawPartNote;
 
         memberUpcoming.push({
           id: existingParticipant?.id || `member-${c.omId}-${c.dateStr}`,
@@ -4205,7 +4210,7 @@ async function loadMemberDashboard() {
           payment_method: "member_subscription",
           is_paid: true,
           arrived_count: existingParticipant?.arrived_count || 0,
-          note: isAbsent ? "已登記請假" : (existingParticipant?.note || c.omNote || ""),
+          note: isAbsent ? "已登記請假" : cleanPartNote,
           created_at: null,
           reservation_date: c.dateStr,
           meetup_id: c.meetup.id,

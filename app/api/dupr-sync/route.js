@@ -2,24 +2,55 @@ export const runtime = "nodejs";
 
 import { supabase, getSupabaseAdmin } from "@/lib/supabase";
 
-let cachedDuprToken = null;
-let cachedDuprTokenExpiry = 0;
+let cachedDuprSession = null;
+let cachedDuprSessionExpiry = 0;
 
-async function getDuprBearerToken() {
+async function getDuprAuthMaterial(client, forceRefresh = false) {
   const now = Date.now();
-  if (cachedDuprToken && now < cachedDuprTokenExpiry) {
-    return cachedDuprToken;
+  if (!forceRefresh && cachedDuprSession && now < cachedDuprSessionExpiry) {
+    return cachedDuprSession;
+  }
+
+  // 1. Read persisted DUPR Cookie session (__Host-dupr_at & __Host-dupr_rt) from Supabase
+  try {
+    const db = client || getSupabaseAdmin() || supabase;
+    const { data: sysRow } = await db
+      .from("organizers")
+      .select("id, password_hash")
+      .eq("account", "__dupr_system_session__")
+      .maybeSingle();
+
+    if (sysRow?.password_hash) {
+      const parsed = JSON.parse(sysRow.password_hash);
+      if (parsed?.at) {
+        if (forceRefresh && parsed?.rt) {
+          const refreshed = await refreshDuprCookieSession(db, sysRow.id, parsed.at, parsed.rt);
+          if (refreshed) return refreshed;
+        }
+        const sessionObj = {
+          type: "cookie",
+          at: parsed.at,
+          rt: parsed.rt || "",
+          rowId: sysRow.id
+        };
+        cachedDuprSession = sessionObj;
+        cachedDuprSessionExpiry = now + 10 * 60 * 1000;
+        return sessionObj;
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to load DUPR session from DB:", e);
   }
 
   if (process.env.DUPR_ACCESS_TOKEN) {
-    return process.env.DUPR_ACCESS_TOKEN;
+    return { type: "bearer", token: process.env.DUPR_ACCESS_TOKEN };
   }
 
   const clientKey = process.env.DUPR_CLIENT_KEY;
   const clientSecret = process.env.DUPR_CLIENT_SECRET;
-  const baseUrl = process.env.DUPR_API_BASE_URL || "https://api.dupr.gg";
+  const baseUrl = process.env.DUPR_API_BASE_URL || "https://api.dupr.com";
 
-  // 1. Partner Key + Secret Auth
+  // 2. Partner Key + Secret Auth
   if (clientKey && clientSecret) {
     const encoded = Buffer.from(`${clientKey}:${clientSecret}`).toString("base64");
     const res = await fetch(`${baseUrl}/auth/v1.0/token`, {
@@ -32,77 +63,119 @@ async function getDuprBearerToken() {
     const data = await res.json();
     const token = data?.result?.token || data?.result || data?.token;
     if (res.ok && token && typeof token === "string") {
-      cachedDuprToken = token;
-      cachedDuprTokenExpiry = now + 50 * 60 * 1000;
-      return token;
-    }
-  }
-
-  // 2. User Account Email + Password Auth
-  const email = process.env.DUPR_AUTH_EMAIL;
-  const password = process.env.DUPR_AUTH_PASSWORD;
-  if (email && password) {
-    const res = await fetch(`${baseUrl}/auth/v1.0/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    const token = data?.result?.accessToken || data?.result?.token || data?.accessToken;
-    if (res.ok && token && typeof token === "string") {
-      cachedDuprToken = token;
-      cachedDuprTokenExpiry = now + 50 * 60 * 1000;
-      return token;
+      const sessionObj = { type: "bearer", token };
+      cachedDuprSession = sessionObj;
+      cachedDuprSessionExpiry = now + 50 * 60 * 1000;
+      return sessionObj;
     }
   }
 
   return null;
 }
 
-async function fetchDuprProfileById(duprId) {
-  const token = await getDuprBearerToken();
-  if (!token) {
+async function refreshDuprCookieSession(db, rowId, oldAt, oldRt) {
+  try {
+    const cookieStr = [
+      oldAt ? `__Host-dupr_at=${oldAt}` : "",
+      oldRt ? `__Host-dupr_rt=${oldRt}` : ""
+    ].filter(Boolean).join("; ");
+
+    const res = await fetch("https://api.dupr.com/auth/v2.0/refresh", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        Cookie: cookieStr,
+        Origin: "https://dashboard.dupr.com",
+        Referer: "https://dashboard.dupr.com/",
+        "X-DUPR-Client-Capabilities": "totp,webauthn"
+      }
+    });
+
+    if (!res.ok) return null;
+
+    const setCookies = res.headers.getSetCookie
+      ? res.headers.getSetCookie()
+      : [res.headers.get("set-cookie")].filter(Boolean);
+
+    const newAt =
+      setCookies
+        .find((c) => c.startsWith("__Host-dupr_at="))
+        ?.split(";")[0]
+        ?.replace("__Host-dupr_at=", "") || oldAt;
+    const newRt =
+      setCookies
+        .find((c) => c.startsWith("__Host-dupr_rt="))
+        ?.split(";")[0]
+        ?.replace("__Host-dupr_rt=", "") || oldRt;
+
+    if (newAt && db && rowId) {
+      await db
+        .from("organizers")
+        .update({
+          password_hash: JSON.stringify({
+            at: newAt,
+            rt: newRt,
+            updated_at: new Date().toISOString()
+          })
+        })
+        .eq("id", rowId);
+    }
+
+    const sessionObj = { type: "cookie", at: newAt, rt: newRt, rowId };
+    cachedDuprSession = sessionObj;
+    cachedDuprSessionExpiry = Date.now() + 10 * 60 * 1000;
+    return sessionObj;
+  } catch (e) {
+    console.warn("DUPR cookie refresh failed:", e);
+    return null;
+  }
+}
+
+async function fetchDuprProfileById(duprId, client, isRetry = false) {
+  const auth = await getDuprAuthMaterial(client, isRetry);
+  if (!auth) {
     return { ok: false, reason: "no_token" };
   }
 
-  const baseUrl = process.env.DUPR_API_BASE_URL || "https://api.dupr.gg";
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json"
-  };
+  const baseUrl = process.env.DUPR_API_BASE_URL || "https://api.dupr.com";
+  const headers =
+    auth.type === "cookie"
+      ? {
+          "Content-Type": "application/json; charset=utf-8",
+          Accept: "application/json",
+          Cookie: [
+            auth.at ? `__Host-dupr_at=${auth.at}` : "",
+            auth.rt ? `__Host-dupr_rt=${auth.rt}` : ""
+          ]
+            .filter(Boolean)
+            .join("; "),
+          Origin: "https://dashboard.dupr.com",
+          Referer: "https://dashboard.dupr.com/",
+          "X-DUPR-Client-Capabilities": "totp,webauthn"
+        }
+      : {
+          Authorization: `Bearer ${auth.token}`,
+          "Content-Type": "application/json"
+        };
 
-  // Try /player/search/byDuprId first
-  try {
-    const res = await fetch(`${baseUrl}/player/search/byDuprId`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ duprId })
-    });
-    if (res.ok) {
-      const json = await res.json();
-      const player = Array.isArray(json?.result)
-        ? json.result[0]
-        : json?.result || json?.data;
-      if (player && (player.duprId || player.ratings)) {
-        return { ok: true, player };
-      }
-    }
-  } catch (e) {
-    console.warn("DUPR byDuprId lookup failed:", e);
-  }
-
-  // Fallback: /player/v1.0/search
+  // 1. Primary: /player/v1.0/search (returns full player object + ratings)
   try {
     const res = await fetch(`${baseUrl}/player/v1.0/search`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        limit: 5,
+        limit: 10,
         offset: 0,
         query: duprId,
+        exclude: [],
         filter: {}
       })
     });
+
+    if (res.status === 401 && !isRetry && auth.type === "cookie") {
+      return fetchDuprProfileById(duprId, client, true);
+    }
+
     if (res.ok) {
       const json = await res.json();
       const hits = json?.result?.hits || json?.result || [];
@@ -112,9 +185,10 @@ async function fetchDuprProfileById(duprId) {
       if (exact) {
         return { ok: true, player: exact };
       }
+      return { ok: false, reason: "not_found" };
     }
   } catch (e) {
-    console.warn("DUPR v1.0/search fallback failed:", e);
+    console.warn("DUPR v1.0/search lookup failed:", e);
   }
 
   return { ok: false, reason: "not_found" };
@@ -160,7 +234,7 @@ export async function POST(request) {
     let isNr = false;
 
     // 2. 透過 DUPR ID 自動向官方查詢雙打分數
-    const lookup = await fetchDuprProfileById(cleanDuprId);
+    const lookup = await fetchDuprProfileById(cleanDuprId, client);
     if (lookup.ok && lookup.player) {
       playerName =
         lookup.player.fullName ||
@@ -187,9 +261,20 @@ export async function POST(request) {
         { status: 404 }
       );
     } else {
-      // 若後端尚未設定 DUPR 查詢憑證 (no_token)，仍先記錄玩家的 DUPR ID，rating 維持 null (顯示自評程度)
-      finalRating = null;
-      isNr = true;
+      // 若暫時無法連線 DUPR 或無憑證，保留資料庫既有 rating，避免把既有分數覆蓋成 null
+      const { data: existingUser } = await client
+        .from("users")
+        .select("rating")
+        .eq("id", user_id)
+        .maybeSingle();
+      const existingNum = Number(existingUser?.rating);
+      if (!isNaN(existingNum) && existingNum >= 1.0 && existingNum <= 8.5) {
+        finalRating = existingNum;
+        isNr = false;
+      } else {
+        finalRating = null;
+        isNr = true;
+      }
     }
 
     // 3. 寫入 users 資料表（不連動修改 skill_level 程度自評）
