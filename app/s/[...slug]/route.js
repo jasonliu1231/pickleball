@@ -72,12 +72,11 @@ export async function GET(request, { params }) {
   const slugArray = resolvedParams?.slug || [];
   const { searchParams } = new URL(request.url);
 
-  const { meetupId, date, pwd } = parseShortUrlSlug(slugArray, searchParams);
+  const { meetupId, date } = parseShortUrlSlug(slugArray, searchParams);
 
   const redirectUrl = new URL("/", request.url);
   if (date) redirectUrl.searchParams.set("date", date);
   if (meetupId) redirectUrl.searchParams.set("meetup_id", meetupId);
-  if (pwd) redirectUrl.searchParams.set("pwd", pwd);
 
   return NextResponse.redirect(redirectUrl, 307);
 }

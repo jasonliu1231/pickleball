@@ -286,7 +286,6 @@ async function notifyCancelSignup({ meetup, meetupId, reservationDate, nickname,
 const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
 let urlDate = urlParams.get("date");
 let urlMeetupId = urlParams.get("meetup_id") || urlParams.get("id");
-let urlPwd = urlParams.get("pwd") || urlParams.get("password");
 
 if (typeof window !== "undefined" && window.location.pathname.startsWith("/s/")) {
   const shortSlug = window.location.pathname.replace(/^\/s\//, "").replace(/\/+$/, "");
@@ -303,19 +302,13 @@ if (typeof window !== "undefined" && window.location.pathname.startsWith("/s/"))
         urlDate = d;
       }
     }
-    if (parts[2] && !urlPwd) {
-      urlPwd = decodeURIComponent(parts[2]);
-    }
   }
 }
 let hasHandledUrlMeetup = false;
 
-function makeShortShareUrl(meetupId, date, pwd) {
+function makeShortShareUrl(meetupId, date) {
   const dStr = String(date || "").replace(/-/g, "");
-  let slug = `${meetupId}_${dStr}`;
-  if (pwd) {
-    slug += `_${encodeURIComponent(pwd)}`;
-  }
+  const slug = `${meetupId}_${dStr}`;
   return `${window.location.origin}/s/${slug}`;
 }
 
@@ -1106,7 +1099,7 @@ function renderMeetups(meetups) {
     card.querySelector(".schedule-btn")?.addEventListener("click", () => toggleSchedule(meetup));
     card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
     card.querySelector(".share-link-btn")?.addEventListener("click", () => {
-      const shareUrl = makeShortShareUrl(meetup.short_id || meetup.id, selectedDate, meetup.join_password);
+      const shareUrl = makeShortShareUrl(meetup.short_id || meetup.id, selectedDate);
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareUrl).then(() => {
           alert(`🎉 已複製專屬短網址報名連結！可直接傳給朋友或貼到 LINE 群組：\n\n${shareUrl}`);
@@ -1140,7 +1133,7 @@ function renderMeetups(meetups) {
             card.style.borderColor = "";
           }, 3000);
         }
-        openSignup(target, urlPwd);
+        openSignup(target);
       }, 400);
     }
   }
@@ -2310,7 +2303,7 @@ async function handleCreatePickup(e) {
 
     let successMsg = "🎉 自揪團發起成功！已自動將您加入正取第 1 位。";
     if (newMeetupId && navigator?.clipboard?.writeText) {
-      const shareUrl = makeShortShareUrl(newMeetupId, date, joinPassword);
+      const shareUrl = makeShortShareUrl(newMeetupId, date);
       try {
         await navigator.clipboard.writeText(shareUrl);
         successMsg += "（活動專屬短網址已複製至剪貼簿）";
@@ -4584,7 +4577,7 @@ async function loadMemberDashboard() {
             statusBadge = `<span class="status-badge confirmed" style="white-space:nowrap;">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
           }
 
-          const shareUrl = makeShortShareUrl(m.short_id || m.id, m.start_date, m.join_password);
+          const shareUrl = makeShortShareUrl(m.short_id || m.id, m.start_date);
           const mDurationText = calculateDurationText(m.start_time, m.end_time);
           const mDurationBadgeHtml = mDurationText ? `<span class="badge duration-badge" style="margin-left: 6px; font-size: 11px; padding: 2px 7px; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-weight: 800; border-radius: 6px; vertical-align: middle; display: inline-flex; align-items: center; gap: 3px;">⏱️ ${mDurationText}</span>` : "";
 
