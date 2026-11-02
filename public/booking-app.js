@@ -1551,6 +1551,10 @@ function openCancel(meetup) {
     $("queryCancelBtn").disabled = false;
     $("cancelSubmitBtn").disabled = false;
     $("cancelSubmitBtn").textContent = "取消預約";
+    if (currentSystemMember?.phone && validatePhone(cleanPhone(currentSystemMember.phone))) {
+      $("cancelPhone").value = cleanPhone(currentSystemMember.phone);
+      handleQueryCancel();
+    }
   }
   setModalVisible($("cancelModal"), true);
 }
@@ -2362,12 +2366,21 @@ async function handleQueryCancel() {
       return setMessage($("cancelMessage"), "找不到該手機的預約或會員紀錄。", false);
     }
 
-    const { data: session } = await client
-      .from("sessions")
-      .select("id")
-      .eq("meetup_id", currentMeetup.id)
-      .eq("session_date", selectedDate)
-      .maybeSingle();
+    const [sessionRes, subRes] = await Promise.all([
+      client
+        .from("sessions")
+        .select("id")
+        .eq("meetup_id", currentMeetup.id)
+        .eq("session_date", selectedDate)
+        .maybeSingle(),
+      client
+        .from("member_meetup_subscriptions")
+        .select("organizer_member_id, organizer_member:organizer_members(id, user_id, status, user:users(id, name, phone))")
+        .eq("meetup_id", currentMeetup.id)
+    ]);
+
+    const session = sessionRes.data;
+    const subData = subRes.data;
 
     let part = null;
     if (session) {
@@ -2381,6 +2394,34 @@ async function handleQueryCancel() {
 
       if (error) throw error;
       part = pData;
+    }
+
+    // 優先檢查是否為此開團的固定會員 (member_meetup_subscriptions)
+    // 即使 session_participants 已有 confirmed 紀錄，固定會員仍必須走 type: "member" (標記 absent) 才能從名單釋出名額
+    const activeSub = (subData || []).find(s => {
+      const om = s.organizer_member;
+      if (!om || om.status !== "active") return false;
+      return String(om.user_id) === String(user.id) || String(om.user?.id) === String(user.id);
+    });
+
+    if (activeSub) {
+      if (part?.status === "absent") {
+        $("cancelFormSecondStep").style.display = "none";
+        return setMessage($("cancelMessage"), `查得紀錄：${user.name || "固定會員"} 此場次先前已完成請假。`, true);
+      }
+
+      window._pendingCancelTarget = {
+        type: "member",
+        session_id: session?.id || null,
+        user_id: user.id,
+        name: user.name || "固定會員",
+        phone: user.phone
+      };
+
+      $("queryResultText").textContent = `查得身分：${user.name || "固定會員"} (固定會員 / 正取 1人)`;
+      $("cancelSubmitBtn").textContent = "確認請假（釋出名額）";
+      $("cancelFormSecondStep").style.display = "block";
+      return;
     }
 
     if (part) {
@@ -2402,33 +2443,6 @@ async function handleQueryCancel() {
 
       $("queryResultText").textContent = `查得預約：${user.name || "球友"} (${statusText} 1人)`;
       $("cancelSubmitBtn").textContent = "確認取消預約";
-      $("cancelFormSecondStep").style.display = "block";
-      return;
-    }
-
-    // 檢查是否為固定會員 (member_meetup_subscriptions)
-    const { data: subData } = await client
-      .from("member_meetup_subscriptions")
-      .select("organizer_member_id, organizer_member:organizer_members(id, user_id, status, user:users(id, name, phone))")
-      .eq("meetup_id", currentMeetup.id);
-
-    const activeSub = (subData || []).find(s => {
-      const om = s.organizer_member;
-      if (!om || om.status !== "active") return false;
-      return String(om.user_id) === String(user.id) || String(om.user?.id) === String(user.id);
-    });
-
-    if (activeSub) {
-      window._pendingCancelTarget = {
-        type: "member",
-        session_id: session?.id || null,
-        user_id: user.id,
-        name: user.name || "固定會員",
-        phone: user.phone
-      };
-
-      $("queryResultText").textContent = `查得身分：${user.name || "固定會員"} (固定會員 / 正取 1人)`;
-      $("cancelSubmitBtn").textContent = "確認請假（釋出名額）";
       $("cancelFormSecondStep").style.display = "block";
       return;
     }
@@ -3246,6 +3260,20 @@ async function ensureSystemMember(user) {
     }
   }
 
+  if (!data && user.user_metadata?.phone) {
+    const cleanMetaPhone = cleanPhone(user.user_metadata.phone);
+    if (cleanMetaPhone) {
+      const { data: userByPhone } = await client
+        .from("users")
+        .select("*")
+        .eq("phone", cleanMetaPhone)
+        .maybeSingle();
+      if (userByPhone) {
+        data = userByPhone;
+      }
+    }
+  }
+
   if (!data) {
     const defaultPhone = user.user_metadata?.phone || null;
     const { data: inserted, error: insertError } = await client
@@ -4031,7 +4059,8 @@ async function loadMemberDashboard() {
                 city,
                 guest_fee,
                 member_fee,
-                capacity
+                capacity,
+                cancel_deadline_hours
               )
             )
           `)
@@ -4061,7 +4090,8 @@ async function loadMemberDashboard() {
                 is_active,
                 guest_fee,
                 member_fee,
-                capacity
+                capacity,
+                cancel_deadline_hours
               )
             )
           `)
@@ -4170,6 +4200,7 @@ async function loadMemberDashboard() {
       });
 
       // 2. 整理一般報名 (排除已在會員固定場次中的紀錄)
+      const memberMeetupIds = new Set(activeMemberMeetups.map(x => x.meetup.id));
       const memberMeetupDateKeys = new Set(memberUpcoming.map(m => `${m.meetup_id}_${m.reservation_date}`));
       const regularMapped = regularSignups
         .filter(sp => {
@@ -4182,7 +4213,7 @@ async function loadMemberDashboard() {
           id: s.id,
           session_id: s.session?.id || s.session_id,
           status: s.status,
-          is_member: false,
+          is_member: memberMeetupIds.has(s.session?.meetup?.id),
           people_count: s.people_count || 1,
           payment_method: s.payment_method || "",
           is_paid: !!s.is_paid,
@@ -4911,14 +4942,32 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
   try {
     const { data: part, error: getError } = await client
       .from("session_participants")
-      .select("id, status, session:sessions(id, meetup_id, session_date)")
+      .select("id, user_id, status, session:sessions(id, meetup_id, session_date)")
       .eq("id", signupId)
       .single();
     if (getError) throw getError;
 
+    // 雙重確認是否為此開團的固定會員（避免因曾修改備註或報名產生 session_participants 紀錄而誤標為 cancelled）
+    let isFixedMember = false;
+    if (part.session?.meetup_id && (part.user_id || currentSystemMember?.id)) {
+      const targetUid = part.user_id || currentSystemMember?.id;
+      const { data: subData } = await client
+        .from("member_meetup_subscriptions")
+        .select("organizer_member_id, organizer_member:organizer_members(id, user_id, status)")
+        .eq("meetup_id", part.session.meetup_id);
+      isFixedMember = (subData || []).some(
+        s => s.organizer_member?.status === "active" && String(s.organizer_member?.user_id) === String(targetUid)
+      );
+    }
+
+    const nextStatus = isFixedMember ? "absent" : "cancelled";
     const { error: cancelErr } = await client
       .from("session_participants")
-      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .update({
+        status: nextStatus,
+        ...(isFixedMember ? { note: "會員線上自主請假" } : {}),
+        updated_at: new Date().toISOString()
+      })
       .eq("id", signupId);
     if (cancelErr) throw cancelErr;
 
