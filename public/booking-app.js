@@ -4060,17 +4060,23 @@ async function loadMemberDashboard() {
         payers.forEach(p => { payerMap[p.id] = Number(p.balance || 0); });
       }
     }
-    return list.map(r => ({
-      id: r.id,
-      payer_member_id: r.payer_member_id || null,
-      balance: r.payer_member_id && payerMap[r.payer_member_id] !== undefined
-        ? payerMap[r.payer_member_id]
-        : Number(r.balance || 0),
-      remaining_times: null,
-      status: r.status,
-      rating: currentSystemMember.rating || 1000,
-      organizers: r.organizer || { id: "", name: "特約球隊" }
-    }));
+    return list.map(r => {
+      const rawNote = String(r.note || "");
+      const match = rawNote.match(/\[FREE_UNTIL:(\d{4}-\d{2}-\d{2})\]/);
+      const freeUntil = match ? match[1] : null;
+      return {
+        id: r.id,
+        payer_member_id: r.payer_member_id || null,
+        balance: r.payer_member_id && payerMap[r.payer_member_id] !== undefined
+          ? payerMap[r.payer_member_id]
+          : Number(r.balance || 0),
+        free_until: freeUntil,
+        remaining_times: null,
+        status: r.status,
+        rating: currentSystemMember.rating || 1000,
+        organizers: r.organizer || { id: "", name: "特約球隊" }
+      };
+    });
   })();
 
   const pBookings = (async () => {
@@ -4415,8 +4421,11 @@ async function loadMemberDashboard() {
           feeVal = m.meetups.member_price;
         }
         
-        // 僅對「活躍」會員進行餘額不足的卡位警示
-        const isLow = isActive && (balanceVal < feeVal);
+        // 僅對「活躍」且不在免付費期限內的會員進行餘額不足的卡位警示
+        const nowD = new Date();
+        const todayStr = `${nowD.getFullYear()}-${String(nowD.getMonth() + 1).padStart(2, '0')}-${String(nowD.getDate()).padStart(2, '0')}`;
+        const isFreeActive = Boolean(m.free_until && m.free_until >= todayStr);
+        const isLow = isActive && !isFreeActive && (balanceVal < feeVal);
         if (isLow) lowBalanceDetected = true;
 
         const ratingVal = m.rating !== null && m.rating !== undefined ? m.rating : 1000;
@@ -4450,11 +4459,22 @@ async function loadMemberDashboard() {
           </div>
           
           <!-- Balance Row -->
-          <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 14px 0; width: 100%;">
-            <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">儲值餘額</span>
-            <span style="font-size: 20px; font-weight: 900; color: #2563eb; white-space: nowrap;">
-              ${balanceVal} <span style="font-size: 12px; font-weight: 700; color: #94a3b8;">點</span>
-            </span>
+          <div style="display: flex; align-items: center; justify-content: space-around; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; padding: 14px 0; width: 100%; gap: 12px;">
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; flex: 1;">
+              <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">儲值餘額</span>
+              <span style="font-size: 20px; font-weight: 900; color: #2563eb; white-space: nowrap;">
+                ${balanceVal} <span style="font-size: 12px; font-weight: 700; color: #94a3b8;">點</span>
+              </span>
+            </div>
+            ${m.free_until ? `
+              <div style="width: 1px; height: 32px; background: #e2e8f0;"></div>
+              <div style="display: flex; flex-direction: column; gap: 4px; align-items: center; justify-content: center; flex: 1;">
+                <span style="font-size: 11px; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">免付費期限</span>
+                <span style="font-size: 15px; font-weight: 900; color: ${isFreeActive ? '#059669' : '#dc2626'}; white-space: nowrap;">
+                  ${escapeHtml(m.free_until)}
+                </span>
+              </div>
+            ` : ''}
           </div>
 
           ${isLow ? `
