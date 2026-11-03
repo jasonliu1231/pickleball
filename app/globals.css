@@ -2898,22 +2898,35 @@ body:has(.modal.active) {
 
 .booking-info-chips {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   font-size: 12.5px;
   color: #475569;
+  width: 100%;
+  min-width: 0;
 }
 
 .booking-info-item {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 5px;
+  width: 100%;
+  min-width: 0;
+}
+
+.booking-venue-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chip-icon {
   font-size: 13px;
   opacity: 0.9;
+  flex-shrink: 0;
 }
 
 .booking-map-chip {
@@ -2930,6 +2943,8 @@ body:has(.modal.active) {
   text-decoration: none;
   transition: all 0.15s ease;
   margin-left: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .booking-map-chip:hover {
@@ -2947,6 +2962,8 @@ body:has(.modal.active) {
   padding: 1px 6px;
   border-radius: 6px;
   margin-left: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badge-micro-attended {
@@ -2958,6 +2975,8 @@ body:has(.modal.active) {
   padding: 1px 6px;
   border-radius: 6px;
   margin-left: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .booking-note-box {

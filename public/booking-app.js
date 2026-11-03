@@ -3936,34 +3936,30 @@ window.renderMemberBookingsUI = function(targetContainer) {
           <div class="booking-card-main-col">
             <!-- Title & Status Badge -->
             <div class="booking-card-title-row">
-              <h4 class="booking-meetup-title">${escapeHtml(s.meetupName)}${bDurationBadgeHtml}</h4>
+              <h4 class="booking-meetup-title">${escapeHtml(s.meetupName)}</h4>
               <span class="booking-status-badge ${statusClass}">${statusText}</span>
             </div>
 
             <!-- Meta Chips -->
             <div class="booking-info-chips">
-              <span class="booking-info-item">
+              <div class="booking-info-item">
                 <span class="chip-icon">⏰</span>
-                <span>${timeStr}</span>
-              </span>
+                <span style="white-space: nowrap;">${timeStr}</span>
+                ${bDurationBadgeHtml}
+              </div>
 
-              <span class="booking-info-item">
+              <div class="booking-info-item">
                 <span class="chip-icon">📍</span>
-                <span title="${escapeHtml(venueText)}">${escapeHtml(venueText)}</span>
+                <span class="booking-venue-text" title="${escapeHtml(venueText)}">${escapeHtml(venueText)}</span>
                 ${mapChipHtml}
-              </span>
+              </div>
 
-              <span class="booking-info-item">
-                <span class="chip-icon">👥</span>
-                <span>報名 <strong>${s.people_count || 1}</strong> 人</span>
-              </span>
-
-              <span class="booking-info-item">
+              <div class="booking-info-item">
                 <span class="chip-icon">💰</span>
-                <span>${paymentFeeText}</span>
+                <span style="white-space: nowrap;">${paymentFeeText}</span>
                 ${paidBadgeHtml}
                 ${attendedBadgeHtml}
-              </span>
+              </div>
             </div>
 
             ${noteHtml}
@@ -4096,11 +4092,17 @@ async function loadMemberDashboard() {
             session:sessions (
               id,
               session_date,
+              status,
               meetup:meetups (
                 id,
                 name,
                 start_time,
                 end_time,
+                start_date,
+                end_date,
+                is_one_off,
+                one_off_date,
+                is_active,
                 address,
                 street_address,
                 city,
@@ -4131,6 +4133,8 @@ async function loadMemberDashboard() {
                 street_address,
                 start_time,
                 end_time,
+                start_date,
+                end_date,
                 weekdays,
                 is_one_off,
                 one_off_date,
@@ -4179,6 +4183,8 @@ async function loadMemberDashboard() {
           if (meetup.is_one_off && meetup.one_off_date === dateStr) {
             matches = true;
           } else if (!meetup.is_one_off && weekdays.has(dayOfWeek)) {
+            if (meetup.start_date && dateStr < meetup.start_date) continue;
+            if (meetup.end_date && dateStr > meetup.end_date) continue;
             matches = true;
           }
           if (!matches) continue;
@@ -4254,6 +4260,13 @@ async function loadMemberDashboard() {
       const regularMapped = regularSignups
         .filter(sp => {
           if (sp.status === "cancelled") return false;
+          if (sp.session?.status === "cancelled") return false;
+          const m = sp.session?.meetup;
+          const dStr = sp.session?.session_date || "";
+          if (m && !m.is_one_off) {
+            if (m.start_date && dStr && dStr < m.start_date) return false;
+            if (m.end_date && dStr && dStr > m.end_date) return false;
+          }
           const key = `${sp.session?.meetup?.id}_${sp.session?.session_date}`;
           if (memberMeetupDateKeys.has(key)) return false;
           return true;
