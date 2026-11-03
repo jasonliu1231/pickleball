@@ -1,10 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-
-const DEFAULT_HENGFU_TOKEN =
-  process.env.HENGFU_DOOR_TOKEN ||
-  "YBbKO8a7AKMZZxjSh0Hn1hoPytds9RMM7rUqTzTUyE8xxdPHDqE2Fc2b1MzDk1";
+import { supabase, getSupabaseAdmin } from "@/lib/supabase";
 
 const HENGFU_PUBLIC_API_KEY =
   "HENGFU5DA5A1D566F44032A83B1E886ED158B3C22AD820970449C6B1073B74";
@@ -15,8 +12,52 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
+let cachedDoorSession = null;
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
+async function loadHengfuSessionFromDb() {
+  try {
+    const db = getSupabaseAdmin() || supabase;
+    const { data: row } = await db
+      .from("organizers")
+      .select("id, password_hash")
+      .eq("account", "__hengfu_door_session__")
+      .maybeSingle();
+
+    if (row?.password_hash) {
+      const parsed = JSON.parse(row.password_hash);
+      cachedDoorSession = { ...parsed, rowId: row.id };
+      return cachedDoorSession;
+    }
+  } catch (e) {
+    console.warn("Failed to load Hengfu door session from DB:", e);
+  }
+  return cachedDoorSession;
+}
+
+async function saveHengfuTokenToDb(sessionObj, newToken) {
+  try {
+    const db = getSupabaseAdmin() || supabase;
+    const updatedPayload = {
+      dealer_no: sessionObj?.dealer_no || "00001845",
+      account: sessionObj?.account || "",
+      password: sessionObj?.password || "",
+      token: newToken,
+      updated_at: new Date().toISOString(),
+    };
+    cachedDoorSession = { ...updatedPayload, rowId: sessionObj?.rowId };
+    if (sessionObj?.rowId) {
+      await db
+        .from("organizers")
+        .update({ password_hash: JSON.stringify(updatedPayload) })
+        .eq("id", sessionObj.rowId);
+    }
+  } catch (e) {
+    console.warn("Failed to save refreshed Hengfu token:", e);
+  }
 }
 
 async function callHengfuOpenDoor(deviceId, token) {
@@ -42,10 +83,10 @@ async function callHengfuOpenDoor(deviceId, token) {
   return { ok: res.ok, status: res.status, json, rawText: text };
 }
 
-async function reloginHengfuIfConfigured() {
-  const account = process.env.HENGFU_ACCOUNT;
-  const password = process.env.HENGFU_PASSWORD;
-  const dealerNo = process.env.HENGFU_DEALER_NO || "00001845";
+async function reloginHengfu(sessionObj) {
+  const account = sessionObj?.account || process.env.HENGFU_ACCOUNT;
+  const password = sessionObj?.password || process.env.HENGFU_PASSWORD;
+  const dealerNo = sessionObj?.dealer_no || process.env.HENGFU_DEALER_NO || "00001845";
   if (!account || !password) return null;
 
   const ts = Math.floor(Date.now() / 1000);
@@ -63,20 +104,37 @@ async function reloginHengfuIfConfigured() {
     }),
   });
   const data = await res.json().catch(() => null);
-  return data?.result?.[0]?.token || null;
+  const newToken = data?.result?.[0]?.token || null;
+  if (newToken) {
+    await saveHengfuTokenToDb(sessionObj, newToken);
+  }
+  return newToken;
 }
 
 export async function POST(request) {
   try {
     const body = await request.json().catch(() => ({}));
     const deviceId = Number(body.device_id || body.deviceId || 612);
-    const customToken = body.token || DEFAULT_HENGFU_TOKEN;
 
-    let result = await callHengfuOpenDoor(deviceId, customToken);
+    const sessionObj = await loadHengfuSessionFromDb();
+    let token = body.token || sessionObj?.token || process.env.HENGFU_DOOR_TOKEN;
 
-    // 若 Token 過期 (code === 201) 且有設定帳號密碼，自動重登換新 Token
+    if (!token) {
+      token = await reloginHengfu(sessionObj);
+    }
+
+    if (!token) {
+      return NextResponse.json(
+        { ok: false, error: "尚未設定門禁憑證或登入失敗" },
+        { status: 400, headers: CORS_HEADERS }
+      );
+    }
+
+    let result = await callHengfuOpenDoor(deviceId, token);
+
+    // 若 Token 過期 (code === 201)，自動重新登入換取最新 Token 並重試開門
     if (result.json?.code === 201) {
-      const freshToken = await reloginHengfuIfConfigured();
+      const freshToken = await reloginHengfu(sessionObj);
       if (freshToken) {
         result = await callHengfuOpenDoor(deviceId, freshToken);
       }
@@ -91,6 +149,7 @@ export async function POST(request) {
         ok: isSuccess,
         device_id: deviceId,
         data: result.json || result.rawText,
+        error: isSuccess ? undefined : result.json?.message || "開門失敗",
       },
       { status: isSuccess ? 200 : 400, headers: CORS_HEADERS }
     );
