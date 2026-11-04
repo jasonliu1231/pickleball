@@ -1035,7 +1035,7 @@ function renderMeetups(meetups) {
       <div class="card-actions-wrapper" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
         <div class="card-secondary-actions" style="display:flex;gap:6px;">
           <button class="btn-secondary roster-btn" style="flex:1;height:38px;font-size:13px;">查看名單</button>
-          ${m.match_schedule ? `<button class="btn-secondary schedule-btn" style="flex:1;height:38px;font-size:13px;background:#eff6ff; border-color:var(--primary); color:var(--primary); font-weight:800;">📅 賽程</button>` : ""}
+          ${m.match_schedule?.courts?.length ? `<button class="btn-secondary schedule-btn" style="flex:1;height:38px;font-size:13px;background:#eff6ff; border-color:var(--primary); color:var(--primary); font-weight:800;">📅 賽程</button>` : ""}
           <button class="btn-ghost share-link-btn" style="height:38px;font-size:12.5px;font-weight:800;padding:0 12px;border:1px solid #e2e8f0;border-radius:10px;" title="複製此活動分享連結">🔗 分享</button>
         </div>
         <div class="card-primary-actions" style="display:flex;gap:6px;width:100%;">
