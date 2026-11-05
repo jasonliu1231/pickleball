@@ -870,6 +870,10 @@ function hasRatingThreshold(m) {
   return false;
 }
 
+function isApprovalRequired(m) {
+  return Boolean(m?.requires_approval || String(m?.gear || "").includes("REQUIRES_APPROVAL"));
+}
+
 function formatRatingMin(val) {
   const num = Number(val);
   if (num <= 10) {
@@ -1000,6 +1004,7 @@ function renderMeetups(meetups) {
           <h3 class="meetup-title">
             ${(m.creator_user_id || m.creator_member_id || !m.organizer_id) ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
             ${(m.join_password || m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
+            ${isApprovalRequired(m) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">🛡️ 團主審核制</span>` : ""}
             ${escapeHtml(m.name || "未命名活動")}
             ${durationBadgeHtml}
           </h3>
@@ -1437,7 +1442,10 @@ function openSignup(meetup, initialPwd = null) {
   
   const ratingWarningEl = $("ratingLimitWarning");
   if (ratingWarningEl) {
-    if (hasRatingThreshold(meetup)) {
+    if (isApprovalRequired(meetup)) {
+      ratingWarningEl.style.display = "block";
+      ratingWarningEl.innerHTML = `🛡️ <b>本場次採團主審核制</b>：送出報名後將統一先排入<b>「備取名單（待審核）」</b>，待團主審核通過後即轉為正取！`;
+    } else if (hasRatingThreshold(meetup)) {
       const ratingLabel = formatRatingMin(meetup.rating_min);
       ratingWarningEl.style.display = "block";
       ratingWarningEl.innerHTML = `🏆 <b>本場次設有戰力門檻</b>：報名門檻需達 <b>${ratingLabel}</b>。<br/>若您的戰力未達限制，報名送出後會<b>自動加入「彈性候補」</b>，待場主審核後即可轉為正取！`;
@@ -1459,17 +1467,20 @@ function openSignup(meetup, initialPwd = null) {
 
   const submitBtnEl = $("submitBtn");
   if (submitBtnEl) {
-    const btnLabel = full
+    const reqApproval = isApprovalRequired(meetup);
+    const btnLabel = reqApproval
+      ? "送出報名（團主審核制・先排備取）"
+      : full
       ? "加入備取（目前正取已滿）"
       : cap > 0
       ? `確認報名（尚餘 ${left} 名額）`
       : "確認報名";
     submitBtnEl.textContent = btnLabel;
     submitBtnEl.dataset.defaultText = btnLabel;
-    submitBtnEl.style.background = full ? "#fef3c7" : "";
-    submitBtnEl.style.border = full ? "1px solid #fde68a" : "";
-    submitBtnEl.style.color = full ? "#d97706" : "";
-    submitBtnEl.style.boxShadow = full ? "none" : "";
+    submitBtnEl.style.background = (full && !reqApproval) ? "#fef3c7" : "";
+    submitBtnEl.style.border = (full && !reqApproval) ? "1px solid #fde68a" : "";
+    submitBtnEl.style.color = (full && !reqApproval) ? "#d97706" : "";
+    submitBtnEl.style.boxShadow = (full && !reqApproval) ? "none" : "";
   }
 
   setModalVisible($("signupModal"), true);
@@ -2587,7 +2598,8 @@ async function handleSignup(e) {
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
     const confirmed = Number(currentMeetup?.confirmed_count ?? session.confirmed_count ?? 0);
-    const targetStatus = (capacity > 0 && confirmed + peopleCount > capacity) ? "waitlist" : "confirmed";
+    const requiresApproval = isApprovalRequired(currentMeetup);
+    const targetStatus = (requiresApproval || (capacity > 0 && confirmed + peopleCount > capacity)) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
@@ -2616,7 +2628,13 @@ async function handleSignup(e) {
       await toggleRoster(signedMeetup);
       rosterEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-    alert(targetStatus === "waitlist" ? "⏳ 報名成功！目前正取已滿，已幫您加入備取，為您開啟最新名單。" : "🎉 報名成功！已為您保留正取名額，為您展開最新名單。");
+    alert(
+      requiresApproval
+        ? "⏳ 報名已送出！本場次採團主審核制，已將您排入備取名單（待審核），待團主審核通過後即轉為正取。"
+        : targetStatus === "waitlist"
+        ? "⏳ 報名成功！目前正取已滿，已幫您加入備取，為您開啟最新名單。"
+        : "🎉 報名成功！已為您保留正取名額，為您展開最新名單。"
+    );
   } catch (err) {
     setMessage($("formMessage"), err.message || "報名失敗，請稍後再試。", false);
   } finally {
@@ -2725,7 +2743,8 @@ async function handleQuickSignup(meetup, btn) {
     // 3. Calculate status (confirmed vs waitlist)
     const capacity = session.capacity_override ?? meetup.capacity ?? 0;
     const confirmed = Number(meetup?.confirmed_count ?? session.confirmed_count ?? 0);
-    const targetStatus = (capacity > 0 && confirmed + 1 > capacity) ? "waitlist" : "confirmed";
+    const requiresApproval = isApprovalRequired(meetup);
+    const targetStatus = (requiresApproval || (capacity > 0 && confirmed + 1 > capacity)) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
@@ -2743,7 +2762,11 @@ async function handleQuickSignup(meetup, btn) {
       );
     if (partErr) throw partErr;
 
-    const msg = targetStatus === "waitlist" ? "正取已滿，已幫您排入備取！" : "恭喜！您已成功預約正取！";
+    const msg = requiresApproval
+      ? "⏳ 報名已送出！本場次採團主審核制，已將您排入備取名單（待審核），待團主審核通過後即轉為正取！"
+      : targetStatus === "waitlist"
+      ? "正取已滿，已幫您排入備取！"
+      : "恭喜！您已成功預約正取！";
     notifyNewSignup({ meetup, meetupId: meetup.id, reservationDate: selectedDate, nickname: currentSystemMember.nickname, skillLevel: skillLevelVal });
     clearRosterCache();
     await refreshMeetupListOnly();
@@ -2828,8 +2851,8 @@ async function handleCancel(e) {
       if (cancelErr) throw cancelErr;
     }
 
-    // 若為正取取消（會員請假 或 一般正取球友取消），自動遞補第一位候補並發送通知
-    if (isMember || target.status === "confirmed") {
+    // 若為正取取消（會員請假 或 一般正取球友取消），且非團主審核制，自動遞補第一位候補並發送通知
+    if ((isMember || target.status === "confirmed") && !isApprovalRequired(currentMeetup)) {
       const { data: waitlist } = await client
         .from("session_participants")
         .select("id, user_id, user:users(id, name, phone)")
@@ -4938,7 +4961,7 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
   try {
     const { data: part, error: getError } = await client
       .from("session_participants")
-      .select("id, user_id, status, session:sessions(id, meetup_id, session_date)")
+      .select("id, user_id, status, session:sessions(id, meetup_id, session_date, meetup:meetups(gear))")
       .eq("id", signupId)
       .single();
     if (getError) throw getError;
@@ -4967,8 +4990,8 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
       .eq("id", signupId);
     if (cancelErr) throw cancelErr;
 
-    // Auto-promote first waitlisted participant if status was confirmed
-    if (part.status === "confirmed" && part.session?.id) {
+    // Auto-promote first waitlisted participant if status was confirmed and meetup does not require approval
+    if (part.status === "confirmed" && part.session?.id && !isApprovalRequired(part.session?.meetup)) {
       const { data: waitlist } = await client
         .from("session_participants")
         .select("id, user_id, user:users(id, name, phone)")
@@ -5119,14 +5142,17 @@ window.cancelMemberDashboardLeave = async function(meetupId, reservationDate, me
 
     if (absErr) throw absErr;
 
-    // 遞補候補第一位
-    const { data: waitlist } = await client
-      .from("session_participants")
-      .select("id, user_id, user:users(id, name, phone)")
-      .eq("session_id", sessionId)
-      .eq("status", "waitlist")
-      .order("created_at", { ascending: true })
-      .limit(1);
+    // 遞補候補第一位（若非團主審核制）
+    const { data: mRow } = await client.from("meetups").select("gear").eq("id", meetupId).maybeSingle();
+    const { data: waitlist } = !isApprovalRequired(mRow)
+      ? await client
+          .from("session_participants")
+          .select("id, user_id, user:users(id, name, phone)")
+          .eq("session_id", sessionId)
+          .eq("status", "waitlist")
+          .order("created_at", { ascending: true })
+          .limit(1)
+      : { data: [] };
 
     if (waitlist && waitlist.length > 0) {
       await client
