@@ -312,6 +312,76 @@ function makeShortShareUrl(meetupId, date) {
   return `${window.location.origin}/s/${slug}`;
 }
 
+function formatMeetupShareText(m, dateStr, shareUrl) {
+  const title = m.name || m.meetup_name || "匹克球活動";
+  let dateLabel = "";
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, mo, dy] = dateStr.split("-").map(Number);
+    const dObj = new Date(y, (mo || 1) - 1, dy || 1);
+    const wDay = ["日", "一", "二", "三", "四", "五", "六"][dObj.getDay()];
+    dateLabel = `${mo}/${dy}（${wDay}）`;
+  }
+  const sTime = m.start_time ? String(m.start_time).slice(0, 5) : "";
+  const eTime = m.end_time ? String(m.end_time).slice(0, 5) : "";
+  const timeLabel = sTime && eTime ? `${sTime}–${eTime}` : (sTime || "時間另行公告");
+
+  const city = String(m.city || "").trim();
+  const venue = String(m.address || "").trim();
+  const street = String(m.street_address || "").trim();
+  let locationLabel = "地點另行公告";
+  if (venue && venue !== "地點另行公告" && street && street !== venue) {
+    const fullStreet = (city && !street.includes(city) && !street.includes(city.replace("台", "臺")))
+      ? `${city}${street}`
+      : street;
+    locationLabel = `${venue}｜${fullStreet}`;
+  } else if (venue && venue !== "地點另行公告") {
+    locationLabel = (city && !venue.includes(city) && !venue.includes(city.replace("台", "臺")))
+      ? `${city}${venue}`
+      : venue;
+  } else if (street) {
+    locationLabel = (city && !street.includes(city) && !street.includes(city.replace("台", "臺")))
+      ? `${city}${street}`
+      : street;
+  }
+
+  const cap = Number(m.capacity_override ?? m.capacity ?? 0);
+  const capLabel = cap > 0 ? `${cap} 人` : "不限人數";
+
+  const rawFee = (m.guest_fee_override !== null && m.guest_fee_override !== undefined && String(m.guest_fee_override).trim() !== "")
+    ? m.guest_fee_override
+    : (m.guest_fee !== null && m.guest_fee !== undefined && String(m.guest_fee).trim() !== "")
+      ? m.guest_fee
+      : m.fee;
+  let feeLabel = "現場公告";
+  if (rawFee !== null && rawFee !== undefined && String(rawFee).trim() !== "") {
+    const str = String(rawFee).trim();
+    const num = Number(str);
+    if (str === "-1" || str.includes("平分") || str.includes("均分") || str.includes("分攤")) {
+      feeLabel = "場租平分";
+    } else if (!Number.isNaN(num)) {
+      feeLabel = num === 0 ? "免費" : `$${num}／人`;
+    } else if (str === "免費" || str === "免收") {
+      feeLabel = "免費";
+    } else if (str.includes("／人") || str.includes("/人")) {
+      feeLabel = str.startsWith("$") || !/^\d/.test(str) ? str : `$${str}`;
+    } else {
+      feeLabel = (str.startsWith("$") || !/^\d/.test(str)) ? `${str}／人` : `$${str}／人`;
+    }
+  } else {
+    feeLabel = "場租平分";
+  }
+
+  return [
+    `🏓 ${title}`,
+    `📅 ${dateLabel}${timeLabel}`,
+    `📍 ${locationLabel}`,
+    `👥 ${capLabel}｜💰 ${feeLabel}`,
+    ``,
+    `🔗 詳細資訊＆報名`,
+    shareUrl
+  ].join("\n");
+}
+
 function handleContactOrganizer(contactVal) {
   if (!contactVal) return;
   const raw = String(contactVal).trim();
@@ -1135,14 +1205,15 @@ function renderMeetups(meetups) {
     card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
     card.querySelector(".share-link-btn")?.addEventListener("click", () => {
       const shareUrl = makeShortShareUrl(meetup.short_id || meetup.id, selectedDate);
+      const shareText = formatMeetupShareText(meetup, selectedDate, shareUrl);
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(shareUrl).then(() => {
-          alert(`🎉 已複製專屬短網址報名連結！可直接傳給朋友或貼到 LINE 群組：\n\n${shareUrl}`);
+        navigator.clipboard.writeText(shareText).then(() => {
+          alert(`🎉 已複製揪團分享資訊與報名連結！可直接貼到 LINE 群組：\n\n${shareText}`);
         }).catch(() => {
-          prompt("請複製以下活動報名連結：", shareUrl);
+          prompt("請複製以下活動分享資訊：", shareText);
         });
       } else {
-        prompt("請複製以下活動報名連結：", shareUrl);
+        prompt("請複製以下活動分享資訊：", shareText);
       }
     });
   });
