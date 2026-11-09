@@ -83,7 +83,12 @@ export async function POST(request) {
       phone: cleanPhone,
       updated_at: new Date().toISOString(),
     };
-    if (name !== undefined) updatePayload.name = name;
+    if (name !== undefined) {
+      updatePayload.name = name;
+      if (display_name === undefined && name && name !== "球友") {
+        updatePayload.display_name = name;
+      }
+    }
     if (display_name !== undefined) updatePayload.display_name = display_name;
     if (skill_level !== undefined) {
       updatePayload.skill_level = skill_level;

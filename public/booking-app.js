@@ -2725,6 +2725,7 @@ async function handleSignup(e) {
           .from("users")
           .update({
             name: nickname,
+            display_name: nickname,
             phone: phone || currentSystemMember.phone,
             skill_level: skillLevel,
             is_beginner: isBeginner,
@@ -2734,9 +2735,10 @@ async function handleSignup(e) {
           .select()
           .single();
         if (updatedMember) {
-          currentSystemMember = { ...updatedMember, nickname: updatedMember.name };
+          currentSystemMember = { ...updatedMember, nickname: updatedMember.display_name || updatedMember.name };
           user = currentSystemMember;
           if ($("profilePhone") && phone) $("profilePhone").value = phone;
+          if ($("profileDisplayName")) $("profileDisplayName").value = nickname;
           if ($("profileNickname")) $("profileNickname").value = nickname;
           if ($("profileSkillLevel")) $("profileSkillLevel").value = skillLevel;
         }
@@ -2749,6 +2751,7 @@ async function handleSignup(e) {
         .from("users")
         .update({
           name: nickname,
+          display_name: nickname,
           skill_level: skillLevel,
           is_beginner: isBeginner,
           updated_at: new Date().toISOString()
@@ -2760,6 +2763,7 @@ async function handleSignup(e) {
         .insert({
           phone: phone,
           name: nickname,
+          display_name: nickname,
           skill_level: skillLevel,
           is_beginner: isBeginner
         })
@@ -5565,6 +5569,7 @@ async function handleBindPhoneSubmit(e) {
     // 1. Update users (若會員原本已有程度，保留其程度設定，不隨意覆蓋)
     const updatePayload = {
       name: nickname,
+      display_name: nickname,
       phone,
       updated_at: new Date().toISOString()
     };
@@ -5588,6 +5593,7 @@ async function handleBindPhoneSubmit(e) {
           user_id: currentSystemMember?.id || currentUser.id,
           phone,
           name: nickname,
+          display_name: nickname,
           skill_level: updatePayload.skill_level
         })
       });
