@@ -1,7 +1,7 @@
 export const runtime = "nodejs";
 
 import { supabase, getSupabaseAdmin } from "@/lib/supabase";
-import { sendExpoPush, normalizePhone, fetchTokensForUser, sendLinePushFlex } from "@/lib/line";
+import { sendExpoPush, normalizePhone, fetchTokensForUser, fetchTokensForMeetup, sendLinePushFlex } from "@/lib/line";
 import { logBatchUserNotifications } from "@/lib/userNotifications";
 
 /**
@@ -134,6 +134,34 @@ async function runAutoCancelCheck(client, request, now, todayKey, tomorrowKey) {
         if (upErr) {
           console.error("[Cron:AutoCancel] upsert failed", upErr);
           continue;
+        }
+
+        // 若為單日臨時團 (is_one_off)，自動停開後同步將 meetups.is_active 設為 false，讓團主端「開團管理」立即顯示「已關閉」
+        if (m.is_one_off) {
+          await client
+            .from("meetups")
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq("id", m.id);
+        }
+
+        // 推播通知團主本人（即使 0 人報名也會收到自動取消通知）
+        try {
+          const { tokens: orgTokens } = await fetchTokensForMeetup(client, m.id);
+          if (orgTokens && orgTokens.length > 0) {
+            const startTimeShort = String(m.start_time || "").slice(0, 5);
+            await sendExpoPush(
+              orgTokens.map((tk) => ({
+                to: tk,
+                title: "🛑 系統自動停開通知",
+                body: `您的「${m.name}」（${dateKey} ${startTimeShort}）因${reason}，已由系統自動停開。`,
+                sound: "default",
+                channelId: "pickleball-alerts",
+                data: { type: "auto_cancelled", meetup_id: m.id, session_date: dateKey },
+              }))
+            );
+          }
+        } catch (orgPushErr) {
+          console.warn("[Cron:AutoCancel] organizer push failed", orgPushErr);
         }
 
         try {
