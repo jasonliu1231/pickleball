@@ -48,7 +48,7 @@ async function runAutoCancelCheck(client, request, now, todayKey, tomorrowKey) {
       .ilike("gear", "%AUTO_CANCEL:%");
 
     for (const m of meetups || []) {
-      const mt = String(m.gear || "").match(/AUTO_CANCEL:(\d+):(\d+)/);
+      const mt = String(m.gear || "").match(/AUTO_CANCEL:(\d+(?:\.\d+)?):(\d+)/);
       if (!mt || !m.start_time) continue;
       const hours = Number(mt[1]);
       const minPlayers = Number(mt[2]);
