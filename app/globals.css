@@ -2048,6 +2048,15 @@ body:has(.modal.active) {
   box-sizing: border-box;
 }
 
+input::placeholder,
+textarea::placeholder,
+.form input::placeholder,
+.form textarea::placeholder {
+  color: #b0bac9;
+  font-weight: 400;
+  opacity: 1;
+}
+
 .form input[type="date"],
 .form input[type="time"] {
   -webkit-appearance: none;
