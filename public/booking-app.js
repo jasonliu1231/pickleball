@@ -550,14 +550,16 @@ async function loadAvailableWeekdays(forceRefresh = false) {
     .eq("is_active", true);
 
   try {
-    const [meetupsRes, cancelSessRes] = await Promise.all([
+    const [meetupsRes, allSessRes] = await Promise.all([
       query,
-      client.from("sessions").select("meetup_id, session_date").eq("status", "cancelled")
+      client.from("sessions").select("meetup_id, session_date, status")
     ]);
     if (meetupsRes.error) throw meetupsRes.error;
 
     const rules = [];
+    const activeMeetupMap = new Map();
     (meetupsRes.data || []).forEach((m) => {
+      activeMeetupMap.set(String(m.id), m);
       const city = getMeetupCity(m);
       if (m.is_one_off) {
         rules.push({
@@ -583,11 +585,33 @@ async function loadAvailableWeekdays(forceRefresh = false) {
       }
     });
 
+    const cancelList = [];
+    (allSessRes.data || []).forEach((s) => {
+      if (!s.session_date) return;
+      if (s.status === "cancelled") {
+        cancelList.push({
+          meetup_id: s.meetup_id,
+          exclude_date: s.session_date
+        });
+      } else {
+        const m = activeMeetupMap.get(String(s.meetup_id));
+        if (m) {
+          if (!m.is_one_off && m.start_date && s.session_date < m.start_date) return;
+          if (!m.is_one_off && m.end_date && s.session_date > m.end_date) return;
+          rules.push({
+            id: m.id,
+            weekday: dateFromISO(s.session_date).getDay(),
+            is_one_off: true,
+            one_off_date: s.session_date,
+            start_date: s.session_date,
+            city: getMeetupCity(m)
+          });
+        }
+      }
+    });
+
     availableRules = rules;
-    exclusions = (cancelSessRes.data || []).map(s => ({
-      meetup_id: s.meetup_id,
-      exclude_date: s.session_date
-    }));
+    exclusions = cancelList;
   } catch (err) {
     console.error("載入開團規則或停開日期失敗", err);
   }
@@ -691,7 +715,7 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         if (s.status === "cancelled") return;
         const m = s.meetup || {};
         if (m.is_active === false) return;
-        if (m.start_date && dateStr < m.start_date) return;
+        if (!m.is_one_off && m.start_date && dateStr < m.start_date) return;
         if (!m.is_one_off && m.end_date && dateStr > m.end_date) return;
 
         const meetupCity = getMeetupCity(m);
