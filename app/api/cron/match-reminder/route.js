@@ -33,6 +33,127 @@ export async function POST(request) {
   return handleCronMatchReminder(request);
 }
 
+/**
+ * 人數不足自動取消：
+ * 團主於開團設定「開打前 N 小時、未滿 M 人自動取消」（存於 meetups.gear，格式 AUTO_CANCEL:N:M）。
+ * 到達門檻時間時，若正取人數（含固定會員）未達 M 人，將該場次標記為 cancelled 並通知所有報名者。
+ */
+async function runAutoCancelCheck(client, request, now, todayKey, tomorrowKey) {
+  const results = [];
+  try {
+    const { data: meetups } = await client
+      .from("meetups")
+      .select("id, name, gear, weekdays, start_date, end_date, start_time, is_one_off, one_off_date, is_active")
+      .eq("is_active", true)
+      .ilike("gear", "%AUTO_CANCEL:%");
+
+    for (const m of meetups || []) {
+      const mt = String(m.gear || "").match(/AUTO_CANCEL:(\d+):(\d+)/);
+      if (!mt || !m.start_time) continue;
+      const hours = Number(mt[1]);
+      const minPlayers = Number(mt[2]);
+      if (!(hours > 0 && minPlayers > 0)) continue;
+
+      for (const dateKey of [todayKey, tomorrowKey]) {
+        const [y, mo, d] = dateKey.split("-").map(Number);
+        const weekday = new Date(y, mo - 1, d).getDay();
+        let applies = false;
+        if (m.is_one_off) {
+          applies = (m.one_off_date || m.start_date) === dateKey;
+        } else {
+          const wds = Array.isArray(m.weekdays) ? m.weekdays : [];
+          applies = wds.includes(weekday)
+            && (!m.start_date || dateKey >= m.start_date)
+            && (!m.end_date || dateKey <= m.end_date);
+        }
+        if (!applies) continue;
+
+        const startIso = `${dateKey}T${String(m.start_time).slice(0, 5)}:00+08:00`;
+        const diffMin = Math.round((new Date(startIso).getTime() - now.getTime()) / 60000);
+        if (diffMin <= 0 || diffMin > hours * 60) continue;
+
+        const { data: session } = await client
+          .from("sessions")
+          .select("id, status, session_notes, capacity_override")
+          .eq("meetup_id", m.id)
+          .eq("session_date", dateKey)
+          .maybeSingle();
+
+        if (session?.status === "cancelled") continue;
+        if (String(session?.session_notes || "").includes("自動取消")) continue;
+
+        const userIds = new Set();
+        let count = 0;
+        let absentIds = new Set();
+        if (session?.id) {
+          const { data: parts } = await client
+            .from("session_participants")
+            .select("status, user_id, people_count")
+            .eq("session_id", session.id);
+          for (const p of parts || []) {
+            if (p.status === "absent" || p.status === "cancelled") {
+              if (p.user_id) absentIds.add(String(p.user_id));
+              continue;
+            }
+            if (["confirmed", "attended"].includes(p.status)) {
+              count += Number(p.people_count || 1);
+              if (p.user_id) userIds.add(String(p.user_id));
+            }
+          }
+        }
+        const { data: subs } = await client
+          .from("member_meetup_subscriptions")
+          .select("organizer_member:organizer_members(status, user_id)")
+          .eq("meetup_id", m.id);
+        for (const s of subs || []) {
+          const om = s.organizer_member;
+          if (om?.status === "active" && om.user_id) {
+            const uid = String(om.user_id);
+            if (!absentIds.has(uid) && !userIds.has(uid)) {
+              userIds.add(uid);
+              count += 1;
+            }
+          }
+        }
+
+        if (count >= minPlayers) continue;
+
+        const reason = `開打前 ${hours} 小時人數未達 ${minPlayers} 人（目前 ${count} 人），系統自動取消`;
+        const { error: upErr } = await client
+          .from("sessions")
+          .upsert(
+            {
+              meetup_id: m.id,
+              session_date: dateKey,
+              status: "cancelled",
+              session_notes: reason,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "meetup_id,session_date" }
+          );
+        if (upErr) {
+          console.error("[Cron:AutoCancel] upsert failed", upErr);
+          continue;
+        }
+
+        try {
+          await fetch(`${new URL(request.url).origin}/api/session-cancel-notification`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ meetup_id: m.id, exclude_date: dateKey, reason }),
+          });
+        } catch (e) {
+          console.warn("[Cron:AutoCancel] notify failed", e);
+        }
+        results.push({ meetup: m.name, date: dateKey, count, minPlayers });
+      }
+    }
+  } catch (e) {
+    console.error("[Cron:AutoCancel] error", e);
+  }
+  return results;
+}
+
 async function handleCronMatchReminder(request) {
   const client = getSupabaseAdmin() || supabase;
   const now = new Date();
@@ -94,6 +215,12 @@ async function handleCronMatchReminder(request) {
   }
 
   try {
+    // 0. 先執行「人數不足自動取消」巡檢（已取消場次不會再發送開打提醒）
+    const autoCancelled = await runAutoCancelCheck(client, request, now, todayKey, tomorrowKey);
+    if (autoCancelled.length) {
+      console.log("[Cron:AutoCancel] cancelled sessions:", JSON.stringify(autoCancelled));
+    }
+
     // 1. 查詢今天與明天尚未發送 2 小時提醒且未取消的場次 (包含 open 與 closed 額滿場次)
     const { data: sessions, error: sessErr } = await client
       .from("sessions")

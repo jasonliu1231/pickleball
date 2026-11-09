@@ -312,7 +312,7 @@ function makeShortShareUrl(meetupId, date) {
   return `${window.location.origin}/s/${slug}`;
 }
 
-function formatMeetupShareText(m, dateStr, shareUrl) {
+function formatMeetupShareText(m, dateStr, shareUrl, confirmedCount = null) {
   const title = m.name || m.meetup_name || "匹克球活動";
   let dateLabel = "";
   if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -345,7 +345,11 @@ function formatMeetupShareText(m, dateStr, shareUrl) {
   }
 
   const cap = Number(m.capacity_override ?? m.capacity ?? 0);
-  const capLabel = cap > 0 ? `${cap} 人` : "不限人數";
+  let capLabel = cap > 0 ? `${cap} 人` : "不限人數";
+  const cnt = Number(confirmedCount);
+  if (cap > 0 && confirmedCount !== null && confirmedCount !== undefined && !Number.isNaN(cnt) && cnt > 0) {
+    capLabel = cnt >= cap ? `${cap} 人（已額滿）` : `${cap} 人（目前 ${cnt} 人，尚缺 ${cap - cnt} 位🔥）`;
+  }
 
   const rawFee = (m.guest_fee_override !== null && m.guest_fee_override !== undefined && String(m.guest_fee_override).trim() !== "")
     ? m.guest_fee_override
@@ -1205,7 +1209,7 @@ function renderMeetups(meetups) {
     card.querySelector(".quick-signup-btn")?.addEventListener("click", (e) => handleQuickSignup(meetup, e.currentTarget));
     card.querySelector(".share-link-btn")?.addEventListener("click", () => {
       const shareUrl = makeShortShareUrl(meetup.short_id || meetup.id, selectedDate);
-      const shareText = formatMeetupShareText(meetup, selectedDate, shareUrl);
+      const shareText = formatMeetupShareText(meetup, selectedDate, shareUrl, meetup.display_confirmed_count ?? meetup.confirmed_count);
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(shareText).then(() => {
           alert(`🎉 已複製揪團分享資訊與報名連結！可直接貼到 LINE 群組：\n\n${shareText}`);
