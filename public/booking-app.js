@@ -637,6 +637,105 @@ function hasAvailableMeetupOnDate(dateStr) {
   });
 }
 
+let userDirectBookedDates = new Set();
+let userAbsentKeys = new Set();
+let userSubscribedMeetups = [];
+
+async function loadUserCalendarBookings() {
+  if (!currentUser || !currentSystemMember?.id) {
+    userDirectBookedDates = new Set();
+    userAbsentKeys = new Set();
+    userSubscribedMeetups = [];
+    if ($("daysGrid")) renderCalendar();
+    return;
+  }
+
+  try {
+    const [signupsRes, omRes] = await Promise.all([
+      client
+        .from("session_participants")
+        .select("status, session:sessions(id, meetup_id, session_date, status, meetup:meetups(id, is_active, is_one_off, start_date, end_date))")
+        .eq("user_id", currentSystemMember.id)
+        .neq("status", "cancelled"),
+      client
+        .from("organizer_members")
+        .select("id, status, member_meetup_subscriptions(meetup_id, meetup:meetups(id, is_active, is_one_off, one_off_date, start_date, end_date, weekdays))")
+        .eq("user_id", currentSystemMember.id)
+        .eq("status", "active")
+    ]);
+
+    const directDates = new Set();
+    const absentKeys = new Set();
+    (signupsRes.data || []).forEach((sp) => {
+      const s = sp.session;
+      if (!s || !s.session_date) return;
+      if (sp.status === "absent") {
+        absentKeys.add(`${s.meetup_id}_${s.session_date}`);
+        return;
+      }
+      if (s.status === "cancelled") return;
+      const m = s.meetup;
+      if (m && m.is_active === false) return;
+      if (m && !m.is_one_off) {
+        if (m.start_date && s.session_date < m.start_date) return;
+        if (m.end_date && s.session_date > m.end_date) return;
+      }
+      if (["confirmed", "waitlist", "tentative", "attended"].includes(sp.status)) {
+        directDates.add(s.session_date);
+      }
+    });
+
+    const subMeetups = [];
+    (omRes.data || []).forEach((om) => {
+      (om.member_meetup_subscriptions || []).forEach((sub) => {
+        if (sub.meetup && sub.meetup.is_active !== false) {
+          subMeetups.push(sub.meetup);
+        }
+      });
+    });
+
+    userDirectBookedDates = directDates;
+    userAbsentKeys = absentKeys;
+    userSubscribedMeetups = subMeetups;
+    if ($("daysGrid")) renderCalendar();
+  } catch (err) {
+    console.warn("loadUserCalendarBookings error:", err);
+  }
+}
+
+function hasUserBookingOnDate(dateStr) {
+  if (!currentUser || !currentSystemMember?.id) return false;
+  if (userDirectBookedDates.has(dateStr)) return true;
+  if (!userSubscribedMeetups.length) return false;
+
+  const weekday = dateFromISO(dateStr).getDay();
+  return userSubscribedMeetups.some((m) => {
+    const mId = String(m.id);
+    if (userAbsentKeys.has(`${mId}_${dateStr}`)) return false;
+
+    const isExcluded = (exclusions || []).some(
+      (ex) => String(ex.meetup_id) === mId && ex.exclude_date === dateStr
+    );
+    if (isExcluded) return false;
+
+    const matchesRule = (availableRules || []).some((rule) => {
+      if (String(rule.id) !== mId) return false;
+      if (rule.is_one_off) return rule.one_off_date === dateStr;
+      if (rule.start_date && dateStr < rule.start_date) return false;
+      if (rule.end_date && dateStr > rule.end_date) return false;
+      return Number(rule.weekday) === weekday;
+    });
+    if (matchesRule) return true;
+
+    if (m.is_one_off) {
+      return m.one_off_date === dateStr;
+    }
+    if (m.start_date && dateStr < m.start_date) return false;
+    if (m.end_date && dateStr > m.end_date) return false;
+    return (m.weekdays || []).map(Number).includes(weekday);
+  });
+}
+
 function isMeetupEnded(m, dateStr) {
   if (!m || !dateStr) return false;
   const [yr, mo, dy] = dateStr.split("-").map(Number);
@@ -943,17 +1042,25 @@ function renderCalendar() {
   for (let d = 1; d <= last.getDate(); d++) cells.push(toISODate(new Date(year, month, d)));
   while (cells.length % 7 !== 0) cells.push(null);
   const today = toISODate(new Date());
+  const isLoggedIn = Boolean(currentUser && currentSystemMember?.id);
   daysGridEl.innerHTML = cells.map((dateStr) => {
     if (!dateStr) return `<button class="day empty" tabindex="-1"></button>`;
     const d = dateFromISO(dateStr);
     const isPast = dateStr < today;
     const has = hasAvailableMeetupOnDate(dateStr);
+    const booked = !isPast && isLoggedIn && hasUserBookingOnDate(dateStr);
     const selected = dateStr === selectedDate;
     const isToday = dateStr === today;
     return `<button class="day ${isToday ? "today" : ""} ${isPast ? "past" : ""} ${has && !isPast ? "available" : ""} ${selected ? "selected" : ""}" data-date="${dateStr}">
-      <span>${d.getDate()}</span>${has && !isPast ? `<span class="dot"></span>` : ""}
+      <span>${d.getDate()}</span>${booked ? `<span class="dot"></span>` : ""}
     </button>`;
   }).join("");
+  const hintEl = $("calendarHint") || document.querySelector(".calendar-card .hint");
+  if (hintEl) {
+    hintEl.innerHTML = isLoggedIn
+      ? `<span class="hint-box"></span><span>可報名場次</span><span class="dot" style="margin-left: 10px;"></span><span>已預約場次</span>`
+      : `<span class="hint-box"></span><span>藍框代表當天有團可報名</span>`;
+  }
   document.querySelectorAll(".day[data-date]").forEach(btn => {
     btn.addEventListener("click", () => {
       selectedDate = btn.dataset.date;
@@ -3001,7 +3108,10 @@ async function handleCancel(e) {
 }
 
 async function refreshMeetupListOnly() {
-  const meetups = await loadMeetupsByDate(selectedDate, true);
+  const [meetups] = await Promise.all([
+    loadMeetupsByDate(selectedDate, true),
+    loadUserCalendarBookings()
+  ]);
   renderMeetups(meetups);
   updateDailyPulse(meetups);
 }
@@ -5868,6 +5978,10 @@ function toggleAuthView(isLoggedIn) {
   } else {
     if (authContainer) authContainer.style.display = "block";
     if (memberDashboard) memberDashboard.style.display = "none";
+    userDirectBookedDates = new Set();
+    userAbsentKeys = new Set();
+    userSubscribedMeetups = [];
+    if ($("daysGrid")) renderCalendar();
   }
 }
 
@@ -5875,7 +5989,7 @@ $("prevMonth")?.addEventListener("click", () => { visibleMonth = addMonths(visib
 $("nextMonth")?.addEventListener("click", () => { visibleMonth = addMonths(visibleMonth, 1); renderCalendar(); });
 $("refreshBtn")?.addEventListener("click", async () => {
   clearRosterCache();
-  await loadAvailableWeekdays(true);
+  await Promise.all([loadAvailableWeekdays(true), loadUserCalendarBookings()]);
   await refreshAll(true);
 });
 $("cityFilter")?.addEventListener("change", async (e) => {
@@ -6056,6 +6170,7 @@ document.addEventListener("click", (e) => {
       activeMemberPromise = ensureSystemMember(user).then(async (m) => {
         currentSystemMember = m;
         toggleAuthView(true);
+        loadUserCalendarBookings().catch((e) => console.warn("loadUserCalendarBookings warning:", e));
         if ($("memberDashboard")) {
           showLoginWaiting(
             "會員個人中心載入中...",
