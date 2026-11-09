@@ -1141,13 +1141,13 @@ function renderMeetups(meetups) {
     const queryStr = hasCity ? mapAddr : `${m.city || ""} ${mapAddr}`;
     const memberCount = Number(m.member_count || 0);
     const left = Math.max(0, cap - realConfirmed);
-    const full = cap > 0 && left <= 0;
+    const full = (cap > 0 && left <= 0) || m.status === "full" || m.session_status === "full";
 
     const { openDateTime, closeDateTime } = getBookingWindow(m, selectedDate);
     const now = new Date();
     
     let isBookingNotOpen = openDateTime && now < openDateTime;
-    let isBookingClosed = (closeDateTime && now > closeDateTime) || m.status === 'closed';
+    let isBookingClosed = (closeDateTime && now > closeDateTime) || m.status === 'closed' || m.status === 'ended' || m.session_status === 'closed' || m.session_status === 'ended';
     
     let badgeText = "";
     let badgeClass = "";
@@ -1522,7 +1522,7 @@ function openSignup(meetup, initialPwd = null) {
   const displayConfirmed = Number(meetup.display_confirmed_count ?? (cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed));
   const waitlistCount = Number(meetup.waitlist_count || 0);
   const left = Math.max(0, cap - realConfirmed);
-  const full = cap > 0 && left <= 0;
+  const full = (cap > 0 && left <= 0) || meetup.status === "full" || meetup.session_status === "full";
 
   const rosterBaseLabel = cap > 0
     ? `📋 目前 ${displayConfirmed}/${cap} 人${waitlistCount > 0 ? `（備取 ${waitlistCount}）` : full ? "（已額滿・可備取）" : `（剩 ${left} 名額）`}`
@@ -2642,6 +2642,12 @@ async function handleSignup(e) {
       .maybeSingle();
 
     if (existingSession) {
+      if (existingSession.status === "closed" || existingSession.status === "ended") {
+        return setMessage($("formMessage"), "本場次主辦人已停止線上報名！", false);
+      }
+      if (existingSession.status === "cancelled") {
+        return setMessage($("formMessage"), "本場次活動已取消/停開！", false);
+      }
       session = existingSession;
     } else {
       const { data: newSession, error: createSessErr } = await client
@@ -2799,7 +2805,8 @@ async function handleSignup(e) {
     const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
     const confirmed = Number(currentMeetup?.confirmed_count ?? session.confirmed_count ?? 0);
     const requiresApproval = isApprovalRequired(currentMeetup);
-    const targetStatus = (requiresApproval || (capacity > 0 && confirmed + peopleCount > capacity)) ? "waitlist" : "confirmed";
+    const isForcedFull = session.status === "full" || currentMeetup.status === "full" || currentMeetup.session_status === "full";
+    const targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + peopleCount > capacity)) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
@@ -2897,6 +2904,14 @@ async function handleQuickSignup(meetup, btn) {
       .maybeSingle();
 
     if (existingSession) {
+      if (existingSession.status === "closed" || existingSession.status === "ended") {
+        alert("本場次主辦人已停止線上報名！");
+        return;
+      }
+      if (existingSession.status === "cancelled") {
+        alert("本場次活動已取消/停開！");
+        return;
+      }
       session = existingSession;
     } else {
       const { data: newSession, error: createSessErr } = await client
@@ -2944,7 +2959,8 @@ async function handleQuickSignup(meetup, btn) {
     const capacity = session.capacity_override ?? meetup.capacity ?? 0;
     const confirmed = Number(meetup?.confirmed_count ?? session.confirmed_count ?? 0);
     const requiresApproval = isApprovalRequired(meetup);
-    const targetStatus = (requiresApproval || (capacity > 0 && confirmed + 1 > capacity)) ? "waitlist" : "confirmed";
+    const isForcedFull = session.status === "full" || meetup.status === "full" || meetup.session_status === "full";
+    const targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + 1 > capacity)) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
     const { error: partErr } = await client
@@ -3051,8 +3067,9 @@ async function handleCancel(e) {
       if (cancelErr) throw cancelErr;
     }
 
-    // 若為正取取消（會員請假 或 一般正取球友取消），且非團主審核制，自動遞補第一位候補並發送通知
-    if ((isMember || target.status === "confirmed") && !isApprovalRequired(currentMeetup)) {
+    // 若為正取取消（會員請假 或 一般正取球友取消），且非團主審核制、非手動強制額滿，自動遞補第一位候補並發送通知
+    const isForcedFullSession = currentMeetup?.status === "full" || currentMeetup?.session_status === "full";
+    if ((isMember || target.status === "confirmed") && !isApprovalRequired(currentMeetup) && !isForcedFullSession) {
       const { data: waitlist } = await client
         .from("session_participants")
         .select("id, user_id, user:users(id, name, phone)")
