@@ -1498,15 +1498,9 @@ function openSignup(meetup, initialPwd = null) {
     }
   }
   
-  if (currentSystemMember) {
-    $("nickname").value = currentSystemMember.nickname || "";
-    $("phone").value = currentSystemMember.phone || "";
-    if ($("skillLevel")) {
-      $("skillLevel").value = mapSkillToSelect(currentSystemMember.skill_level);
-    }
-  } else {
-    if ($("skillLevel")) $("skillLevel").value = "beginner";
-  }
+  $("nickname").value = "";
+  $("phone").value = "";
+  if ($("skillLevel")) $("skillLevel").value = "beginner";
   $("nickname").readOnly = false;
   $("phone").readOnly = false;
   
@@ -6038,18 +6032,6 @@ document.addEventListener("click", (e) => {
       activeMemberPromise = ensureSystemMember(user).then(async (m) => {
         currentSystemMember = m;
         toggleAuthView(true);
-        // 若報名彈窗已在畫面上開啟（例如透過分享短網址進入並完成自動登入），自動帶入會員預設資料
-        if (m && $("signupModal")?.classList.contains("show")) {
-          if ($("nickname") && !$("nickname").value.trim()) {
-            $("nickname").value = m.nickname || "";
-          }
-          if ($("phone") && !$("phone").value.trim()) {
-            $("phone").value = m.phone || "";
-          }
-          if ($("skillLevel") && m.skill_level) {
-            $("skillLevel").value = mapSkillToSelect(m.skill_level);
-          }
-        }
         if ($("memberDashboard")) {
           showLoginWaiting(
             "會員個人中心載入中...",
