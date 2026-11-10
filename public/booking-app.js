@@ -4002,7 +4002,9 @@ window.renderMemberBookingsUI = function(targetContainer) {
     const feeVal = mObj.member_fee || mObj.guest_fee;
     const feeLabel = feeVal ? `$${feeVal}/人` : "現場收費";
     let methodLabel = "";
-    if (s.is_member) {
+    if (s.payment_method === "free") {
+      methodLabel = "免費出席";
+    } else if (s.is_member) {
       methodLabel = "會員保留席";
     } else if (s.payment_method === "wallet") {
       methodLabel = "點數扣款";
@@ -4011,10 +4013,12 @@ window.renderMemberBookingsUI = function(targetContainer) {
     } else if (s.payment_method) {
       methodLabel = escapeHtml(s.payment_method);
     }
-    const paymentFeeText = methodLabel ? `${feeLabel} · ${methodLabel}` : feeLabel;
+    const paymentFeeText = s.payment_method === "free" ? "免費出席" : (methodLabel ? `${feeLabel} · ${methodLabel}` : feeLabel);
 
     const paidBadgeHtml = s.is_paid ? `<span class="badge-micro-paid">已繳費</span>` : "";
-    const attendedBadgeHtml = s.arrived_count > 0 ? `<span class="badge-micro-attended">已簽到扣點</span>` : "";
+    const attendedBadgeHtml = s.arrived_count > 0
+      ? `<span class="badge-micro-attended">${s.payment_method === "free" ? "已簽到（免費）" : s.payment_method === "wallet" ? "已簽到扣點" : "已簽到"}</span>`
+      : "";
 
     // Note Box
     const noteHtml = s.note ? `<div class="booking-note-box">💬 備註：${escapeHtml(s.note)}</div>` : "";
