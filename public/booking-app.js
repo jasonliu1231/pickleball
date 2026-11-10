@@ -277,6 +277,14 @@ function isCancelBlocked(meetup, selectedDate) {
       };
     }
   }
+
+  const ac = parseAutoCancel(meetup, selectedDate);
+  if (ac?.deadlineDate && now > ac.deadlineDate) {
+    return {
+      blocked: true,
+      reason: `此場次已過成團統計截止時間（${ac.deadlineTimeText}），無法線上取消，如需臨時請假請直接聯絡主辦人。`
+    };
+  }
   
   return { blocked: false, reason: "" };
 }
@@ -682,7 +690,7 @@ async function loadAvailableWeekdays(forceRefresh = false) {
   try {
     const [meetupsRes, allSessRes] = await Promise.all([
       query,
-      client.from("sessions").select("meetup_id, session_date, status")
+      client.from("sessions").select("meetup_id, session_date, status, session_notes")
     ]);
     if (meetupsRes.error) throw meetupsRes.error;
 
@@ -721,7 +729,8 @@ async function loadAvailableWeekdays(forceRefresh = false) {
       if (s.status === "cancelled") {
         cancelList.push({
           meetup_id: s.meetup_id,
-          exclude_date: s.session_date
+          exclude_date: s.session_date,
+          is_auto_cancel: String(s.session_notes || "").includes("自動取消")
         });
       } else {
         const m = activeMeetupMap.get(String(s.meetup_id));
@@ -784,7 +793,7 @@ async function loadUserCalendarBookings() {
     const [signupsRes, omRes] = await Promise.all([
       client
         .from("session_participants")
-        .select("status, session:sessions(id, meetup_id, session_date, status, meetup:meetups(id, is_active, is_one_off, start_date, end_date))")
+        .select("status, session:sessions(id, meetup_id, session_date, status, session_notes, meetup:meetups(id, is_active, is_one_off, start_date, end_date))")
         .eq("user_id", currentSystemMember.id)
         .neq("status", "cancelled"),
       client
@@ -803,7 +812,8 @@ async function loadUserCalendarBookings() {
         absentKeys.add(`${s.meetup_id}_${s.session_date}`);
         return;
       }
-      if (s.status === "cancelled") return;
+      const isAutoCancel = s.status === "cancelled" && String(s.session_notes || "").includes("自動取消");
+      if (s.status === "cancelled" && !isAutoCancel) return;
       const m = s.meetup;
       if (m && m.is_active === false) return;
       if (m && !m.is_one_off) {
@@ -844,7 +854,7 @@ function hasUserBookingOnDate(dateStr) {
     if (userAbsentKeys.has(`${mId}_${dateStr}`)) return false;
 
     const isExcluded = (exclusions || []).some(
-      (ex) => String(ex.meetup_id) === mId && ex.exclude_date === dateStr
+      (ex) => String(ex.meetup_id) === mId && ex.exclude_date === dateStr && !ex.is_auto_cancel
     );
     if (isExcluded) return false;
 
@@ -4201,7 +4211,13 @@ window.renderMemberBookingsUI = function(targetContainer) {
     // Status Badge
     let statusClass = "status-confirmed";
     let statusText = "✓ 正取";
-    if (s.status === "absent") {
+    let statusInlineStyle = "";
+    const isSessionAutoCancelled = Boolean(s.session_auto_cancelled);
+    if (isSessionAutoCancelled) {
+      statusClass = "status-absent";
+      statusText = "❌ 未成團取消";
+      statusInlineStyle = "background:#fef2f2;color:#dc2626;border:1px solid #fecaca;font-weight:900;";
+    } else if (s.status === "absent") {
       statusClass = "status-absent";
       statusText = "已請假";
     } else if (s.isAttended) {
@@ -4286,7 +4302,9 @@ window.renderMemberBookingsUI = function(targetContainer) {
     let footerTipHtml = "";
     let actionButtonsHtml = "";
 
-    if (s.isPast) {
+    if (isSessionAutoCancelled) {
+      footerTipHtml = `<span class="booking-tip-text warn" style="color:#dc2626;font-weight:800;">🛑 ${escapeHtml(s.auto_cancel_reason || "本場因未達成團人數門檻已自動取消，請勿前往球場")}</span>`;
+    } else if (s.isPast) {
       footerTipHtml = `<span class="booking-tip-text muted">此場次活動已圓滿結束</span>`;
     } else if (s.is_tentative) {
       footerTipHtml = `<span class="booking-tip-text tentative">已為您保留候補資格，請確認出席</span>`;
@@ -4342,7 +4360,7 @@ window.renderMemberBookingsUI = function(targetContainer) {
       }
     }
 
-    let canEditNote = !s.isPast && s.status !== "absent" && s.status !== "cancelled" && s.arrived_count === 0;
+    let canEditNote = !s.isPast && !isSessionAutoCancelled && s.status !== "absent" && s.status !== "cancelled" && s.arrived_count === 0;
     if (canEditNote) {
       const editNoteBtnHtml = `
         <button type="button" class="btn-booking-edit-note" onclick="editBookingNote('${s.id}', '${s.meetup_id || s.meetup?.id || ''}', '${s.dateStr || s.reservation_date || ''}', '${escapeHtml(s.meetupName || '')}', '${escapeHtml(s.note || '').replace(/'/g, "\\'")}', ${s.is_member ? 'true' : 'false'})" style="font-size:12.5px;padding:6px 12px;border-radius:8px;font-weight:800;color:#0284c7;background:#f0f9ff;border:1px solid #bae6fd;cursor:pointer;margin-right:6px;">
@@ -4367,7 +4385,7 @@ window.renderMemberBookingsUI = function(targetContainer) {
             <!-- Title & Status Badge -->
             <div class="booking-card-title-row">
               <h4 class="booking-meetup-title">${escapeHtml(s.meetupName)}</h4>
-              <span class="booking-status-badge ${statusClass}">${statusText}</span>
+              <span class="booking-status-badge ${statusClass}" ${statusInlineStyle ? `style="${statusInlineStyle}"` : ""}>${statusText}</span>
             </div>
 
             <!-- Meta Chips -->
@@ -4523,6 +4541,7 @@ async function loadMemberDashboard() {
               id,
               session_date,
               status,
+              session_notes,
               meetup:meetups (
                 id,
                 name,
@@ -4539,7 +4558,8 @@ async function loadMemberDashboard() {
                 guest_fee,
                 member_fee,
                 capacity,
-                cancel_deadline_hours
+                cancel_deadline_hours,
+                gear
               )
             )
           `)
@@ -4640,7 +4660,7 @@ async function loadMemberDashboard() {
         const dateStrs = [...new Set(candidateMemberSessions.map(c => c.dateStr))];
         const { data: dbSessions } = await client
           .from("sessions")
-          .select("id, meetup_id, session_date, status")
+          .select("id, meetup_id, session_date, status, session_notes")
           .in("meetup_id", meetupIds)
           .in("session_date", dateStrs);
 
@@ -4653,7 +4673,8 @@ async function loadMemberDashboard() {
       candidateMemberSessions.forEach(c => {
         const key = `${c.meetup.id}_${c.dateStr}`;
         const s = sessionMap.get(key);
-        if (s && (s.status === "cancelled" || s.status === "closed")) {
+        const isAutoCancel = s && s.status === "cancelled" && String(s.session_notes || "").includes("自動取消");
+        if (s && s.status === "cancelled" && !isAutoCancel) {
           return;
         }
 
@@ -4670,6 +4691,8 @@ async function loadMemberDashboard() {
           id: existingParticipant?.id || `member-${c.omId}-${c.dateStr}`,
           session_id: s?.id || existingParticipant?.session?.id || existingParticipant?.session_id || null,
           status: status,
+          session_auto_cancelled: Boolean(isAutoCancel),
+          auto_cancel_reason: isAutoCancel ? (s?.session_notes || "") : "",
           is_member: true,
           people_count: 1,
           payment_method: "member_subscription",
@@ -4690,7 +4713,8 @@ async function loadMemberDashboard() {
       const regularMapped = regularSignups
         .filter(sp => {
           if (sp.status === "cancelled") return false;
-          if (sp.session?.status === "cancelled") return false;
+          const isAutoCancel = sp.session?.status === "cancelled" && String(sp.session?.session_notes || "").includes("自動取消");
+          if (sp.session?.status === "cancelled" && !isAutoCancel) return false;
           const m = sp.session?.meetup;
           const dStr = sp.session?.session_date || "";
           if (m && !m.is_one_off) {
@@ -4701,23 +4725,28 @@ async function loadMemberDashboard() {
           if (memberMeetupDateKeys.has(key)) return false;
           return true;
         })
-        .map(s => ({
-          id: s.id,
-          session_id: s.session?.id || s.session_id,
-          status: s.status,
-          is_member: memberMeetupIds.has(s.session?.meetup?.id),
-          people_count: s.people_count || 1,
-          payment_method: s.payment_method || "",
-          is_paid: !!s.is_paid,
-          arrived_count: s.arrived_count || (s.status === "attended" ? (s.people_count || 1) : 0),
-          note: s.note || "",
-          is_tentative: s.status === "tentative" || !!s.is_tentative,
-          created_at: s.created_at,
-          reservation_date: s.session?.session_date || "",
-          meetup_id: s.session?.meetup?.id,
-          meetup: s.session?.meetup || { id: "", name: "球敘活動" },
-          meetups: s.session?.meetup || { id: "", name: "球敘活動" }
-        }));
+        .map(s => {
+          const isAutoCancel = s.session?.status === "cancelled" && String(s.session?.session_notes || "").includes("自動取消");
+          return {
+            id: s.id,
+            session_id: s.session?.id || s.session_id,
+            status: s.status,
+            session_auto_cancelled: Boolean(isAutoCancel),
+            auto_cancel_reason: isAutoCancel ? (s.session?.session_notes || "") : "",
+            is_member: memberMeetupIds.has(s.session?.meetup?.id),
+            people_count: s.people_count || 1,
+            payment_method: s.payment_method || "",
+            is_paid: !!s.is_paid,
+            arrived_count: s.arrived_count || (s.status === "attended" ? (s.people_count || 1) : 0),
+            note: s.note || "",
+            is_tentative: s.status === "tentative" || !!s.is_tentative,
+            created_at: s.created_at,
+            reservation_date: s.session?.session_date || "",
+            meetup_id: s.session?.meetup?.id,
+            meetup: s.session?.meetup || { id: "", name: "球敘活動" },
+            meetups: s.session?.meetup || { id: "", name: "球敘活動" }
+          };
+        });
 
       return [...memberUpcoming, ...regularMapped];
     } catch (err) {
