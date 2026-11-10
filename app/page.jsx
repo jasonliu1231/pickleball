@@ -111,6 +111,7 @@ export default function Page() {
                 <span id="modalAddressBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "700" }}>
                   📍 <span id="modalAddressText">--</span>
                 </span>
+                <span id="modalAutoCancelBadge" style={{ display: "none", alignItems: "center", gap: "4px", background: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", padding: "4px 10px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", lineHeight: "1.4" }}></span>
               </div>
               <div id="modalRosterContainer" style={{ marginTop: "8px" }}>
                 <button

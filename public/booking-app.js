@@ -1729,6 +1729,33 @@ function openSignup(meetup, initialPwd = null) {
   const left = Math.max(0, cap - realConfirmed);
   const full = (cap > 0 && left <= 0) || meetup.status === "full" || meetup.session_status === "full";
 
+  const modalAcBadge = $("modalAutoCancelBadge");
+  if (modalAcBadge) {
+    if (autoCancel) {
+      const formed = realConfirmed >= autoCancel.minPlayers;
+      modalAcBadge.style.display = "inline-flex";
+      if (formed) {
+        modalAcBadge.style.background = "#ecfdf5";
+        modalAcBadge.style.color = "#059669";
+        modalAcBadge.style.borderColor = "#a7f3d0";
+        modalAcBadge.textContent = `✅ ${autoCancel.deadlineTimeText} 截止｜滿 ${autoCancel.minPlayers} 人成團（目前已達標成團🎉）`;
+      } else if (realConfirmed > 0) {
+        modalAcBadge.style.background = "#fff7ed";
+        modalAcBadge.style.color = "#c2410c";
+        modalAcBadge.style.borderColor = "#fed7aa";
+        modalAcBadge.textContent = `⏳ ${autoCancel.deadlineTimeText} 截止｜滿 ${autoCancel.minPlayers} 人成團（目前 ${realConfirmed} 人，還差 ${autoCancel.minPlayers - realConfirmed} 人！）`;
+      } else {
+        modalAcBadge.style.background = "#fff7ed";
+        modalAcBadge.style.color = "#c2410c";
+        modalAcBadge.style.borderColor = "#fed7aa";
+        modalAcBadge.textContent = `⏳ ${autoCancel.deadlineTimeText} 截止｜滿 ${autoCancel.minPlayers} 人成團`;
+      }
+    } else {
+      modalAcBadge.style.display = "none";
+      modalAcBadge.textContent = "";
+    }
+  }
+
   const rosterBaseLabel = cap > 0
     ? `📋 目前 ${displayConfirmed}/${cap} 人${waitlistCount > 0 ? `（備取 ${waitlistCount}）` : full ? "（已額滿・可備取）" : `（剩 ${left} 名額）`}`
     : `📋 目前已報名 ${realConfirmed} 人`;
