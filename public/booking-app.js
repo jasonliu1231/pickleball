@@ -688,9 +688,16 @@ async function loadAvailableWeekdays(forceRefresh = false) {
     .eq("is_active", true);
 
   try {
+    const minSessDate = new Date();
+    minSessDate.setDate(minSessDate.getDate() - 45);
+    const minSessDateStr = toISODate(minSessDate);
+
     const [meetupsRes, allSessRes] = await Promise.all([
       query,
-      client.from("sessions").select("meetup_id, session_date, status, session_notes")
+      client
+        .from("sessions")
+        .select("meetup_id, session_date, status, session_notes")
+        .gte("session_date", minSessDateStr)
     ]);
     if (meetupsRes.error) throw meetupsRes.error;
 
@@ -2053,6 +2060,25 @@ function openEditPickupModal(m) {
   if ($("editPickupGroupUrl")) $("editPickupGroupUrl").value = m.group_url || "";
   if ($("editPickupDoorUrl")) $("editPickupDoorUrl").value = m.door_url || "";
   if ($("editPickupJoinPassword")) $("editPickupJoinPassword").value = m.join_password || "";
+
+  const editAcCheckbox = $("editPickupHasAutoCancel");
+  const editAcWrap = $("editPickupAutoCancelWrap");
+  const editAcCfg = parseAutoCancel(m, m.start_date || m.one_off_date || "");
+  if (editAcCheckbox && editAcWrap) {
+    editAcCheckbox.checked = Boolean(editAcCfg);
+    editAcWrap.style.display = editAcCfg ? "block" : "none";
+    if ($("editPickupAutoCancelHours")) $("editPickupAutoCancelHours").value = editAcCfg ? String(editAcCfg.hours) : "";
+    if ($("editPickupAutoCancelMin")) $("editPickupAutoCancelMin").value = editAcCfg ? String(editAcCfg.minPlayers) : "";
+    editAcCheckbox.onchange = () => {
+      editAcWrap.style.display = editAcCheckbox.checked ? "block" : "none";
+      if (editAcCheckbox.checked) {
+        if ($("editPickupAutoCancelHours") && !$("editPickupAutoCancelHours").value) $("editPickupAutoCancelHours").value = "2";
+        if ($("editPickupAutoCancelMin") && !$("editPickupAutoCancelMin").value) $("editPickupAutoCancelMin").value = "4";
+        $("editPickupAutoCancelHours")?.focus();
+      }
+    };
+  }
+
   clearMessage($("editPickupMessage"));
   setModalVisible($("editPickupModal"), true);
 }
@@ -2433,6 +2459,24 @@ async function handleUpdatePickup(e) {
   const doorUrl = $("editPickupDoorUrl")?.value?.trim() || "";
   const joinPassword = $("editPickupJoinPassword")?.value?.trim() || null;
 
+  const hasAutoCancel = Boolean($("editPickupHasAutoCancel")?.checked);
+  const autoCancelHoursRaw = $("editPickupAutoCancelHours")?.value?.trim() || "";
+  const autoCancelMinRaw = $("editPickupAutoCancelMin")?.value?.trim() || "";
+  let autoCancelHours = "";
+  let autoCancelMin = "";
+  if (hasAutoCancel) {
+    const acH = Number(autoCancelHoursRaw);
+    const acM = Math.floor(Number(autoCancelMinRaw));
+    if (!(acH > 0 && acM >= 2)) {
+      return setMessage($("editPickupMessage"), "請填寫成團倒數的「開打前幾小時（大於 0）」與「滿幾人成團（至少 2 人）」，或取消勾選。", false);
+    }
+    if (acM > capacity) {
+      return setMessage($("editPickupMessage"), `成團最低人數（${acM} 人）不能超過人數上限（${capacity} 人）。`, false);
+    }
+    autoCancelHours = acH;
+    autoCancelMin = acM;
+  }
+
   if (!meetupId || !name || !city || !startTime || !endTime || !address || !capacity) {
     return setMessage($("editPickupMessage"), "請填寫所有必填欄位", false);
   }
@@ -2464,7 +2508,9 @@ async function handleUpdatePickup(e) {
         line_id: lineId,
         group_url: groupUrl,
         door_url: doorUrl,
-        payment_methods: paymentMethods
+        payment_methods: paymentMethods,
+        auto_cancel_hours: autoCancelHours,
+        auto_cancel_min: autoCancelMin
       })
     });
 
@@ -2548,6 +2594,23 @@ function openCreatePickupModal(presetDate, duplicateFrom = null) {
     addrInput.parentNode.insertBefore(presetContainer, addrInput);
   }
 
+  const autoCancelCheckbox = $("pickupHasAutoCancel");
+  const autoCancelWrap = $("pickupAutoCancelWrap");
+  if (autoCancelCheckbox && autoCancelWrap) {
+    autoCancelCheckbox.checked = false;
+    autoCancelWrap.style.display = "none";
+    if ($("pickupAutoCancelHours")) $("pickupAutoCancelHours").value = "";
+    if ($("pickupAutoCancelMin")) $("pickupAutoCancelMin").value = "";
+    autoCancelCheckbox.onchange = () => {
+      autoCancelWrap.style.display = autoCancelCheckbox.checked ? "block" : "none";
+      if (autoCancelCheckbox.checked) {
+        if ($("pickupAutoCancelHours") && !$("pickupAutoCancelHours").value) $("pickupAutoCancelHours").value = "2";
+        if ($("pickupAutoCancelMin") && !$("pickupAutoCancelMin").value) $("pickupAutoCancelMin").value = "4";
+        $("pickupAutoCancelHours")?.focus();
+      }
+    };
+  }
+
   const privateCheckbox = $("pickupIsPrivate");
   const pwdWrap = $("pickupPasswordWrap");
   if (privateCheckbox && pwdWrap) {
@@ -2605,6 +2668,13 @@ function openCreatePickupModal(presetDate, duplicateFrom = null) {
       pwdWrap.style.display = hasPwd ? "block" : "none";
       if ($("pickupJoinPassword")) $("pickupJoinPassword").value = duplicateFrom.join_password || "";
     }
+    if (autoCancelCheckbox && autoCancelWrap) {
+      const dupAc = parseAutoCancel(duplicateFrom, "");
+      autoCancelCheckbox.checked = Boolean(dupAc);
+      autoCancelWrap.style.display = dupAc ? "block" : "none";
+      if ($("pickupAutoCancelHours")) $("pickupAutoCancelHours").value = dupAc ? String(dupAc.hours) : "";
+      if ($("pickupAutoCancelMin")) $("pickupAutoCancelMin").value = dupAc ? String(dupAc.minPlayers) : "";
+    }
   } else {
     document.querySelectorAll('input[name="pickupPaymentMethod"]').forEach((cb) => {
       cb.checked = cb.value === "現金";
@@ -2656,6 +2726,22 @@ async function handleCreatePickup(e) {
     return setMessage($("pickupFormMessage"), "請為私人團設定通關密碼，或取消勾選私人團。", false);
   }
 
+  const hasAutoCancel = Boolean($("pickupHasAutoCancel")?.checked);
+  let autoCancelHours = null;
+  let autoCancelMin = null;
+  if (hasAutoCancel) {
+    const acH = Number($("pickupAutoCancelHours")?.value?.trim() || "");
+    const acM = Math.floor(Number($("pickupAutoCancelMin")?.value?.trim() || ""));
+    if (!(acH > 0 && acM >= 2)) {
+      return setMessage($("pickupFormMessage"), "請填寫成團倒數的「開打前幾小時（大於 0）」與「滿幾人成團（至少 2 人）」，或取消勾選。", false);
+    }
+    if (acM > capacity) {
+      return setMessage($("pickupFormMessage"), `成團最低人數（${acM} 人）不能超過人數上限（${capacity} 人）。`, false);
+    }
+    autoCancelHours = acH;
+    autoCancelMin = acM;
+  }
+
   if (!name || !date || !city || !startTime || !endTime || !address || !capacity) {
     return setMessage($("pickupFormMessage"), "請填寫所有必填欄位", false);
   }
@@ -2687,7 +2773,9 @@ async function handleCreatePickup(e) {
         line_id: lineId,
         group_url: groupUrl,
         door_url: doorUrl,
-        payment_methods: paymentMethods
+        payment_methods: paymentMethods,
+        auto_cancel_hours: autoCancelHours,
+        auto_cancel_min: autoCancelMin
       })
     });
 
@@ -4770,6 +4858,7 @@ async function loadMemberDashboard() {
             id,
             session_date,
             status,
+            session_notes,
             session_participants (
               id,
               people_count,
@@ -4804,7 +4893,9 @@ async function loadMemberDashboard() {
           start_date: m.one_off_date || session?.session_date || "",
           fee: feeVal,
           guest_fee: m.guest_fee,
-          session_id: session?.id
+          session_id: session?.id,
+          session_status: session?.status || "open",
+          session_notes: session?.session_notes || ""
         };
       });
 
@@ -5094,14 +5185,30 @@ async function loadMemberDashboard() {
             rosterText += waitlistSignups.map((s, idx) => `備${idx + 1}. ${s.nickname || "球友"}${s.people_count > 1 ? ` (+${s.people_count - 1}人)` : ""}`).join("\n");
           }
 
+          const acCfg = parseAutoCancel(m, m.start_date);
+          const isAutoCancelledSession = ["closed", "cancelled"].includes(m.session_status) && String(m.session_notes || "").includes("自動取消");
+          const isDeadlinePassedUnformed = Boolean(
+            acCfg?.deadlineDate &&
+            new Date() >= acCfg.deadlineDate &&
+            confirmedCount < acCfg.minPlayers
+          );
+
           let statusBadge = "";
           if (!m.is_active) {
             statusBadge = `<span class="status-badge" style="background:#fee2e2;color:#b91c1c;white-space:nowrap;">已取消</span>`;
+          } else if (isAutoCancelledSession || isDeadlinePassedUnformed) {
+            statusBadge = `<span class="status-badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;white-space:nowrap;">❌ 未成團 (${confirmedCount}/${acCfg ? acCfg.minPlayers : m.capacity}人)</span>`;
           } else if (isEnded) {
             statusBadge = `<span class="status-badge" style="background:#f1f5f9;color:#64748b;white-space:nowrap;">已結束</span>`;
+          } else if (m.session_status === "closed") {
+            statusBadge = `<span class="status-badge" style="background:#f1f5f9;color:#475569;white-space:nowrap;">截止報名 (${confirmedCount}/${m.capacity}人)</span>`;
           } else {
             statusBadge = `<span class="status-badge confirmed" style="white-space:nowrap;">開團中 (${confirmedCount}/${m.capacity}人)</span>`;
           }
+
+          const acTagHtml = acCfg
+            ? `<span class="badge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; background:${confirmedCount >= acCfg.minPlayers ? "#ecfdf5" : "#fffbeb"}; color:${confirmedCount >= acCfg.minPlayers ? "#059669" : "#b45309"}; border:1px solid ${confirmedCount >= acCfg.minPlayers ? "#a7f3d0" : "#fde68a"};">${confirmedCount >= acCfg.minPlayers ? "✅" : "⏳"} ${escapeHtml(acCfg.deadlineTimeText)} 截止｜滿 ${acCfg.minPlayers} 人成團</span>`
+            : "";
 
           const shareUrl = makeShortShareUrl(m.short_id || m.id, m.start_date);
           const mDurationText = calculateDurationText(m.start_time, m.end_time);
@@ -5113,8 +5220,9 @@ async function loadMemberDashboard() {
                 <strong style="font-size: 16px; font-weight: 800; color: var(--text); line-height: 1.4; display: block; word-break: break-word;">${escapeHtml(m.name)}${mDurationBadgeHtml}</strong>
               </div>
               <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 8px; flex-wrap: wrap;">
-                <div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
                   ${m.join_password ? `<span class="badge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人團 (密碼: ${escapeHtml(m.join_password)})</span>` : `<span class="badge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; font-weight: 700; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">🌐 公開團</span>`}
+                  ${acTagHtml}
                 </div>
                 <div>
                   ${statusBadge}

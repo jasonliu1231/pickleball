@@ -21,7 +21,10 @@ export async function POST(request) {
       line_id,
       group_url,
       door_url,
-      payment_methods
+      payment_methods,
+      auto_cancel_hours,
+      auto_cancel_min,
+      gear
     } = body;
 
     if (!creator_user_id) {
@@ -70,6 +73,24 @@ export async function POST(request) {
       ? payment_methods.map((m) => String(m).trim()).filter(Boolean)
       : ["現金"];
 
+    const parsedCap = Number(capacity) || 4;
+    let resolvedGear = null;
+    const hasAcHours = auto_cancel_hours !== undefined && auto_cancel_hours !== null && String(auto_cancel_hours).trim() !== "";
+    const hasAcMin = auto_cancel_min !== undefined && auto_cancel_min !== null && String(auto_cancel_min).trim() !== "";
+    if (hasAcHours || hasAcMin) {
+      const acH = Number(auto_cancel_hours);
+      const acM = Math.floor(Number(auto_cancel_min));
+      if (!(acH > 0 && acM >= 2)) {
+        return Response.json({ ok: false, error: "成團倒數請同時填寫「開打前幾小時（大於 0）」與「滿幾人成團（至少 2 人）」。" }, { status: 400 });
+      }
+      if (acM > parsedCap) {
+        return Response.json({ ok: false, error: `成團最低人數（${acM} 人）不能超過活動人數上限（${parsedCap} 人）。` }, { status: 400 });
+      }
+      resolvedGear = `AUTO_CANCEL:${acH}:${acM}`;
+    } else if (gear && String(gear).trim()) {
+      resolvedGear = String(gear).trim();
+    }
+
     // 2. 建立自揪活動 (meetups)
     const meetupInsertPayload = {
       creator_user_id: user.id,
@@ -80,10 +101,11 @@ export async function POST(request) {
       street_address: (street_address || "").trim() || null,
       start_time: start_time,
       end_time: end_time,
-      capacity: Number(capacity) || 4,
+      capacity: parsedCap,
       guest_fee: parsedFee,
       member_fee: parsedFee,
       notes: (notes || "").trim() || null,
+      gear: resolvedGear,
       is_active: true,
       is_one_off: true,
       one_off_date: date,

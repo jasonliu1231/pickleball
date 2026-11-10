@@ -22,7 +22,9 @@ export async function POST(request) {
       line_id,
       group_url,
       door_url,
-      payment_methods
+      payment_methods,
+      auto_cancel_hours,
+      auto_cancel_min
     } = body;
 
     if (!creator_user_id || !meetup_id) {
@@ -32,7 +34,7 @@ export async function POST(request) {
     // 驗證是否為該活動發起人
     const { data: meetup, error: fetchErr } = await client
       .from("meetups")
-      .select("id, creator_user_id, name, capacity, one_off_date, start_date")
+      .select("id, creator_user_id, name, capacity, one_off_date, start_date, gear")
       .eq("id", meetup_id)
       .eq("creator_user_id", creator_user_id)
       .single();
@@ -46,7 +48,7 @@ export async function POST(request) {
     // 檢查人數上限不能小於目前已確認的人數（直接查詢 session_participants 最準確）
     const { data: session } = await client
       .from("sessions")
-      .select("id, session_date, confirmed_count")
+      .select("id, session_date, status, session_notes, confirmed_count")
       .eq("meetup_id", meetup_id)
       .maybeSingle();
 
@@ -104,6 +106,42 @@ export async function POST(request) {
       ? payment_methods.map((m) => String(m).trim()).filter(Boolean)
       : ["現金"];
 
+    // 處理成團倒數 / 人數不足自動取消 (AUTO_CANCEL:<hours>:<minPlayers>)
+    let nextAutoCancelHours = 0;
+    let shouldUpdateGear = auto_cancel_hours !== undefined || auto_cancel_min !== undefined;
+    let nextGearValue = meetup.gear || null;
+    if (shouldUpdateGear) {
+      const otherFlags = String(meetup.gear || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s && !s.startsWith("AUTO_CANCEL:"));
+
+      const hasAcHours = auto_cancel_hours !== undefined && auto_cancel_hours !== null && String(auto_cancel_hours).trim() !== "";
+      const hasAcMin = auto_cancel_min !== undefined && auto_cancel_min !== null && String(auto_cancel_min).trim() !== "";
+      if (hasAcHours || hasAcMin) {
+        const acH = Number(auto_cancel_hours);
+        const acM = Math.floor(Number(auto_cancel_min));
+        if (!(acH > 0 && acM >= 2)) {
+          return Response.json(
+            { ok: false, error: "成團倒數請同時填寫「開打前幾小時（大於 0）」與「滿幾人成團（至少 2 人）」。" },
+            { status: 400 }
+          );
+        }
+        if (acM > newCapacity) {
+          return Response.json(
+            { ok: false, error: `成團最低人數（${acM} 人）不能超過活動人數上限（${newCapacity} 人）。` },
+            { status: 400 }
+          );
+        }
+        nextAutoCancelHours = acH;
+        otherFlags.push(`AUTO_CANCEL:${acH}:${acM}`);
+      }
+      nextGearValue = otherFlags.length > 0 ? otherFlags.join(",") : null;
+    } else {
+      const existingMatch = String(meetup.gear || "").match(/AUTO_CANCEL:(\d+(?:\.\d+)?):(\d+)/);
+      if (existingMatch) nextAutoCancelHours = Number(existingMatch[1]);
+    }
+
     // 更新 meetup
     const updatePayload = {
       name: name.trim(),
@@ -122,6 +160,9 @@ export async function POST(request) {
       door_url: (door_url || "").trim() || null,
       payment_methods: normalizedPaymentMethods
     };
+    if (shouldUpdateGear) {
+      updatePayload.gear = nextGearValue;
+    }
 
     let { error: updateErr } = await client
       .from("meetups")
@@ -207,13 +248,34 @@ export async function POST(request) {
         .filter((p) => p.status === "waitlist")
         .reduce((sum, p) => sum + (Number(p.people_count) || 1), 0);
 
+      const sessionUpdatePayload = {
+        confirmed_count: finalConfirmed,
+        waitlist_count: finalWaitlist,
+        updated_at: new Date().toISOString()
+      };
+
+      // 若原先因成團倒數截止/未成團而處於 closed，發起人調整開打時間或成團倒數後新截止時間尚在未來，自動重新開放報名
+      if (session.status === "closed" && sessionDate && /^\d{4}-\d{2}-\d{2}$/.test(sessionDate) && start_time) {
+        const cleanStart = String(start_time).slice(0, 5);
+        const startMs = new Date(`${sessionDate}T${cleanStart}:00+08:00`).getTime();
+        if (!isNaN(startMs)) {
+          const newDeadlineMs = nextAutoCancelHours > 0 ? startMs - nextAutoCancelHours * 3600000 : startMs;
+          if (Date.now() < newDeadlineMs) {
+            sessionUpdatePayload.status = "open";
+            sessionUpdatePayload.reminder_2h_sent_at = null;
+            if (String(session.session_notes || "").includes("自動取消")) {
+              const cleanedNotes = String(session.session_notes || "")
+                .replace(/開打前.*?系統自動取消/g, "")
+                .trim();
+              sessionUpdatePayload.session_notes = cleanedNotes || null;
+            }
+          }
+        }
+      }
+
       await client
         .from("sessions")
-        .update({
-          confirmed_count: finalConfirmed,
-          waitlist_count: finalWaitlist,
-          updated_at: new Date().toISOString()
-        })
+        .update(sessionUpdatePayload)
         .eq("id", session.id);
     }
 

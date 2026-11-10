@@ -365,6 +365,25 @@ export default function MemberPage() {
                 <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
                   💡 以上資訊皆為非必填，填寫後卡片會自動產生對應的專屬按鈕供球友使用。
                 </p>
+                <div style={{ background: "#fffbeb", border: "1.5px dashed #fcd34d", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: 0, userSelect: "none" }}>
+                    <input type="checkbox" id="editPickupHasAutoCancel" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
+                    <span style={{ fontSize: "14px", fontWeight: "800", color: "#92400e" }}>⏳ 設定成團人數與截止倒數</span>
+                  </label>
+                  <div id="editPickupAutoCancelWrap" style={{ display: "none", marginTop: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <label style={{ margin: 0, fontSize: "13px" }}>開打前幾小時截止
+                        <input id="editPickupAutoCancelHours" type="number" step="0.5" min="0.5" max="72" placeholder="例如：2 或 0.5" style={{ marginTop: "4px" }} />
+                      </label>
+                      <label style={{ margin: 0, fontSize: "13px" }}>滿幾人成團（含本人）
+                        <input id="editPickupAutoCancelMin" type="number" step="1" min="2" max="32" placeholder="例如：4" style={{ marginTop: "4px" }} />
+                      </label>
+                    </div>
+                    <p className="muted" style={{ fontSize: "12px", margin: "6px 0 0 0", color: "#92400e", lineHeight: "18px" }}>
+                      💡 截止時間一到自動鎖定報名與線上取消；若未滿人數將自動改為「未成團」。若先前已截止，調整開始時間或截止時數至未來時間並儲存，系統會自動重新開放報名！
+                    </p>
+                  </div>
+                </div>
                 <div style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
                   <label style={{ margin: 0, fontWeight: "800", color: "#0f172a" }}>
                     🔒 私人團報名密碼設定
@@ -477,6 +496,25 @@ export default function MemberPage() {
                 <p className="muted" style={{ fontSize: "12px", margin: "-6px 0 10px 2px", color: "#64748b", lineHeight: "18px" }}>
                   💡 以上資訊皆為非必填，填寫後卡片會自動產生對應的專屬按鈕供球友使用。
                 </p>
+                <div style={{ background: "#fffbeb", border: "1.5px dashed #fcd34d", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: 0, userSelect: "none" }}>
+                    <input type="checkbox" id="pickupHasAutoCancel" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
+                    <span style={{ fontSize: "14px", fontWeight: "800", color: "#92400e" }}>⏳ 設定成團人數與截止倒數（選填）</span>
+                  </label>
+                  <div id="pickupAutoCancelWrap" style={{ display: "none", marginTop: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <label style={{ margin: 0, fontSize: "13px" }}>開打前幾小時截止
+                        <input id="pickupAutoCancelHours" type="number" step="0.5" min="0.5" max="72" placeholder="例如：2 或 0.5" style={{ marginTop: "4px" }} />
+                      </label>
+                      <label style={{ margin: 0, fontSize: "13px" }}>滿幾人成團（含本人）
+                        <input id="pickupAutoCancelMin" type="number" step="1" min="2" max="32" placeholder="例如：4" style={{ marginTop: "4px" }} />
+                      </label>
+                    </div>
+                    <p className="muted" style={{ fontSize: "12px", margin: "6px 0 0 0", color: "#92400e", lineHeight: "18px" }}>
+                      💡 截止時間一到自動鎖定報名與線上取消；若正取人數未達標，系統將改為「未成團（截止報名）」並推播通知球友。
+                    </p>
+                  </div>
+                </div>
                 <div style={{ background: "#f8fafc", border: "1.5px dashed #cbd5e1", borderRadius: "12px", padding: "14px", marginTop: "8px" }}>
                   <label style={{ display: "flex", alignItems: "center", gap: "8px", flexDirection: "row", cursor: "pointer", margin: 0, userSelect: "none" }}>
                     <input type="checkbox" id="pickupIsPrivate" style={{ width: "18px", height: "18px", margin: 0, cursor: "pointer" }} />
