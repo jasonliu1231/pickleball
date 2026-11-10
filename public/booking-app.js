@@ -985,6 +985,10 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         const hasGuestFeeOverride = s.guest_fee_override !== null && s.guest_fee_override !== undefined && String(s.guest_fee_override).trim() !== "";
         const effectiveGuestFee = hasGuestFeeOverride ? String(s.guest_fee_override).trim() : m.guest_fee;
 
+        const hasForceFull = String(s.session_notes || "").includes("[FORCE_FULL]");
+        const cleanedSessionNotes = String(s.session_notes || "").replace(/\[FORCE_FULL\]\n?/g, "").trim();
+        const effectiveSessionStatus = s.status === "full" || (s.status === "open" && hasForceFull) ? "full" : (s.status || "open");
+
         rows.push({
           ...m,
           guest_fee: effectiveGuestFee,
@@ -994,9 +998,9 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
           session_date: s.session_date,
           capacity_override: s.capacity_override,
           capacity: cap,
-          session_notes: s.session_notes && String(s.session_notes).trim() ? String(s.session_notes).trim() : null,
+          session_notes: cleanedSessionNotes || null,
           notes: m.notes && String(m.notes).trim() ? String(m.notes).trim() : null,
-          status: s.status || "open",
+          status: effectiveSessionStatus,
           match_schedule: s.match_schedule || null,
           confirmed_count: realConfirmed,
           display_confirmed_count: cap > 0 ? Math.min(realConfirmed, cap) : realConfirmed,
@@ -2890,7 +2894,7 @@ async function handleSignup(e) {
     let session = null;
     const { data: existingSession } = await client
       .from("sessions")
-      .select("id, capacity_override, confirmed_count, waitlist_count, status")
+      .select("id, capacity_override, confirmed_count, waitlist_count, status, session_notes")
       .eq("meetup_id", currentMeetup.id)
       .eq("session_date", selectedDate)
       .maybeSingle();
@@ -3063,7 +3067,7 @@ async function handleSignup(e) {
     const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
     const confirmed = Number(currentMeetup?.confirmed_count ?? session.confirmed_count ?? 0);
     const requiresApproval = isApprovalRequired(currentMeetup);
-    const isForcedFull = session.status === "full" || currentMeetup.status === "full" || currentMeetup.session_status === "full";
+    const isForcedFull = session.status === "full" || String(session.session_notes || "").includes("[FORCE_FULL]") || currentMeetup.status === "full" || currentMeetup.session_status === "full";
     const targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + peopleCount > capacity)) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
@@ -3171,7 +3175,7 @@ async function handleQuickSignup(meetup, btn) {
     let session = null;
     const { data: existingSession } = await client
       .from("sessions")
-      .select("id, capacity_override, confirmed_count, waitlist_count, status")
+      .select("id, capacity_override, confirmed_count, waitlist_count, status, session_notes")
       .eq("meetup_id", meetup.id)
       .eq("session_date", selectedDate)
       .maybeSingle();
@@ -3232,7 +3236,7 @@ async function handleQuickSignup(meetup, btn) {
     const capacity = session.capacity_override ?? meetup.capacity ?? 0;
     const confirmed = Number(meetup?.confirmed_count ?? session.confirmed_count ?? 0);
     const requiresApproval = isApprovalRequired(meetup);
-    const isForcedFull = session.status === "full" || meetup.status === "full" || meetup.session_status === "full";
+    const isForcedFull = session.status === "full" || String(session.session_notes || "").includes("[FORCE_FULL]") || meetup.status === "full" || meetup.session_status === "full";
     const targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + 1 > capacity)) ? "waitlist" : "confirmed";
 
     // 4. Upsert session_participant
