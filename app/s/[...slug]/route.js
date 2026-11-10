@@ -96,7 +96,7 @@ export async function GET(request, { params }) {
       const isNumericId = /^\d+$/.test(String(meetupId));
       const query = client
         .from("meetups")
-        .select("id, short_id, name, city, address, street_address, start_time, end_time, capacity, guest_fee");
+        .select("id, short_id, name, city, address, street_address, start_time, end_time, capacity, guest_fee, gear");
       const { data: m } = isNumericId
         ? await query.eq("short_id", Number(meetupId)).maybeSingle()
         : await query.eq("id", String(meetupId)).maybeSingle();
@@ -146,8 +146,26 @@ export async function GET(request, { params }) {
           feeLabel = "場租平分";
         }
 
+        let acDesc = "";
+        const acMt = String(m.gear || "").match(/AUTO_CANCEL:(\d+(?:\.\d+)?):(\d+)/);
+        if (acMt && m.start_time && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          const acHours = Number(acMt[1]);
+          const acMin = Math.floor(Number(acMt[2]));
+          if (acHours > 0 && acMin > 0) {
+            const [yr, mo, dy] = date.split("-").map(Number);
+            const [sh, sm] = String(m.start_time).slice(0, 5).split(":").map(Number);
+            const gStart = new Date(yr, (mo || 1) - 1, dy || 1, sh || 0, sm || 0, 0, 0);
+            const dl = new Date(gStart.getTime() - acHours * 3600 * 1000);
+            const dH = String(dl.getHours()).padStart(2, "0");
+            const dM = String(dl.getMinutes()).padStart(2, "0");
+            const sameDay = dl.getFullYear() === gStart.getFullYear() && dl.getMonth() === gStart.getMonth() && dl.getDate() === gStart.getDate();
+            const dlText = sameDay ? `${dH}:${dM}` : `${dl.getMonth() + 1}/${dl.getDate()} ${dH}:${dM}`;
+            acDesc = ` · ⏳ ${dlText} 截止（滿 ${acMin} 人成團）`;
+          }
+        }
+
         const ogTitle = `🏓 ${m.name || "匹克球活動"}｜📅 ${dateLabel}${timeLabel}`;
-        const ogDesc = `📍 ${locationLabel} · 👥 ${capLabel}｜💰 ${feeLabel}`;
+        const ogDesc = `📍 ${locationLabel} · 👥 ${capLabel}｜💰 ${feeLabel}${acDesc}`;
         const targetHref = redirectUrl.toString();
 
         const html = `<!DOCTYPE html>

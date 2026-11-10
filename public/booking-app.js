@@ -61,8 +61,48 @@ const client = new Proxy({}, {
 let countdownInterval = null;
 let exclusions = [];
 
+function parseAutoCancel(m, dateStr) {
+  if (!m) return null;
+  const mt = String(m.gear || "").match(/AUTO_CANCEL:(\d+(?:\.\d+)?):(\d+)/);
+  const hours = mt ? Number(mt[1]) : Number(m.auto_cancel_hours || 0);
+  const minPlayers = mt ? Math.floor(Number(mt[2])) : Math.floor(Number(m.auto_cancel_min || 0));
+  if (!(hours > 0 && minPlayers > 0)) return null;
+
+  let deadlineDate = null;
+  let deadlineTimeText = `開打前 ${hours} 小時`;
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr) && m.start_time) {
+    const [yr, mo, dy] = dateStr.split("-").map(Number);
+    const [h, min] = String(m.start_time).slice(0, 5).split(":").map(Number);
+    const gameStart = new Date(yr, (mo || 1) - 1, dy || 1, h || 0, min || 0, 0, 0);
+    deadlineDate = new Date(gameStart.getTime() - hours * 60 * 60 * 1000);
+    const dH = String(deadlineDate.getHours()).padStart(2, "0");
+    const dM = String(deadlineDate.getMinutes()).padStart(2, "0");
+    const sameDay =
+      deadlineDate.getFullYear() === gameStart.getFullYear() &&
+      deadlineDate.getMonth() === gameStart.getMonth() &&
+      deadlineDate.getDate() === gameStart.getDate();
+    deadlineTimeText = sameDay
+      ? `${dH}:${dM}`
+      : `${deadlineDate.getMonth() + 1}/${deadlineDate.getDate()} ${dH}:${dM}`;
+  }
+
+  return { hours, minPlayers, deadlineDate, deadlineTimeText };
+}
+
+function formatCountdownRemaining(ms) {
+  if (ms <= 0) return "0秒";
+  const totalSec = Math.ceil(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (d > 0) return `${d}天 ${h}小時${m}分`;
+  if (h > 0) return `${h}小時 ${String(m).padStart(2, "0")}分${String(s).padStart(2, "0")}秒`;
+  return `${m}分 ${String(s).padStart(2, "0")}秒`;
+}
+
 function getBookingWindow(m, dateStr) {
-  if (!m || !dateStr) return { openDateTime: null, closeDateTime: null };
+  if (!m || !dateStr) return { openDateTime: null, closeDateTime: null, autoCancel: null };
   const [yr, mo, dy] = dateStr.split("-").map(Number);
   const [h, min] = (m.start_time || "00:00").split(":");
   const gameStart = new Date(yr, mo - 1, dy, Number(h), Number(min), 0, 0);
@@ -78,8 +118,15 @@ function getBookingWindow(m, dateStr) {
   } else {
     closeDateTime = gameStart;
   }
+
+  const autoCancel = parseAutoCancel(m, dateStr);
+  if (autoCancel?.deadlineDate) {
+    closeDateTime = closeDateTime
+      ? new Date(Math.min(closeDateTime.getTime(), autoCancel.deadlineDate.getTime()))
+      : autoCancel.deadlineDate;
+  }
   
-  return { openDateTime, closeDateTime };
+  return { openDateTime, closeDateTime, autoCancel };
 }
 
 function formatShortDateTime(dt) {
@@ -126,12 +173,78 @@ function startCountdownTicker() {
           btn.style.boxShadow = "";
         }
         
-        const badge = card.querySelector(".badge");
+        const badge = card.querySelector(".meetup-top > .badge");
         if (badge && badge.textContent.includes("尚未開放")) {
           const cap = Number(card.dataset.capacity || 0);
           const left = Number(card.dataset.slotsLeft || 0);
           badge.textContent = isFull ? "可備取" : cap > 0 ? `剩 ${left}` : "可報名";
           badge.className = `badge ${isFull ? "full" : ""}`;
+        }
+      }
+    });
+
+    document.querySelectorAll(".meetup-card[data-ac-deadline]").forEach((card) => {
+      const deadlineMs = Number(card.dataset.acDeadline);
+      const minPlayers = Number(card.dataset.acMin || 0);
+      const confirmed = Number(card.dataset.confirmedCount || 0);
+      const deadlineLabel = card.dataset.acDeadlineLabel || "";
+      const bannerEl = card.querySelector(".auto-cancel-banner");
+      const tagEl = card.querySelector(".auto-cancel-tag");
+      const statusBadgeEl = card.querySelector(".meetup-top > .badge");
+      const signupBtn = card.querySelector(".signup-btn");
+      const quickBtn = card.querySelector(".quick-signup-btn");
+
+      const delta = deadlineMs - now;
+      if (delta > 0) {
+        activeCountdowns++;
+        const remStr = formatCountdownRemaining(delta);
+        if (bannerEl) {
+          if (confirmed >= minPlayers) {
+            bannerEl.innerHTML = `🎉 <strong>已達 ${minPlayers} 人成團門檻</strong>（目前 ${confirmed} 人，確定開打！）｜報名倒數 <strong>${remStr}</strong>（${escapeHtml(deadlineLabel)} 截止）`;
+          } else {
+            const lack = Math.max(0, minPlayers - confirmed);
+            bannerEl.innerHTML = `⏳ <strong>成團倒數 ${remStr}</strong>（${escapeHtml(deadlineLabel)} 截止）｜目標滿 <strong>${minPlayers} 人</strong>成團，目前 ${confirmed}/${minPlayers} 人（還差 ${lack} 人！）`;
+          }
+        }
+      } else {
+        card.removeAttribute("data-ac-deadline");
+        const isFormed = confirmed >= minPlayers;
+        if (signupBtn) {
+          signupBtn.disabled = true;
+          signupBtn.textContent = isFormed ? "已截止（已成團）" : "未成團（已截止）";
+          signupBtn.style.background = "";
+          signupBtn.style.border = "";
+          signupBtn.style.color = "";
+          signupBtn.style.boxShadow = "";
+        }
+        if (quickBtn) {
+          quickBtn.disabled = true;
+        }
+        if (statusBadgeEl) {
+          statusBadgeEl.textContent = isFormed ? "✅ 已成團" : "❌ 未成團";
+          statusBadgeEl.className = "badge";
+          statusBadgeEl.style.background = isFormed ? "#ecfdf5" : "#fef2f2";
+          statusBadgeEl.style.color = isFormed ? "#059669" : "#dc2626";
+          statusBadgeEl.style.border = isFormed ? "1px solid #a7f3d0" : "1px solid #fecaca";
+        }
+        if (tagEl) {
+          tagEl.textContent = isFormed ? `✅ 已達 ${minPlayers} 人成團` : `❌ 未滿 ${minPlayers} 人流團`;
+          tagEl.style.background = isFormed ? "#ecfdf5" : "#fef2f2";
+          tagEl.style.color = isFormed ? "#059669" : "#dc2626";
+          tagEl.style.border = isFormed ? "1px solid #a7f3d0" : "1px solid #fecaca";
+        }
+        if (bannerEl) {
+          if (isFormed) {
+            bannerEl.style.background = "#ecfdf5";
+            bannerEl.style.border = "1px solid #a7f3d0";
+            bannerEl.style.color = "#065f46";
+            bannerEl.innerHTML = `🎉 <strong>報名已於 ${escapeHtml(deadlineLabel)} 截止</strong>｜已達 ${minPlayers} 人成團門檻（共 ${confirmed} 人），本場確定開打！`;
+          } else {
+            bannerEl.style.background = "#fef2f2";
+            bannerEl.style.border = "1px solid #fecaca";
+            bannerEl.style.color = "#991b1b";
+            bannerEl.innerHTML = `🛑 <strong>報名已於 ${escapeHtml(deadlineLabel)} 截止</strong>｜未達 ${minPlayers} 人成團門檻（共 ${confirmed} 人），本場未成團取消`;
+          }
         }
       }
     });
@@ -375,11 +488,28 @@ function formatMeetupShareText(m, dateStr, shareUrl, confirmedCount = null) {
     feeLabel = "場租平分";
   }
 
+  const autoCancel = parseAutoCancel(m, dateStr);
+  let autoCancelLine = "";
+  if (autoCancel) {
+    if (confirmedCount !== null && confirmedCount !== undefined && !Number.isNaN(cnt)) {
+      if (cnt >= autoCancel.minPlayers) {
+        autoCancelLine = `✅ ${autoCancel.deadlineTimeText} 截止｜滿 ${autoCancel.minPlayers} 人成團（目前已達標成團🎉）`;
+      } else if (cnt > 0) {
+        autoCancelLine = `⏳ ${autoCancel.deadlineTimeText} 截止｜滿 ${autoCancel.minPlayers} 人成團（目前 ${cnt} 人，還差 ${autoCancel.minPlayers - cnt} 人！）`;
+      } else {
+        autoCancelLine = `⏳ ${autoCancel.deadlineTimeText} 截止｜滿 ${autoCancel.minPlayers} 人成團`;
+      }
+    } else {
+      autoCancelLine = `⏳ ${autoCancel.deadlineTimeText} 截止｜滿 ${autoCancel.minPlayers} 人成團`;
+    }
+  }
+
   return [
     `🏓 ${title}`,
     `📅 ${dateLabel}${timeLabel}`,
     `📍 ${locationLabel}`,
     `👥 ${capLabel}｜💰 ${feeLabel}`,
+    ...(autoCancelLine ? [autoCancelLine] : []),
     ``,
     `🔗 詳細資訊＆報名`,
     shareUrl
@@ -811,7 +941,8 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
 
       // 1. 處理當天已實例化的場次
       sessionRows.forEach((s) => {
-        if (s.status === "cancelled") return;
+        const isAutoCancelled = s.status === "cancelled" && String(s.session_notes || "").includes("自動取消");
+        if (s.status === "cancelled" && !isAutoCancelled) return;
         const m = s.meetup || {};
         if (m.is_active === false) return;
         if (!m.is_one_off && m.start_date && dateStr < m.start_date) return;
@@ -1143,17 +1274,26 @@ function renderMeetups(meetups) {
     const left = Math.max(0, cap - realConfirmed);
     const full = (cap > 0 && left <= 0) || m.status === "full" || m.session_status === "full";
 
-    const { openDateTime, closeDateTime } = getBookingWindow(m, selectedDate);
+    const { openDateTime, closeDateTime, autoCancel } = getBookingWindow(m, selectedDate);
     const now = new Date();
+    const isAutoCancelled = (m.status === "cancelled" || m.session_status === "cancelled") && String(m.session_notes || "").includes("自動取消");
+    const isAcDeadlinePassed = Boolean(autoCancel && (isAutoCancelled || (autoCancel.deadlineDate && now >= autoCancel.deadlineDate)));
+    const isAcFormed = Boolean(autoCancel && !isAutoCancelled && realConfirmed >= autoCancel.minPlayers);
     
-    let isBookingNotOpen = openDateTime && now < openDateTime;
-    let isBookingClosed = (closeDateTime && now > closeDateTime) || m.status === 'closed' || m.status === 'ended' || m.session_status === 'closed' || m.session_status === 'ended';
+    let isBookingNotOpen = !isAutoCancelled && openDateTime && now < openDateTime;
+    let isBookingClosed = isAutoCancelled || isAcDeadlinePassed || (closeDateTime && now >= closeDateTime) || m.status === 'closed' || m.status === 'ended' || m.session_status === 'closed' || m.session_status === 'ended';
     
     let badgeText = "";
     let badgeClass = "";
+    let badgeInlineStyle = "";
     if (isBookingNotOpen) {
       badgeText = "尚未開放";
       badgeClass = "muted";
+    } else if (autoCancel && isAcDeadlinePassed) {
+      badgeText = isAcFormed ? "✅ 已成團" : "❌ 未成團";
+      badgeInlineStyle = isAcFormed
+        ? "background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;"
+        : "background:#fef2f2;color:#dc2626;border:1px solid #fecaca;";
     } else if (isBookingClosed) {
       badgeText = "已截止";
       badgeClass = "muted";
@@ -1168,11 +1308,37 @@ function renderMeetups(meetups) {
       const delta = openDateTime.getTime() - now.getTime();
       primaryBtnText = delta <= 60000 ? `即將開放 (${Math.ceil(delta / 1000)}秒)` : `${formatShortDateTime(openDateTime)} 開放`;
       btnDisabledAttr = "disabled";
+    } else if (autoCancel && isAcDeadlinePassed) {
+      primaryBtnText = isAcFormed ? "已截止（已成團）" : "未成團（已截止）";
+      btnDisabledAttr = "disabled";
     } else if (isBookingClosed) {
       primaryBtnText = "截止";
       btnDisabledAttr = "disabled";
     } else {
       primaryBtnText = full ? "候補" : "報名";
+    }
+
+    let autoCancelTagHtml = "";
+    let autoCancelBannerHtml = "";
+    const hasActiveAcCountdown = Boolean(autoCancel?.deadlineDate && !isAcDeadlinePassed && now < autoCancel.deadlineDate);
+    if (autoCancel) {
+      if (isAcDeadlinePassed) {
+        autoCancelTagHtml = isAcFormed
+          ? `<span class="badge auto-cancel-tag" style="margin-right: 6px; font-size: 11px; padding: 2px 7px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; font-weight:800;">✅ 已達 ${autoCancel.minPlayers} 人成團</span>`
+          : `<span class="badge auto-cancel-tag" style="margin-right: 6px; font-size: 11px; padding: 2px 7px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-weight:800;">❌ 未滿 ${autoCancel.minPlayers} 人流團</span>`;
+        autoCancelBannerHtml = isAcFormed
+          ? `<div class="auto-cancel-banner" style="margin-top:8px; padding:8px 11px; border-radius:10px; font-size:12.5px; line-height:1.45; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46;">🎉 <strong>報名已於 ${escapeHtml(autoCancel.deadlineTimeText)} 截止</strong>｜已達 ${autoCancel.minPlayers} 人成團門檻（共 ${realConfirmed} 人），本場確定開打！</div>`
+          : `<div class="auto-cancel-banner" style="margin-top:8px; padding:8px 11px; border-radius:10px; font-size:12.5px; line-height:1.45; background:#fef2f2; border:1px solid #fecaca; color:#991b1b;">🛑 <strong>報名已於 ${escapeHtml(autoCancel.deadlineTimeText)} 截止</strong>｜未達 ${autoCancel.minPlayers} 人成團門檻（共 ${realConfirmed} 人），本場未成團取消</div>`;
+      } else {
+        const remStr = autoCancel.deadlineDate ? formatCountdownRemaining(autoCancel.deadlineDate.getTime() - now.getTime()) : `開打前 ${autoCancel.hours} 小時`;
+        const lack = Math.max(0, autoCancel.minPlayers - realConfirmed);
+        autoCancelTagHtml = isAcFormed
+          ? `<span class="badge auto-cancel-tag" style="margin-right: 6px; font-size: 11px; padding: 2px 7px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; font-weight:800;">✅ 滿 ${autoCancel.minPlayers} 人成團（已達標）</span>`
+          : `<span class="badge auto-cancel-tag" style="margin-right: 6px; font-size: 11px; padding: 2px 7px; background:#fff7ed; color:#ea580c; border:1px solid #fed7aa; font-weight:800;">🔥 滿 ${autoCancel.minPlayers} 人成團</span>`;
+        autoCancelBannerHtml = isAcFormed
+          ? `<div class="auto-cancel-banner" style="margin-top:8px; padding:8px 11px; border-radius:10px; font-size:12.5px; line-height:1.45; background:#ecfdf5; border:1px solid #a7f3d0; color:#065f46;">🎉 <strong>已達 ${autoCancel.minPlayers} 人成團門檻</strong>（目前 ${realConfirmed} 人，確定開打！）｜報名倒數 <strong>${remStr}</strong>（${escapeHtml(autoCancel.deadlineTimeText)} 截止）</div>`
+          : `<div class="auto-cancel-banner" style="margin-top:8px; padding:8px 11px; border-radius:10px; font-size:12.5px; line-height:1.45; background:#fffbeb; border:1px solid #fde68a; color:#92400e;">⏳ <strong>成團倒數 ${remStr}</strong>（${escapeHtml(autoCancel.deadlineTimeText)} 截止）｜目標滿 <strong>${autoCancel.minPlayers} 人</strong>成團，目前 ${realConfirmed}/${autoCancel.minPlayers} 人（還差 ${lack} 人！）</div>`;
+      }
     }
 
     const showQuickSignup = currentSystemMember && currentSystemMember.phone && currentSystemMember.nickname && !isBookingNotOpen && !isBookingClosed && !btnDisabledAttr && !hasRatingThreshold(m);
@@ -1198,9 +1364,12 @@ function renderMeetups(meetups) {
     const groupBtnHtml = effectiveGroupUrl ? `<button class="group-link-btn" data-url="${escapeHtml(effectiveGroupUrl)}" style="display: inline-flex; align-items: center; gap: 3px; background: #059669; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 3px 9px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(5,150,105,0.2);" title="加入 LINE 活動群組">👥 LINE 群組</button>` : "";
     const doorBtnHtml = effectiveDoorUrl ? `<button class="door-link-btn" data-url="${escapeHtml(effectiveDoorUrl)}" style="display: inline-flex; align-items: center; gap: 3px; background: #2563eb; color: #fff; border: none; border-radius: 12px; font-size: 11px; font-weight: 800; padding: 3px 9px; cursor: pointer; vertical-align: middle; box-shadow: 0 1px 2px rgba(37,99,235,0.2);" title="開啟球場開門網址">🚪 球場開門</button>` : "";
     const hasContactBtns = Boolean(lineContactBtnHtml || groupBtnHtml || doorBtnHtml);
+    const showSessionNote = m.session_notes && !(autoCancel && String(m.session_notes).includes("系統自動取消"));
 
     return `<article class="meetup-card" id="meetup-card-${m.id}" data-meetup-id="${m.id}" 
       ${isBookingNotOpen ? `data-open-time="${openDateTime.getTime()}"` : ""}
+      ${hasActiveAcCountdown ? `data-ac-deadline="${autoCancel.deadlineDate.getTime()}" data-ac-min="${autoCancel.minPlayers}" data-ac-deadline-label="${escapeHtml(autoCancel.deadlineTimeText)}"` : ""}
+      data-confirmed-count="${realConfirmed}"
       data-is-full="${full}"
       data-capacity="${cap}"
       data-slots-left="${left}">
@@ -1210,6 +1379,7 @@ function renderMeetups(meetups) {
             ${(m.creator_user_id || m.creator_member_id || !m.organizer_id) ? `<span class="badge pickup-badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px;">球友自發</span>` : ""}
             ${(m.join_password || m.has_password || m.is_private) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 私人密碼團</span>` : ""}
             ${isApprovalRequired(m) ? `<span class="badge" style="margin-right: 6px; font-size: 11px; padding: 2px 6px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">🛡️ 團主審核制</span>` : ""}
+            ${autoCancelTagHtml}
             ${escapeHtml(m.name || "未命名活動")}
             ${durationBadgeHtml}
           </h3>
@@ -1221,7 +1391,7 @@ function renderMeetups(meetups) {
             ` : "📍 地點另行公告"}
           </p>
         </div>
-        <span class="badge ${badgeClass}">${badgeText}</span>
+        <span class="badge ${badgeClass}" ${badgeInlineStyle ? `style="${badgeInlineStyle}"` : ""}>${badgeText}</span>
       </div>
       <div class="info-grid">
         <div class="info" style="grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
@@ -1236,7 +1406,8 @@ function renderMeetups(meetups) {
         ${hasRatingThreshold(m) ? `<div class="info" style="color:#D97706; font-weight:bold;"><strong>戰力門檻</strong>🏆 ${formatRatingMin(m.rating_min)}</div>` : ""}
       </div>
       ${capBarHtml}
-      ${m.session_notes ? `<div class="session-note-banner" style="white-space: pre-line; line-height: 1.4;">📢 <strong>當日公告：</strong>${escapeHtml(String(m.session_notes).trim())}</div>` : ""}
+      ${autoCancelBannerHtml}
+      ${showSessionNote ? `<div class="session-note-banner" style="white-space: pre-line; line-height: 1.4;">📢 <strong>當日公告：</strong>${escapeHtml(String(m.session_notes).trim())}</div>` : ""}
       ${m.notes && String(m.notes).trim() ? (() => {
         const cleanNote = String(m.notes).trim();
         const isLongNote = cleanNote.length > 60 || cleanNote.split("\n").length > 2;
@@ -1374,12 +1545,21 @@ function renderMeetups(meetups) {
             card.style.borderColor = "";
           }, 3000);
         }
-        openSignup(target);
+        const { openDateTime: tOpen, closeDateTime: tClose } = getBookingWindow(target, selectedDate);
+        const curNow = new Date();
+        const isClosedTarget =
+          (tOpen && curNow < tOpen) ||
+          (tClose && curNow >= tClose) ||
+          ["closed", "ended", "cancelled"].includes(target.status) ||
+          ["closed", "ended", "cancelled"].includes(target.session_status);
+        if (!isClosedTarget) {
+          openSignup(target);
+        }
       }, 400);
     }
   }
 
-  if (document.querySelector(".meetup-card[data-open-time]")) {
+  if (document.querySelector(".meetup-card[data-open-time], .meetup-card[data-ac-deadline]")) {
     startCountdownTicker();
   }
 }
@@ -1452,6 +1632,31 @@ async function toggleRoster(meetup) {
 }
 
 function openSignup(meetup, initialPwd = null) {
+  const { openDateTime, closeDateTime, autoCancel } = getBookingWindow(meetup, selectedDate);
+  const nowCheck = new Date();
+  if (openDateTime && nowCheck < openDateTime) {
+    alert(`預約尚未開放，開放時間為：${formatShortDateTime(openDateTime)}`);
+    return;
+  }
+  if (
+    (closeDateTime && nowCheck >= closeDateTime) ||
+    ["closed", "ended", "cancelled"].includes(meetup.status) ||
+    ["closed", "ended", "cancelled"].includes(meetup.session_status)
+  ) {
+    if (autoCancel) {
+      const confirmed = Number(meetup.confirmed_count || 0);
+      const isAutoCancelled = (meetup.status === "cancelled" || meetup.session_status === "cancelled") && String(meetup.session_notes || "").includes("自動取消");
+      const formed = !isAutoCancelled && confirmed >= autoCancel.minPlayers;
+      alert(
+        formed
+          ? `此場次已於 ${autoCancel.deadlineTimeText} 截止報名（已達 ${autoCancel.minPlayers} 人成團開打）！`
+          : `此場次已於 ${autoCancel.deadlineTimeText} 截止報名（未滿 ${autoCancel.minPlayers} 人，本場未成團）！`
+      );
+    } else {
+      alert("此場次已截止報名！");
+    }
+    return;
+  }
   currentMeetup = meetup;
   clearMessage($("formMessage"));
   $("signupForm").reset();
@@ -2616,6 +2821,18 @@ async function handleQueryCancel() {
 async function handleSignup(e) {
   e.preventDefault();
   if (!currentMeetup) return;
+  const { openDateTime: sOpen, closeDateTime: sClose, autoCancel: sAc } = getBookingWindow(currentMeetup, selectedDate);
+  const nowSubmit = new Date();
+  if (sOpen && nowSubmit < sOpen) {
+    return setMessage($("formMessage"), `預約尚未開放（開放時間：${formatShortDateTime(sOpen)}）`, false);
+  }
+  if (sClose && nowSubmit >= sClose) {
+    return setMessage(
+      $("formMessage"),
+      sAc ? `本場次已於 ${sAc.deadlineTimeText} 截止報名，無法再送出預約！` : "本場次已截止線上報名！",
+      false
+    );
+  }
   const nickname = $("nickname").value.trim();
   const phone = cleanPhone($("phone").value);
   const note = $("note").value.trim();
@@ -2867,6 +3084,21 @@ async function handleQuickSignup(meetup, btn) {
 
   if (!currentSystemMember || !currentSystemMember.phone || !currentSystemMember.nickname) {
     openBindPhoneModal("使用「快速」預約前，請先完成手機號碼綁定！");
+    return;
+  }
+
+  const { openDateTime: qOpen, closeDateTime: qClose, autoCancel: qAc } = getBookingWindow(meetup, selectedDate);
+  const qNow = new Date();
+  if (qOpen && qNow < qOpen) {
+    alert(`預約尚未開放，開放時間為：${formatShortDateTime(qOpen)}`);
+    return;
+  }
+  if (
+    (qClose && qNow >= qClose) ||
+    ["closed", "ended", "cancelled"].includes(meetup.status) ||
+    ["closed", "ended", "cancelled"].includes(meetup.session_status)
+  ) {
+    alert(qAc ? `此場次已於 ${qAc.deadlineTimeText} 截止報名！` : "此場次已截止線上報名！");
     return;
   }
 
