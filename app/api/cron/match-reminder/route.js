@@ -125,7 +125,7 @@ async function runAutoCancelCheck(client, request, now, todayKey, tomorrowKey) {
             {
               meetup_id: m.id,
               session_date: dateKey,
-              status: "cancelled",
+              status: "closed",
               session_notes: reason,
               updated_at: new Date().toISOString(),
             },
@@ -134,14 +134,6 @@ async function runAutoCancelCheck(client, request, now, todayKey, tomorrowKey) {
         if (upErr) {
           console.error("[Cron:AutoCancel] upsert failed", upErr);
           continue;
-        }
-
-        // 若為單日臨時團 (is_one_off)，自動停開後同步將 meetups.is_active 設為 false，讓團主端「開團管理」立即顯示「已關閉」
-        if (m.is_one_off) {
-          await client
-            .from("meetups")
-            .update({ is_active: false, updated_at: new Date().toISOString() })
-            .eq("id", m.id);
         }
 
         // 推播通知團主本人（即使 0 人報名也會收到自動取消通知）
@@ -256,6 +248,7 @@ async function handleCronMatchReminder(request) {
         id,
         session_date,
         status,
+        session_notes,
         reminder_2h_sent_at,
         meetup:meetups!inner(
           id,
@@ -295,6 +288,7 @@ async function handleCronMatchReminder(request) {
     // 2. 篩選開賽時間落在未來 0 ~ 135 分鐘（約 2 小時左右且尚未開賽）的場次
     for (const s of sessions) {
       if (!s.meetup || !s.meetup.start_time) continue;
+      if (String(s.session_notes || "").includes("自動取消")) continue;
       
       const startTimeStr = s.meetup.start_time.slice(0, 5); // "20:00"
       // 組合台北時間 ISO 字串

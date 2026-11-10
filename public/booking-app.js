@@ -726,7 +726,7 @@ async function loadAvailableWeekdays(forceRefresh = false) {
     const cancelList = [];
     (allSessRes.data || []).forEach((s) => {
       if (!s.session_date) return;
-      if (s.status === "cancelled") {
+      if (s.status === "cancelled" || (s.status === "closed" && String(s.session_notes || "").includes("自動取消"))) {
         cancelList.push({
           meetup_id: s.meetup_id,
           exclude_date: s.session_date,
@@ -1286,7 +1286,7 @@ function renderMeetups(meetups) {
 
     const { openDateTime, closeDateTime, autoCancel } = getBookingWindow(m, selectedDate);
     const now = new Date();
-    const isAutoCancelled = (m.status === "cancelled" || m.session_status === "cancelled") && String(m.session_notes || "").includes("自動取消");
+    const isAutoCancelled = ["cancelled", "closed"].includes(m.status || m.session_status) && String(m.session_notes || "").includes("自動取消");
     const isAcDeadlinePassed = Boolean(autoCancel && (isAutoCancelled || (autoCancel.deadlineDate && now >= autoCancel.deadlineDate)));
     const isAcFormed = Boolean(autoCancel && !isAutoCancelled && realConfirmed >= autoCancel.minPlayers);
     
@@ -1655,7 +1655,7 @@ function openSignup(meetup, initialPwd = null) {
   ) {
     if (autoCancel) {
       const confirmed = Number(meetup.confirmed_count || 0);
-      const isAutoCancelled = (meetup.status === "cancelled" || meetup.session_status === "cancelled") && String(meetup.session_notes || "").includes("自動取消");
+      const isAutoCancelled = ["cancelled", "closed"].includes(meetup.status || meetup.session_status) && String(meetup.session_notes || "").includes("自動取消");
       const formed = !isAutoCancelled && confirmed >= autoCancel.minPlayers;
       alert(
         formed
@@ -4673,7 +4673,7 @@ async function loadMemberDashboard() {
       candidateMemberSessions.forEach(c => {
         const key = `${c.meetup.id}_${c.dateStr}`;
         const s = sessionMap.get(key);
-        const isAutoCancel = s && s.status === "cancelled" && String(s.session_notes || "").includes("自動取消");
+        const isAutoCancel = s && ["cancelled", "closed"].includes(s.status) && String(s.session_notes || "").includes("自動取消");
         if (s && s.status === "cancelled" && !isAutoCancel) {
           return;
         }
@@ -4713,7 +4713,7 @@ async function loadMemberDashboard() {
       const regularMapped = regularSignups
         .filter(sp => {
           if (sp.status === "cancelled") return false;
-          const isAutoCancel = sp.session?.status === "cancelled" && String(sp.session?.session_notes || "").includes("自動取消");
+          const isAutoCancel = ["cancelled", "closed"].includes(sp.session?.status) && String(sp.session?.session_notes || "").includes("自動取消");
           if (sp.session?.status === "cancelled" && !isAutoCancel) return false;
           const m = sp.session?.meetup;
           const dStr = sp.session?.session_date || "";
@@ -4726,7 +4726,7 @@ async function loadMemberDashboard() {
           return true;
         })
         .map(s => {
-          const isAutoCancel = s.session?.status === "cancelled" && String(s.session?.session_notes || "").includes("自動取消");
+          const isAutoCancel = ["cancelled", "closed"].includes(s.session?.status) && String(s.session?.session_notes || "").includes("自動取消");
           return {
             id: s.id,
             session_id: s.session?.id || s.session_id,
