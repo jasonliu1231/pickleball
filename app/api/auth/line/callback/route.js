@@ -118,81 +118,87 @@ export async function GET(request) {
     const admin = getSupabaseAdmin();
     let targetUserId = null;
 
-    // 5. 若有 Admin 權限 (service_role)，確保使用者存在且信箱已確認 (email_confirm: true)
-    if (admin) {
-      try {
-        const { data: created, error: createErr } = await admin.auth.admin.createUser({
-          email: deterministicEmail,
-          password: deterministicPassword,
-          email_confirm: true,
-          user_metadata: {
-            sub: lineUserId,
-            full_name: displayName,
-            name: displayName,
-            avatar_url: pictureUrl,
-            picture: pictureUrl,
-            line_user_id: lineUserId,
-          },
-        });
-
-        if (created?.user) {
-          targetUserId = created.user.id;
-        } else if (createErr) {
-          // 若使用者已存在，列出或透過登入取得其 ID，並更新密碼與 metadata
-          const { data: usersList } = await admin.auth.admin.listUsers({ perPage: 100 });
-          const existing = usersList?.users?.find((u) => u.email === deterministicEmail);
-          if (existing) {
-            targetUserId = existing.id;
-            await admin.auth.admin.updateUserById(existing.id, {
-              password: deterministicPassword,
-              user_metadata: {
-                sub: lineUserId,
-                full_name: displayName,
-                name: displayName,
-                avatar_url: pictureUrl,
-                picture: pictureUrl,
-                line_user_id: lineUserId,
-              },
-            });
-          }
-        }
-      } catch (adminErr) {
-        console.warn("Admin create/update user non-fatal warning:", adminErr);
-      }
-    }
-
-    // 6. 為該使用者簽發標準 Supabase Session
+    // 5. 優先嘗試直接以既有帳號登入（避免呼叫 updateUserById 重設密碼而導致手機 App 已登入的 Refresh Token 失效！）
     const publicClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let { data: authData, error: signInErr } = await publicClient.auth.signInWithPassword({
       email: deterministicEmail,
       password: deterministicPassword,
     });
 
-    if (signInErr || !authData?.session) {
-      // 若尚未建立且無 Admin 權限，嘗試前端 signUp
-      const { data: signUpData, error: signUpErr } = await publicClient.auth.signUp({
+    if (authData?.session?.user) {
+      targetUserId = authData.session.user.id;
+      // 僅更新 metadata，絕不重設 password，確保跨裝置（App 與網頁）登入憑證互不踢除
+      if (admin) {
+        admin.auth.admin
+          .updateUserById(targetUserId, {
+            user_metadata: {
+              sub: lineUserId,
+              full_name: displayName,
+              name: displayName,
+              avatar_url: pictureUrl,
+              picture: pictureUrl,
+              line_user_id: lineUserId,
+            },
+          })
+          .catch(() => {});
+      }
+    } else {
+      // 6. 若尚無此帳號（新球友首次登入），透過 Admin 建立並確認信箱後再簽發 Session
+      if (admin) {
+        try {
+          const { data: created } = await admin.auth.admin.createUser({
+            email: deterministicEmail,
+            password: deterministicPassword,
+            email_confirm: true,
+            user_metadata: {
+              sub: lineUserId,
+              full_name: displayName,
+              name: displayName,
+              avatar_url: pictureUrl,
+              picture: pictureUrl,
+              line_user_id: lineUserId,
+            },
+          });
+          if (created?.user) {
+            targetUserId = created.user.id;
+          }
+        } catch (adminErr) {
+          console.warn("Admin create user non-fatal warning:", adminErr);
+        }
+      }
+
+      const retrySignIn = await publicClient.auth.signInWithPassword({
         email: deterministicEmail,
         password: deterministicPassword,
-        options: {
-          data: {
-            sub: lineUserId,
-            full_name: displayName,
-            name: displayName,
-            avatar_url: pictureUrl,
-            picture: pictureUrl,
-            line_user_id: lineUserId,
-          },
-        },
       });
-      if (signUpErr || !signUpData?.session) {
-        console.error("Sign in/up failed:", signInErr || signUpErr);
-        return NextResponse.redirect(
-          `${origin}/member?error=login_failed&error_description=${encodeURIComponent(
-            (signInErr || signUpErr)?.message || "登入失敗"
-          )}`
-        );
+      authData = retrySignIn.data;
+      signInErr = retrySignIn.error;
+
+      if (signInErr || !authData?.session) {
+        const { data: signUpData, error: signUpErr } = await publicClient.auth.signUp({
+          email: deterministicEmail,
+          password: deterministicPassword,
+          options: {
+            data: {
+              sub: lineUserId,
+              full_name: displayName,
+              name: displayName,
+              avatar_url: pictureUrl,
+              picture: pictureUrl,
+              line_user_id: lineUserId,
+            },
+          },
+        });
+        if (signUpErr || !signUpData?.session) {
+          console.error("Sign in/up failed:", signInErr || signUpErr);
+          return NextResponse.redirect(
+            `${origin}/member?error=login_failed&error_description=${encodeURIComponent(
+              (signInErr || signUpErr)?.message || "登入失敗"
+            )}`
+          );
+        }
+        authData = signUpData;
       }
-      authData = signUpData;
     }
 
     const { access_token, refresh_token } = authData.session;
