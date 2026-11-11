@@ -39,7 +39,7 @@ export async function POST(request) {
       try {
         const { data: sessionRow } = await supabase
           .from("sessions")
-          .select("id, capacity_override, meetup:meetups(capacity)")
+          .select("id, capacity_override, session_notes, meetup:meetups(capacity)")
           .eq("meetup_id", meetupId)
           .eq("session_date", reservationDate)
           .maybeSingle();
@@ -83,7 +83,10 @@ export async function POST(request) {
             if (ageMs > 60 * 1000) {
               // 若舊版網頁因為看到滿團而把原本早報名的正取誤覆蓋成 waitlist，自動依排隊順序校正回 confirmed
               if (matchedPart.status === "waitlist") {
-                const capacity = Number(sessionRow.capacity_override ?? sessionRow.meetup?.capacity ?? 0);
+                const rawCapacity = Number(sessionRow.capacity_override ?? sessionRow.meetup?.capacity ?? 0);
+                const reservedMatch = String(sessionRow.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+                const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : 0;
+                const capacity = rawCapacity > 0 ? Math.max(0, rawCapacity - reservedCount) : 0;
                 const absentIds = new Set(allParts.filter((p) => p.status === "absent").map((p) => String(p.user_id)));
                 const activeSubIds = new Set(
                   (subs || [])

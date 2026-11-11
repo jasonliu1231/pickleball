@@ -967,7 +967,10 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
 
         const meetupCity = getMeetupCity(m);
 
-        const cap = s.capacity_override ?? m.capacity ?? 0;
+        const rawCap = Number(s.capacity_override ?? m.capacity ?? 0);
+        const reservedMatch = String(s.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+        const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : 0;
+        const cap = rawCap > 0 ? Math.max(0, rawCap - reservedCount) : 0;
         const mId = String(s.meetup_id || m.id);
         const subs = subsByMeetup.get(mId) || [];
         const absentUserIds = new Set((s.participants || []).filter(p => p.status === 'absent').map(p => String(p.user_id)));
@@ -993,7 +996,10 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
         const effectiveGuestFee = hasGuestFeeOverride ? String(s.guest_fee_override).trim() : m.guest_fee;
 
         const hasForceFull = String(s.session_notes || "").includes("[FORCE_FULL]");
-        const cleanedSessionNotes = String(s.session_notes || "").replace(/\[FORCE_FULL\]\n?/g, "").trim();
+        const cleanedSessionNotes = String(s.session_notes || "")
+          .replace(/\[FORCE_FULL\]\n?/g, "")
+          .replace(/\[RESERVED:\d+\]\n?/g, "")
+          .trim();
         const effectiveSessionStatus = s.status === "full" || (s.status === "open" && hasForceFull) ? "full" : (s.status || "open");
 
         rows.push({
@@ -1003,7 +1009,10 @@ async function loadMeetupsByDate(dateStr, forceRefresh = false) {
           city: meetupCity,
           session_id: s.id,
           session_date: s.session_date,
-          capacity_override: s.capacity_override,
+          raw_capacity: rawCap,
+          raw_capacity_override: s.capacity_override,
+          reserved_count: reservedCount,
+          capacity_override: s.capacity_override !== null && s.capacity_override !== undefined ? cap : null,
           capacity: cap,
           session_notes: cleanedSessionNotes || null,
           notes: m.notes && String(m.notes).trim() ? String(m.notes).trim() : null,
@@ -1096,7 +1105,7 @@ async function fetchRoster(meetupId, dateStr) {
     const [sessionRes, subsRes] = await Promise.all([
       client
         .from("sessions")
-        .select("id, participants:session_participants(id, people_count, status, note, created_at, user:users(id, name, phone, is_beginner, skill_level, rating))")
+        .select("id, session_notes, participants:session_participants(id, people_count, status, note, created_at, user:users(id, name, phone, is_beginner, skill_level, rating))")
         .eq("meetup_id", meetupId)
         .eq("session_date", dateStr)
         .maybeSingle(),
@@ -1107,6 +1116,8 @@ async function fetchRoster(meetupId, dateStr) {
     ]);
 
     const session = sessionRes?.data;
+    const reservedMatch = String(session?.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+    const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : 0;
     const participants = session?.participants || [];
     const absentUserIds = new Set(participants.filter(p => p.status === 'absent').map(p => String(p.user?.id)));
 
@@ -1163,6 +1174,7 @@ async function fetchRoster(meetupId, dateStr) {
     signupRows.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
 
     const rows = [...memberRows, ...signupRows];
+    rows.reservedCount = reservedCount;
     rosterCache.set(key, rows);
     return rows;
   } catch (err) {
@@ -1599,7 +1611,8 @@ async function renderRosterIntoElement(el, meetupId, dateStr) {
   el.innerHTML = `<p class="muted">讀取名單中...</p>`;
   try {
     const rows = await fetchRoster(meetupId, dateStr);
-    if (!rows.length) {
+    const reservedCount = Number(rows?.reservedCount || 0);
+    if (!rows.length && reservedCount <= 0) {
       el.innerHTML = `<p class="muted">目前還沒有人報名。</p>`;
       return;
     }
@@ -1635,9 +1648,22 @@ async function renderRosterIntoElement(el, meetupId, dateStr) {
         </div>
       </div>`;
     };
+    const reservedRowHtml = reservedCount > 0
+      ? `<div class="person" style="background: #f5f3ff; border-color: #ddd6fe;">
+          <div class="person-main">
+            <div class="person-name" style="color: #5b21b6; font-weight: 800;">🔒 團主保留名額</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+            <span class="pill" style="background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; font-weight: 800; font-size: 11px; padding: 2px 8px; border-radius: 99px;">保留 ${reservedCount} 位</span>
+          </div>
+        </div>`
+      : "";
+    const confirmedListHtml = (confirmedRows.length || reservedCount > 0)
+      ? `${confirmedRows.map(renderPerson).join("")}${reservedRowHtml}`
+      : `<p class="muted">目前尚無正取。</p>`;
     el.innerHTML = `
-      <strong>正取名單 (${confirmedRows.length})</strong>
-      <div class="roster-list">${confirmedRows.length ? confirmedRows.map(renderPerson).join("") : `<p class="muted">目前尚無正取。</p>`}</div>
+      <strong>正取名單 (${confirmedRows.length}${reservedCount > 0 ? `，另團主保留 ${reservedCount} 位` : ""})</strong>
+      <div class="roster-list">${confirmedListHtml}</div>
       <strong style="display:block;margin-top:12px;">備取名單 (${waitlistRows.length})</strong>
       <div class="roster-list">${waitlistRows.length ? waitlistRows.map(renderPerson).join("") : `<p class="muted">目前尚無備取。</p>`}</div>`;
   } catch (e) {
@@ -3192,7 +3218,10 @@ async function handleSignup(e) {
         }
       }
     });
-    const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
+    const rawCapacity = Number(session.capacity_override ?? (currentMeetup.raw_capacity ?? currentMeetup.capacity ?? 0));
+    const reservedMatch = String(session.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+    const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : Number(currentMeetup.reserved_count || 0);
+    const capacity = rawCapacity > 0 ? Math.max(0, rawCapacity - reservedCount) : 0;
     const confirmed = activeSubs.length + nonMemberConfirmedCount;
     const requiresApproval = isApprovalRequired(currentMeetup);
     const isForcedFull = session.status === "full" || String(session.session_notes || "").includes("[FORCE_FULL]") || currentMeetup.status === "full" || currentMeetup.session_status === "full";
@@ -3447,7 +3476,10 @@ async function handleQuickSignup(meetup, btn) {
         }
       }
     });
-    const capacity = session.capacity_override ?? meetup.capacity ?? 0;
+    const rawCapacity = Number(session.capacity_override ?? (meetup.raw_capacity ?? meetup.capacity ?? 0));
+    const reservedMatch = String(session.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+    const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : Number(meetup.reserved_count || 0);
+    const capacity = rawCapacity > 0 ? Math.max(0, rawCapacity - reservedCount) : 0;
     const confirmed = activeSubs.length + nonMemberConfirmedCount;
     const requiresApproval = isApprovalRequired(meetup);
     const isForcedFull = session.status === "full" || String(session.session_notes || "").includes("[FORCE_FULL]") || meetup.status === "full" || meetup.session_status === "full";
