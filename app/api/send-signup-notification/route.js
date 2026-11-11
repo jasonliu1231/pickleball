@@ -14,14 +14,14 @@ const skillTextMap = {
   "3.5": "進階 (3.0+)",
 };
 
-// 記憶體中短期防重 (8 秒內相同開團、日期與球友名稱不重複送推播)
+// 記憶體中防重 (10 分鐘內相同開團、日期與球友不重複送推播)
 const recentSignupRequests = new Map();
-const DEBOUNCE_WINDOW_MS = 8000;
+const DEBOUNCE_WINDOW_MS = 10 * 60 * 1000;
 
 function cleanupOldRequests() {
   const now = Date.now();
   for (const [key, timestamp] of recentSignupRequests.entries()) {
-    if (now - timestamp > DEBOUNCE_WINDOW_MS * 2) {
+    if (now - timestamp > DEBOUNCE_WINDOW_MS) {
       recentSignupRequests.delete(key);
     }
   }
@@ -32,7 +32,99 @@ export async function POST(request) {
     const body = await request.json();
     const meetupId = body.meetupId || "";
     const reservationDate = body.reservationDate || "";
-    const nickname = body.nickname || "球友";
+    const nickname = String(body.nickname || "球友").trim();
+
+    // 伺服器端二次攔截：防止球友未關掉舊版網頁分頁 / 舊版 App 快取而重複點擊報名，導致洗版推播或把自己的正取覆蓋成備取
+    if (meetupId && reservationDate && nickname && nickname !== "球友") {
+      try {
+        const { data: sessionRow } = await supabase
+          .from("sessions")
+          .select("id, capacity_override, meetup:meetups(capacity)")
+          .eq("meetup_id", meetupId)
+          .eq("session_date", reservationDate)
+          .maybeSingle();
+
+        if (sessionRow?.id) {
+          const [{ data: parts }, { data: subs }] = await Promise.all([
+            supabase
+              .from("session_participants")
+              .select("id, user_id, status, people_count, created_at, user:users(id, name, display_name)")
+              .eq("session_id", sessionRow.id),
+            supabase
+              .from("member_meetup_subscriptions")
+              .select("organizer_member_id, organizer_member:organizer_members(user_id, status)")
+              .eq("meetup_id", meetupId),
+          ]);
+
+          const allParts = parts || [];
+          const matchedPart = allParts.find((p) => {
+            const uName = String(p.user?.name || "").trim();
+            const uDisp = String(p.user?.display_name || "").trim();
+            return uName === nickname || uDisp === nickname;
+          });
+
+          if (matchedPart) {
+            // 若舊版快取只更新了 name 沒更新 display_name，自動同步 display_name
+            if (
+              matchedPart.user?.id &&
+              String(matchedPart.user.name || "").trim() === nickname &&
+              String(matchedPart.user.display_name || "").trim() !== nickname
+            ) {
+              await supabase
+                .from("users")
+                .update({ display_name: nickname })
+                .eq("id", matchedPart.user.id);
+            }
+
+            const createdMs = matchedPart.created_at ? new Date(matchedPart.created_at).getTime() : 0;
+            const ageMs = createdMs ? Date.now() - createdMs : 0;
+
+            // 若該筆報名紀錄建立時間已超過 60 秒（代表是舊版網頁/App 重複送出已存在之報名）
+            if (ageMs > 60 * 1000) {
+              // 若舊版網頁因為看到滿團而把原本早報名的正取誤覆蓋成 waitlist，自動依排隊順序校正回 confirmed
+              if (matchedPart.status === "waitlist") {
+                const capacity = Number(sessionRow.capacity_override ?? sessionRow.meetup?.capacity ?? 0);
+                const absentIds = new Set(allParts.filter((p) => p.status === "absent").map((p) => String(p.user_id)));
+                const activeSubIds = new Set(
+                  (subs || [])
+                    .filter((s) => s.organizer_member?.status === "active" && !absentIds.has(String(s.organizer_member?.user_id)))
+                    .map((s) => String(s.organizer_member?.user_id))
+                    .filter(Boolean)
+                );
+                const activeParticipants = allParts
+                  .filter((p) => ["confirmed", "attended", "waitlist"].includes(p.status) && !activeSubIds.has(String(p.user_id)))
+                  .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")));
+
+                let slotsUsed = activeSubIds.size;
+                for (const row of activeParticipants) {
+                  const cnt = Number(row.people_count || 1);
+                  if (String(row.id) === String(matchedPart.id)) {
+                    if (capacity > 0 && slotsUsed + cnt <= capacity) {
+                      await supabase
+                        .from("session_participants")
+                        .update({ status: "confirmed", updated_at: new Date().toISOString() })
+                        .eq("id", matchedPart.id);
+                    }
+                    break;
+                  }
+                  if (row.status === "confirmed" || row.status === "attended") {
+                    slotsUsed += cnt;
+                  }
+                }
+              }
+
+              return Response.json({
+                ok: true,
+                debounced: true,
+                message: "該球友早先已報名過此場次（舊版頁面重複送出），已攔截重複推播",
+              });
+            }
+          }
+        }
+      } catch (checkErr) {
+        console.warn("send-signup-notification duplicate check warning:", checkErr);
+      }
+    }
 
     // 檢查防重快取
     const dedupKey = `${meetupId}_${reservationDate}_${nickname}`;
