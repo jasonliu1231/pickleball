@@ -3005,8 +3005,24 @@ async function handleSignup(e) {
         })
         .select()
         .single();
-      if (createSessErr) throw createSessErr;
-      session = newSession;
+      if (createSessErr) {
+        const { data: retrySession } = await client
+          .from("sessions")
+          .select("id, capacity_override, confirmed_count, waitlist_count, status, session_notes")
+          .eq("meetup_id", currentMeetup.id)
+          .eq("session_date", selectedDate)
+          .maybeSingle();
+        if (!retrySession) throw createSessErr;
+        if (retrySession.status === "closed" || retrySession.status === "ended") {
+          return setMessage($("formMessage"), "本場次主辦人已停止線上報名！", false);
+        }
+        if (retrySession.status === "cancelled") {
+          return setMessage($("formMessage"), "本場次活動已取消/停開！", false);
+        }
+        session = retrySession;
+      } else {
+        session = newSession;
+      }
     }
 
     // 2. Find or create user (預設帶入登入者資料，若修改表單則為改後的報名人)
@@ -3115,27 +3131,40 @@ async function handleSignup(e) {
         })
         .select()
         .single();
-      if (createErr) throw createErr;
-      user = newUser;
+      if (createErr) {
+        const { data: retryUser } = await client
+          .from("users")
+          .select("id, name, phone, skill_level")
+          .eq("phone", phone)
+          .maybeSingle();
+        if (!retryUser) throw createErr;
+        user = retryUser;
+      } else {
+        user = newUser;
+      }
     }
 
-    // 檢查該球友是否已經報名過本場次（正取、備取或固定班底未請假），避免重複報名與重複發送推播通知
-    const [{ data: existingPart }, { data: subsCheck }] = await Promise.all([
+    // 檢查該球友是否已經報名過本場次（正取、備取或固定班底未請假），並即時從資料庫計算最新正取人數
+    const [{ data: partData }, { data: subsCheck }] = await Promise.all([
       client
         .from("session_participants")
-        .select("id, status, people_count")
-        .eq("session_id", session.id)
-        .eq("user_id", user.id)
-        .maybeSingle(),
+        .select("id, user_id, status, people_count, created_at")
+        .eq("session_id", session.id),
       client
         .from("member_meetup_subscriptions")
         .select("organizer_member_id, organizer_member:organizer_members(user_id, status)")
         .eq("meetup_id", currentMeetup.id)
     ]);
 
-    const isActiveSubMember = (subsCheck || []).some(
-      s => s.organizer_member?.status === "active" && String(s.organizer_member?.user_id) === String(user.id)
-    ) && existingPart?.status !== "absent";
+    const allParts = partData || [];
+    const existingPart = allParts.find(p => String(p.user_id) === String(user.id));
+
+    const absentIds = new Set(allParts.filter(p => p.status === "absent").map(p => String(p.user_id)));
+    const activeSubs = (subsCheck || []).filter(
+      s => s.organizer_member?.status === "active" && !absentIds.has(String(s.organizer_member?.user_id))
+    );
+    const activeSubUserIds = new Set(activeSubs.map(s => String(s.organizer_member?.user_id)).filter(Boolean));
+    const isActiveSubMember = activeSubUserIds.has(String(user.id));
 
     if (existingPart && ["confirmed", "waitlist", "attended"].includes(existingPart.status)) {
       const statusLabel = existingPart.status === "waitlist" ? "備取" : "正取";
@@ -3151,14 +3180,26 @@ async function handleSignup(e) {
       return;
     }
 
-    // 3. Calculate status (confirmed vs waitlist)
+    // 3. Calculate status (confirmed vs waitlist) using real-time DB count
+    let nonMemberConfirmedCount = 0;
+    allParts.forEach(p => {
+      if (p.status === "confirmed" || p.status === "attended") {
+        const uId = String(p.user_id);
+        if (!activeSubUserIds.has(uId)) {
+          nonMemberConfirmedCount += (Number(p.people_count) || 1);
+        } else if (Number(p.people_count) > 1) {
+          nonMemberConfirmedCount += (Number(p.people_count) - 1);
+        }
+      }
+    });
     const capacity = session.capacity_override ?? currentMeetup.capacity ?? 0;
-    const confirmed = Number(currentMeetup?.confirmed_count ?? session.confirmed_count ?? 0);
+    const confirmed = activeSubs.length + nonMemberConfirmedCount;
     const requiresApproval = isApprovalRequired(currentMeetup);
     const isForcedFull = session.status === "full" || String(session.session_notes || "").includes("[FORCE_FULL]") || currentMeetup.status === "full" || currentMeetup.session_status === "full";
-    const targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + peopleCount > capacity)) ? "waitlist" : "confirmed";
+    let targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + peopleCount > capacity)) ? "waitlist" : "confirmed";
 
-    // 4. Upsert session_participant
+    // 4. Upsert session_participant（重設 created_at 避免曾取消者重新報名時插隊）
+    const nowIso = new Date().toISOString();
     const { error: partErr } = await client
       .from("session_participants")
       .upsert(
@@ -3168,11 +3209,63 @@ async function handleSignup(e) {
           people_count: peopleCount,
           status: targetStatus,
           payment_method: "cash",
-          note: note || null
+          note: note || null,
+          created_at: nowIso,
+          updated_at: nowIso
         },
         { onConflict: "session_id,user_id" }
       );
     if (partErr) throw partErr;
+
+    // 5. 寫入後二次校驗（防止多人同一毫秒搶最後名額導致超收，慢者自動轉為備取）
+    if (targetStatus === "confirmed" && capacity > 0 && !activeSubUserIds.has(String(user.id))) {
+      const { data: postParts } = await client
+        .from("session_participants")
+        .select("id, user_id, status, people_count, created_at")
+        .eq("session_id", session.id);
+
+      if (postParts && postParts.length > 0) {
+        const postAbsentIds = new Set(postParts.filter(p => p.status === "absent").map(p => String(p.user_id)));
+        const postActiveSubUserIds = new Set(
+          (subsCheck || [])
+            .filter(s => s.organizer_member?.status === "active" && !postAbsentIds.has(String(s.organizer_member?.user_id)))
+            .map(s => String(s.organizer_member?.user_id))
+            .filter(Boolean)
+        );
+        let runningConfirmed = postActiveSubUserIds.size;
+        const confirmedRows = postParts
+          .filter(p => p.status === "confirmed" || p.status === "attended")
+          .sort((a, b) => {
+            const tCmp = String(a.created_at || "").localeCompare(String(b.created_at || ""));
+            if (tCmp !== 0) return tCmp;
+            return String(a.id || "").localeCompare(String(b.id || ""));
+          });
+
+        let shouldDowngrade = false;
+        for (const row of confirmedRows) {
+          const uId = String(row.user_id);
+          const addCount = postActiveSubUserIds.has(uId)
+            ? Math.max(0, (Number(row.people_count) || 1) - 1)
+            : (Number(row.people_count) || 1);
+          if (uId === String(user.id)) {
+            if (runningConfirmed + addCount > capacity) {
+              shouldDowngrade = true;
+            }
+            break;
+          }
+          runningConfirmed += addCount;
+        }
+
+        if (shouldDowngrade) {
+          await client
+            .from("session_participants")
+            .update({ status: "waitlist", updated_at: new Date().toISOString() })
+            .eq("session_id", session.id)
+            .eq("user_id", user.id);
+          targetStatus = "waitlist";
+        }
+      }
+    }
 
     const signedMeetup = currentMeetup;
     notifyNewSignup({ meetup: signedMeetup, meetupId: signedMeetup.id, reservationDate: selectedDate, nickname, skillLevel });
@@ -3288,27 +3381,49 @@ async function handleQuickSignup(meetup, btn) {
         })
         .select()
         .single();
-      if (createSessErr) throw createSessErr;
-      session = newSession;
+      if (createSessErr) {
+        const { data: retrySession } = await client
+          .from("sessions")
+          .select("id, capacity_override, confirmed_count, waitlist_count, status, session_notes")
+          .eq("meetup_id", meetup.id)
+          .eq("session_date", selectedDate)
+          .maybeSingle();
+        if (!retrySession) throw createSessErr;
+        if (retrySession.status === "closed" || retrySession.status === "ended") {
+          alert("本場次主辦人已停止線上報名！");
+          return;
+        }
+        if (retrySession.status === "cancelled") {
+          alert("本場次活動已取消/停開！");
+          return;
+        }
+        session = retrySession;
+      } else {
+        session = newSession;
+      }
     }
 
-    // 檢查該球友是否已經報名過本場次（正取、備取或固定班底未請假），避免重複報名與重複發送推播通知
-    const [{ data: existingPart }, { data: subsCheck }] = await Promise.all([
+    // 檢查該球友是否已經報名過本場次（正取、備取或固定班底未請假），並即時從資料庫計算最新正取人數
+    const [{ data: partData }, { data: subsCheck }] = await Promise.all([
       client
         .from("session_participants")
-        .select("id, status, people_count")
-        .eq("session_id", session.id)
-        .eq("user_id", user.id)
-        .maybeSingle(),
+        .select("id, user_id, status, people_count, created_at")
+        .eq("session_id", session.id),
       client
         .from("member_meetup_subscriptions")
         .select("organizer_member_id, organizer_member:organizer_members(user_id, status)")
         .eq("meetup_id", meetup.id)
     ]);
 
-    const isActiveSubMember = (subsCheck || []).some(
-      s => s.organizer_member?.status === "active" && String(s.organizer_member?.user_id) === String(user.id)
-    ) && existingPart?.status !== "absent";
+    const allParts = partData || [];
+    const existingPart = allParts.find(p => String(p.user_id) === String(user.id));
+
+    const absentIds = new Set(allParts.filter(p => p.status === "absent").map(p => String(p.user_id)));
+    const activeSubs = (subsCheck || []).filter(
+      s => s.organizer_member?.status === "active" && !absentIds.has(String(s.organizer_member?.user_id))
+    );
+    const activeSubUserIds = new Set(activeSubs.map(s => String(s.organizer_member?.user_id)).filter(Boolean));
+    const isActiveSubMember = activeSubUserIds.has(String(user.id));
 
     if (existingPart && ["confirmed", "waitlist", "attended"].includes(existingPart.status)) {
       const statusLabel = existingPart.status === "waitlist" ? "備取" : "正取";
@@ -3320,14 +3435,26 @@ async function handleQuickSignup(meetup, btn) {
       return;
     }
 
-    // 3. Calculate status (confirmed vs waitlist)
+    // 3. Calculate status (confirmed vs waitlist) using real-time DB count
+    let nonMemberConfirmedCount = 0;
+    allParts.forEach(p => {
+      if (p.status === "confirmed" || p.status === "attended") {
+        const uId = String(p.user_id);
+        if (!activeSubUserIds.has(uId)) {
+          nonMemberConfirmedCount += (Number(p.people_count) || 1);
+        } else if (Number(p.people_count) > 1) {
+          nonMemberConfirmedCount += (Number(p.people_count) - 1);
+        }
+      }
+    });
     const capacity = session.capacity_override ?? meetup.capacity ?? 0;
-    const confirmed = Number(meetup?.confirmed_count ?? session.confirmed_count ?? 0);
+    const confirmed = activeSubs.length + nonMemberConfirmedCount;
     const requiresApproval = isApprovalRequired(meetup);
     const isForcedFull = session.status === "full" || String(session.session_notes || "").includes("[FORCE_FULL]") || meetup.status === "full" || meetup.session_status === "full";
-    const targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + 1 > capacity)) ? "waitlist" : "confirmed";
+    let targetStatus = (requiresApproval || isForcedFull || (capacity > 0 && confirmed + 1 > capacity)) ? "waitlist" : "confirmed";
 
-    // 4. Upsert session_participant
+    // 4. Upsert session_participant（重設 created_at 避免曾取消者重新報名時插隊）
+    const nowIso = new Date().toISOString();
     const { error: partErr } = await client
       .from("session_participants")
       .upsert(
@@ -3337,11 +3464,63 @@ async function handleQuickSignup(meetup, btn) {
           people_count: 1,
           status: targetStatus,
           payment_method: "cash",
-          note: null
+          note: null,
+          created_at: nowIso,
+          updated_at: nowIso
         },
         { onConflict: "session_id,user_id" }
       );
     if (partErr) throw partErr;
+
+    // 5. 寫入後二次校驗（防止多人同一毫秒搶最後名額導致超收，慢者自動轉為備取）
+    if (targetStatus === "confirmed" && capacity > 0 && !activeSubUserIds.has(String(user.id))) {
+      const { data: postParts } = await client
+        .from("session_participants")
+        .select("id, user_id, status, people_count, created_at")
+        .eq("session_id", session.id);
+
+      if (postParts && postParts.length > 0) {
+        const postAbsentIds = new Set(postParts.filter(p => p.status === "absent").map(p => String(p.user_id)));
+        const postActiveSubUserIds = new Set(
+          (subsCheck || [])
+            .filter(s => s.organizer_member?.status === "active" && !postAbsentIds.has(String(s.organizer_member?.user_id)))
+            .map(s => String(s.organizer_member?.user_id))
+            .filter(Boolean)
+        );
+        let runningConfirmed = postActiveSubUserIds.size;
+        const confirmedRows = postParts
+          .filter(p => p.status === "confirmed" || p.status === "attended")
+          .sort((a, b) => {
+            const tCmp = String(a.created_at || "").localeCompare(String(b.created_at || ""));
+            if (tCmp !== 0) return tCmp;
+            return String(a.id || "").localeCompare(String(b.id || ""));
+          });
+
+        let shouldDowngrade = false;
+        for (const row of confirmedRows) {
+          const uId = String(row.user_id);
+          const addCount = postActiveSubUserIds.has(uId)
+            ? Math.max(0, (Number(row.people_count) || 1) - 1)
+            : (Number(row.people_count) || 1);
+          if (uId === String(user.id)) {
+            if (runningConfirmed + addCount > capacity) {
+              shouldDowngrade = true;
+            }
+            break;
+          }
+          runningConfirmed += addCount;
+        }
+
+        if (shouldDowngrade) {
+          await client
+            .from("session_participants")
+            .update({ status: "waitlist", updated_at: new Date().toISOString() })
+            .eq("session_id", session.id)
+            .eq("user_id", user.id);
+          targetStatus = "waitlist";
+        }
+      }
+    }
 
     const msg = requiresApproval
       ? "⏳ 報名已送出！本場次採團主審核制，已將您排入備取名單（待審核），待團主審核通過後即轉為正取！"
