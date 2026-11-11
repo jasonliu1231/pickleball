@@ -3577,6 +3577,98 @@ async function handleQuickSignup(meetup, btn) {
   }
 }
 
+async function tryAutoPromoteWaitlistForSession(sessionId, meetupId, reservationDate) {
+  if (!sessionId) return;
+  try {
+    const { data: sInfo } = await client
+      .from("sessions")
+      .select("id, meetup_id, session_date, status, capacity_override, session_notes, meetup:meetups(capacity, gear)")
+      .eq("id", sessionId)
+      .maybeSingle();
+    if (!sInfo) return;
+
+    const reqApproval = isApprovalRequired(sInfo.meetup);
+    const isForcedFull = sInfo.status === "full" || String(sInfo.session_notes || "").includes("[FORCE_FULL]");
+    if (reqApproval || isForcedFull || sInfo.status === "cancelled" || sInfo.status === "closed") return;
+
+    const rawCap = Number(sInfo.capacity_override ?? sInfo.meetup?.capacity ?? 0);
+    const reservedMatch = String(sInfo.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+    const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : 0;
+    const effectiveCapacity = rawCap > 0 ? Math.max(0, rawCap - reservedCount) : 0;
+
+    const [{ data: allSubs }, { data: sessionParts }] = await Promise.all([
+      client
+        .from("member_meetup_subscriptions")
+        .select("meetup_id, organizer_member:organizer_members(user_id, status)")
+        .eq("meetup_id", sInfo.meetup_id || meetupId),
+      client
+        .from("session_participants")
+        .select("id, user_id, status, people_count, created_at, user:users(id, name, phone)")
+        .eq("session_id", sessionId)
+    ]);
+
+    const allSessParts = sessionParts || [];
+    const absentUserIds = new Set(
+      allSessParts.filter(p => p.status === "absent").map(p => String(p.user_id))
+    );
+    const activeSubUserIds = new Set(
+      (allSubs || [])
+        .filter(sub => sub.organizer_member?.status === "active" && !absentUserIds.has(String(sub.organizer_member?.user_id)))
+        .map(sub => String(sub.organizer_member?.user_id))
+        .filter(Boolean)
+    );
+
+    let nonMemberConfirmed = 0;
+    allSessParts.forEach(p => {
+      if (p.status === "confirmed" || p.status === "attended") {
+        const uId = String(p.user_id);
+        if (!activeSubUserIds.has(uId)) {
+          nonMemberConfirmed += Number(p.people_count || 1);
+        } else if (Number(p.people_count || 1) > 1) {
+          nonMemberConfirmed += Number(p.people_count || 1) - 1;
+        }
+      }
+    });
+
+    const currentConfirmedTotal = activeSubUserIds.size + nonMemberConfirmed;
+    const waitlistRows = allSessParts
+      .filter(p => p.status === "waitlist")
+      .sort((a, b) => {
+        const tDiff = String(a.created_at || "").localeCompare(String(b.created_at || ""));
+        return tDiff !== 0 ? tDiff : String(a.id).localeCompare(String(b.id));
+      });
+
+    if (waitlistRows.length === 0) return;
+    const candidate = waitlistRows[0];
+    const addCount = Number(candidate.people_count || 1);
+    if (rawCap > 0 && currentConfirmedTotal + addCount > effectiveCapacity) {
+      return;
+    }
+
+    await client
+      .from("session_participants")
+      .update({ status: "confirmed", updated_at: new Date().toISOString() })
+      .eq("id", candidate.id);
+
+    const promotedUser = candidate.user;
+    if (promotedUser?.phone || candidate.user_id) {
+      fetch("/api/waitlist-notification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          meetup_id: sInfo.meetup_id || meetupId,
+          user_id: candidate.user_id || promotedUser?.id,
+          phone: promotedUser?.phone || "",
+          nickname: promotedUser?.name || "球友",
+          reservation_date: sInfo.session_date || reservationDate
+        })
+      }).catch(err => console.warn("notify waitlist error:", err));
+    }
+  } catch (err) {
+    console.warn("tryAutoPromoteWaitlistForSession error:", err);
+  }
+}
+
 async function handleCancel(e) {
   e.preventDefault();
   if (!currentMeetup) return;
@@ -3643,37 +3735,9 @@ async function handleCancel(e) {
       if (cancelErr) throw cancelErr;
     }
 
-    // 若為正取取消（會員請假 或 一般正取球友取消），且非團主審核制、非手動強制額滿，自動遞補第一位候補並發送通知
-    const isForcedFullSession = currentMeetup?.status === "full" || currentMeetup?.session_status === "full";
-    if ((isMember || target.status === "confirmed") && !isApprovalRequired(currentMeetup) && !isForcedFullSession) {
-      const { data: waitlist } = await client
-        .from("session_participants")
-        .select("id, user_id, user:users(id, name, phone)")
-        .eq("session_id", sessionId)
-        .eq("status", "waitlist")
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      if (waitlist && waitlist.length > 0) {
-        await client
-          .from("session_participants")
-          .update({ status: "confirmed", updated_at: new Date().toISOString() })
-          .eq("id", waitlist[0].id);
-
-        const promotedUser = waitlist[0].user;
-        if (promotedUser?.phone) {
-          fetch("/api/waitlist-notification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              meetup_id: currentMeetup.id,
-              phone: promotedUser.phone,
-              nickname: promotedUser.name || "球友",
-              reservation_date: selectedDate
-            })
-          }).catch(err => console.warn("notify waitlist error:", err));
-        }
-      }
+    // 若為正取取消（會員請假 或 一般正取球友取消），且非團主審核制、非手動強制額滿，且扣除保留名額後確有空位，自動遞補第一位候補並發送通知
+    if (isMember || target.status === "confirmed") {
+      await tryAutoPromoteWaitlistForSession(sessionId, currentMeetup.id, selectedDate);
     }
 
     const successMsg = isMember ? "已成功完成會員請假，名額已釋出。" : "已成功取消預約，名額已釋出。";
@@ -4995,7 +5059,9 @@ async function loadMemberDashboard() {
           session_id: s?.id || existingParticipant?.session?.id || existingParticipant?.session_id || null,
           status: status,
           session_auto_cancelled: Boolean(isAutoCancel),
-          auto_cancel_reason: isAutoCancel ? (s?.session_notes || "") : "",
+          auto_cancel_reason: isAutoCancel
+            ? String(s?.session_notes || "").replace(/\[FORCE_FULL\]\n?/g, "").replace(/\[RESERVED:\d+\]\n?/g, "").trim()
+            : "",
           is_member: true,
           people_count: 1,
           payment_method: "member_subscription",
@@ -5035,7 +5101,9 @@ async function loadMemberDashboard() {
             session_id: s.session?.id || s.session_id,
             status: s.status,
             session_auto_cancelled: Boolean(isAutoCancel),
-            auto_cancel_reason: isAutoCancel ? (s.session?.session_notes || "") : "",
+            auto_cancel_reason: isAutoCancel
+              ? String(s.session?.session_notes || "").replace(/\[FORCE_FULL\]\n?/g, "").replace(/\[RESERVED:\d+\]\n?/g, "").trim()
+              : "",
             is_member: memberMeetupIds.has(s.session?.meetup?.id),
             people_count: s.people_count || 1,
             payment_method: s.payment_method || "",
@@ -5829,36 +5897,9 @@ window.cancelMemberDashboardSignup = async function(signupId, meetupName) {
       .eq("id", signupId);
     if (cancelErr) throw cancelErr;
 
-    // Auto-promote first waitlisted participant if status was confirmed and meetup does not require approval
-    if (part.status === "confirmed" && part.session?.id && !isApprovalRequired(part.session?.meetup)) {
-      const { data: waitlist } = await client
-        .from("session_participants")
-        .select("id, user_id, user:users(id, name, phone)")
-        .eq("session_id", part.session.id)
-        .eq("status", "waitlist")
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      if (waitlist && waitlist.length > 0) {
-        await client
-          .from("session_participants")
-          .update({ status: "confirmed", updated_at: new Date().toISOString() })
-          .eq("id", waitlist[0].id);
-
-        const promotedUser = waitlist[0].user;
-        if (promotedUser?.phone) {
-          fetch("/api/waitlist-notification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              meetup_id: part.session?.meetup_id,
-              phone: promotedUser.phone,
-              nickname: promotedUser.name || "球友",
-              reservation_date: part.session?.session_date
-            })
-          }).catch(err => console.warn("notify waitlist error:", err));
-        }
-      }
+    // Auto-promote first waitlisted participant if status was confirmed and meetup has available capacity
+    if ((part.status === "confirmed" || part.status === "attended") && part.session?.id) {
+      await tryAutoPromoteWaitlistForSession(part.session.id, part.session?.meetup_id, part.session?.session_date);
     }
 
     alert("已成功取消預約！");
@@ -5981,38 +6022,8 @@ window.cancelMemberDashboardLeave = async function(meetupId, reservationDate, me
 
     if (absErr) throw absErr;
 
-    // 遞補候補第一位（若非團主審核制）
-    const { data: mRow } = await client.from("meetups").select("gear").eq("id", meetupId).maybeSingle();
-    const { data: waitlist } = !isApprovalRequired(mRow)
-      ? await client
-          .from("session_participants")
-          .select("id, user_id, user:users(id, name, phone)")
-          .eq("session_id", sessionId)
-          .eq("status", "waitlist")
-          .order("created_at", { ascending: true })
-          .limit(1)
-      : { data: [] };
-
-    if (waitlist && waitlist.length > 0) {
-      await client
-        .from("session_participants")
-        .update({ status: "confirmed", updated_at: new Date().toISOString() })
-        .eq("id", waitlist[0].id);
-
-      const promotedUser = waitlist[0].user;
-      if (promotedUser?.phone) {
-        fetch("/api/waitlist-notification", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            meetup_id: meetupId,
-            phone: promotedUser.phone,
-            nickname: promotedUser.name || "球友",
-            reservation_date: reservationDate
-          })
-        }).catch(err => console.warn("notify waitlist error:", err));
-      }
-    }
+    // 遞補候補第一位（若非團主審核制、非手動強制額滿且扣除保留名額後確有空位）
+    await tryAutoPromoteWaitlistForSession(sessionId, meetupId, reservationDate);
 
     notifyCancelSignup({
       meetupId,

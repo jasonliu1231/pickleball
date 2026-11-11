@@ -140,34 +140,77 @@ export async function GET(request) {
       
       if (cancelError) throw cancelError;
 
-      // 3. Auto-promote waitlist if a confirmed spot was released
+      // 3. Auto-promote waitlist if a confirmed spot was released and session has available effective capacity
       if (part.status === "confirmed" && part.session_id) {
         try {
-          const { data: waitlist } = await supabase
-            .from("session_participants")
-            .select("id, user_id, user:users(id, name, phone)")
-            .eq("session_id", part.session_id)
-            .eq("status", "waitlist")
-            .order("created_at", { ascending: true })
-            .limit(1);
-          if (waitlist && waitlist.length > 0) {
-            const promoted = waitlist[0];
-            await supabase
-              .from("session_participants")
-              .update({ status: "confirmed", updated_at: new Date().toISOString() })
-              .eq("id", promoted.id);
-            const origin = new URL(request.url).origin;
-            fetch(`${origin}/api/waitlist-notification`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                meetup_id: meetupId,
-                user_id: promoted.user_id,
-                phone: promoted.user?.phone || "",
-                nickname: promoted.user?.name || "球友",
-                reservation_date: dateStr
-              })
-            }).catch(() => {});
+          const { data: sInfo } = await supabase
+            .from("sessions")
+            .select("id, meetup_id, session_date, status, capacity_override, session_notes, meetup:meetups(capacity, gear)")
+            .eq("id", part.session_id)
+            .maybeSingle();
+          const requiresApproval = String(sInfo?.meetup?.gear || "").includes("REQUIRES_APPROVAL");
+          const isForcedFull = sInfo?.status === "full" || String(sInfo?.session_notes || "").includes("[FORCE_FULL]");
+          if (sInfo && !requiresApproval && !isForcedFull && sInfo.status !== "cancelled" && sInfo.status !== "closed") {
+            const rawCap = Number(sInfo.capacity_override ?? sInfo.meetup?.capacity ?? 0);
+            const reservedMatch = String(sInfo.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+            const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : 0;
+            const effectiveCapacity = rawCap > 0 ? Math.max(0, rawCap - reservedCount) : 0;
+
+            const [{ data: allSubs }, { data: sessionParts }] = await Promise.all([
+              supabase
+                .from("member_meetup_subscriptions")
+                .select("meetup_id, organizer_member:organizer_members(user_id, status)")
+                .eq("meetup_id", sInfo.meetup_id),
+              supabase
+                .from("session_participants")
+                .select("id, user_id, status, people_count, created_at, user:users(id, name, phone)")
+                .eq("session_id", part.session_id)
+            ]);
+            const allSessParts = sessionParts || [];
+            const absentUserIds = new Set(allSessParts.filter(p => p.status === "absent").map(p => String(p.user_id)));
+            const activeSubUserIds = new Set(
+              (allSubs || [])
+                .filter(sub => sub.organizer_member?.status === "active" && !absentUserIds.has(String(sub.organizer_member?.user_id)))
+                .map(sub => String(sub.organizer_member?.user_id))
+                .filter(Boolean)
+            );
+            let nonMemberConfirmed = 0;
+            allSessParts.forEach(p => {
+              if (p.status === "confirmed" || p.status === "attended") {
+                const uId = String(p.user_id);
+                if (!activeSubUserIds.has(uId)) {
+                  nonMemberConfirmed += Number(p.people_count || 1);
+                } else if (Number(p.people_count || 1) > 1) {
+                  nonMemberConfirmed += Number(p.people_count || 1) - 1;
+                }
+              }
+            });
+            const currentConfirmedTotal = activeSubUserIds.size + nonMemberConfirmed;
+            const waitlistRows = allSessParts
+              .filter(p => p.status === "waitlist")
+              .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id)));
+            if (waitlistRows.length > 0) {
+              const promoted = waitlistRows[0];
+              const addCount = Number(promoted.people_count || 1);
+              if (rawCap <= 0 || currentConfirmedTotal + addCount <= effectiveCapacity) {
+                await supabase
+                  .from("session_participants")
+                  .update({ status: "confirmed", updated_at: new Date().toISOString() })
+                  .eq("id", promoted.id);
+                const origin = new URL(request.url).origin;
+                fetch(`${origin}/api/waitlist-notification`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    meetup_id: meetupId,
+                    user_id: promoted.user_id,
+                    phone: promoted.user?.phone || "",
+                    nickname: promoted.user?.name || "球友",
+                    reservation_date: dateStr
+                  })
+                }).catch(() => {});
+              }
+            }
           }
         } catch (e) {
           console.warn("Waitlist promote error:", e);
@@ -242,31 +285,74 @@ export async function GET(request) {
           );
 
         try {
-          const { data: waitlist } = await supabase
-            .from("session_participants")
-            .select("id, user_id, user:users(id, name, phone)")
-            .eq("session_id", session.id)
-            .eq("status", "waitlist")
-            .order("created_at", { ascending: true })
-            .limit(1);
-          if (waitlist && waitlist.length > 0) {
-            const promoted = waitlist[0];
-            await supabase
-              .from("session_participants")
-              .update({ status: "confirmed", updated_at: new Date().toISOString() })
-              .eq("id", promoted.id);
-            const origin = new URL(request.url).origin;
-            fetch(`${origin}/api/waitlist-notification`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                meetup_id: meetupId,
-                user_id: promoted.user_id,
-                phone: promoted.user?.phone || "",
-                nickname: promoted.user?.name || "球友",
-                reservation_date: date
-              })
-            }).catch(() => {});
+          const { data: sInfo } = await supabase
+            .from("sessions")
+            .select("id, meetup_id, session_date, status, capacity_override, session_notes, meetup:meetups(capacity, gear)")
+            .eq("id", session.id)
+            .maybeSingle();
+          const requiresApproval = String(sInfo?.meetup?.gear || "").includes("REQUIRES_APPROVAL");
+          const isForcedFull = sInfo?.status === "full" || String(sInfo?.session_notes || "").includes("[FORCE_FULL]");
+          if (sInfo && !requiresApproval && !isForcedFull && sInfo.status !== "cancelled" && sInfo.status !== "closed") {
+            const rawCap = Number(sInfo.capacity_override ?? sInfo.meetup?.capacity ?? 0);
+            const reservedMatch = String(sInfo.session_notes || "").match(/\[RESERVED:(\d+)\]/);
+            const reservedCount = reservedMatch ? Math.max(0, parseInt(reservedMatch[1], 10) || 0) : 0;
+            const effectiveCapacity = rawCap > 0 ? Math.max(0, rawCap - reservedCount) : 0;
+
+            const [{ data: allSubs }, { data: sessionParts }] = await Promise.all([
+              supabase
+                .from("member_meetup_subscriptions")
+                .select("meetup_id, organizer_member:organizer_members(user_id, status)")
+                .eq("meetup_id", meetupId),
+              supabase
+                .from("session_participants")
+                .select("id, user_id, status, people_count, created_at, user:users(id, name, phone)")
+                .eq("session_id", session.id)
+            ]);
+            const allSessParts = sessionParts || [];
+            const absentUserIds = new Set(allSessParts.filter(p => p.status === "absent").map(p => String(p.user_id)));
+            const activeSubUserIds = new Set(
+              (allSubs || [])
+                .filter(sub => sub.organizer_member?.status === "active" && !absentUserIds.has(String(sub.organizer_member?.user_id)))
+                .map(sub => String(sub.organizer_member?.user_id))
+                .filter(Boolean)
+            );
+            let nonMemberConfirmed = 0;
+            allSessParts.forEach(p => {
+              if (p.status === "confirmed" || p.status === "attended") {
+                const uId = String(p.user_id);
+                if (!activeSubUserIds.has(uId)) {
+                  nonMemberConfirmed += Number(p.people_count || 1);
+                } else if (Number(p.people_count || 1) > 1) {
+                  nonMemberConfirmed += Number(p.people_count || 1) - 1;
+                }
+              }
+            });
+            const currentConfirmedTotal = activeSubUserIds.size + nonMemberConfirmed;
+            const waitlistRows = allSessParts
+              .filter(p => p.status === "waitlist")
+              .sort((a, b) => String(a.created_at || "").localeCompare(String(b.created_at || "")) || String(a.id).localeCompare(String(b.id)));
+            if (waitlistRows.length > 0) {
+              const promoted = waitlistRows[0];
+              const addCount = Number(promoted.people_count || 1);
+              if (rawCap <= 0 || currentConfirmedTotal + addCount <= effectiveCapacity) {
+                await supabase
+                  .from("session_participants")
+                  .update({ status: "confirmed", updated_at: new Date().toISOString() })
+                  .eq("id", promoted.id);
+                const origin = new URL(request.url).origin;
+                fetch(`${origin}/api/waitlist-notification`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    meetup_id: meetupId,
+                    user_id: promoted.user_id,
+                    phone: promoted.user?.phone || "",
+                    nickname: promoted.user?.name || "球友",
+                    reservation_date: date
+                  })
+                }).catch(() => {});
+              }
+            }
           }
         } catch (e) {
           console.warn("Waitlist promote error:", e);
