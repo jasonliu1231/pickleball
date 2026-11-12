@@ -698,6 +698,7 @@ a {
 }
 
 .day {
+  position: relative;
   aspect-ratio: 1;
   border-radius: 12px;
   background: #f8fafc;
@@ -705,7 +706,6 @@ a {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 4px;
   font-size: 13.5px;
   font-weight: 800;
   cursor: pointer;
@@ -746,6 +746,10 @@ a {
 }
 
 .day .dot {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
   width: 5px;
   height: 5px;
   border-radius: 50%;

@@ -20,8 +20,23 @@ const client = new Proxy({}, {
     const actualClient = getSupabaseClient();
     if (!actualClient) {
       if (prop === "auth") {
+        const waitForClient = () =>
+          new Promise((resolve) => {
+            let tries = 0;
+            const timer = setInterval(() => {
+              tries++;
+              const c = getSupabaseClient();
+              if (c || tries > 60) {
+                clearInterval(timer);
+                resolve(c);
+              }
+            }, 50);
+          });
         return {
-          getSession: () => Promise.resolve({ data: { session: null } }),
+          getSession: async () => {
+            const c = getSupabaseClient() || (await waitForClient());
+            return c ? c.auth.getSession() : { data: { session: null } };
+          },
           onAuthStateChange: (cb) => {
             // 当 client 就绪后自动補訂閱
             const poll = setInterval(() => {
@@ -30,12 +45,12 @@ const client = new Proxy({}, {
                 clearInterval(poll);
                 c.auth.onAuthStateChange(cb);
               }
-            }, 100);
+            }, 50);
             return { data: { subscription: { unsubscribe: () => clearInterval(poll) } } };
           },
-          setSession: (s) => {
-            const c = getSupabaseClient();
-            return c ? c.auth.setSession(s) : Promise.resolve({ data: { session: null }, error: null });
+          setSession: async (s) => {
+            const c = getSupabaseClient() || (await waitForClient());
+            return c ? c.auth.setSession(s) : { data: { session: null }, error: null };
           },
           signInWithPassword: (p) => {
             const c = getSupabaseClient();
@@ -788,7 +803,32 @@ let userAbsentKeys = new Set();
 let userSubscribedMeetups = [];
 
 async function loadUserCalendarBookings() {
-  if (!currentUser || !currentSystemMember?.id) {
+  let targetMemberId = currentSystemMember?.id || null;
+  if (currentSystemMember?.phone && validatePhone(cleanPhone(currentSystemMember.phone))) {
+    try {
+      localStorage.setItem("pickleball_user_phone", cleanPhone(currentSystemMember.phone));
+    } catch (_) {}
+  }
+
+  if (!targetMemberId) {
+    try {
+      const savedPh = cleanPhone(localStorage.getItem("pickleball_user_phone") || "");
+      if (savedPh && validatePhone(savedPh)) {
+        const { data: userByPh } = await client
+          .from("users")
+          .select("id")
+          .eq("phone", savedPh)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (userByPh?.id) {
+          targetMemberId = userByPh.id;
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (!targetMemberId) {
     userDirectBookedDates = new Set();
     userAbsentKeys = new Set();
     userSubscribedMeetups = [];
@@ -801,12 +841,12 @@ async function loadUserCalendarBookings() {
       client
         .from("session_participants")
         .select("status, session:sessions(id, meetup_id, session_date, status, session_notes, meetup:meetups(id, is_active, is_one_off, start_date, end_date))")
-        .eq("user_id", currentSystemMember.id)
+        .eq("user_id", targetMemberId)
         .neq("status", "cancelled"),
       client
         .from("organizer_members")
         .select("id, status, member_meetup_subscriptions(meetup_id, meetup:meetups(id, is_active, is_one_off, one_off_date, start_date, end_date, weekdays))")
-        .eq("user_id", currentSystemMember.id)
+        .eq("user_id", targetMemberId)
         .eq("status", "active")
     ]);
 
@@ -851,7 +891,12 @@ async function loadUserCalendarBookings() {
 }
 
 function hasUserBookingOnDate(dateStr) {
-  if (!currentUser || !currentSystemMember?.id) return false;
+  const hasAnyData = Boolean(
+    (currentUser && currentSystemMember?.id) ||
+    userDirectBookedDates.size > 0 ||
+    userSubscribedMeetups.length > 0
+  );
+  if (!hasAnyData) return false;
   if (userDirectBookedDates.has(dateStr)) return true;
   if (!userSubscribedMeetups.length) return false;
 
@@ -1206,13 +1251,12 @@ function renderCalendar() {
   for (let d = 1; d <= last.getDate(); d++) cells.push(toISODate(new Date(year, month, d)));
   while (cells.length % 7 !== 0) cells.push(null);
   const today = toISODate(new Date());
-  const isLoggedIn = Boolean(currentUser && currentSystemMember?.id);
   daysGridEl.innerHTML = cells.map((dateStr) => {
     if (!dateStr) return `<button class="day empty" tabindex="-1"></button>`;
     const d = dateFromISO(dateStr);
     const isPast = dateStr < today;
     const has = hasAvailableMeetupOnDate(dateStr);
-    const booked = !isPast && isLoggedIn && hasUserBookingOnDate(dateStr);
+    const booked = !isPast && hasUserBookingOnDate(dateStr);
     const selected = dateStr === selectedDate;
     const isToday = dateStr === today;
     return `<button class="day ${isToday ? "today" : ""} ${isPast ? "past" : ""} ${has && !isPast ? "available" : ""} ${selected ? "selected" : ""}" data-date="${dateStr}">
@@ -1221,9 +1265,7 @@ function renderCalendar() {
   }).join("");
   const hintEl = $("calendarHint") || document.querySelector(".calendar-card .hint");
   if (hintEl) {
-    hintEl.innerHTML = isLoggedIn
-      ? `<span class="hint-box"></span><span>可報名場次</span><span class="dot" style="margin-left: 10px;"></span><span>已預約場次</span>`
-      : `<span class="hint-box"></span><span>藍框代表當天有團可報名</span>`;
+    hintEl.innerHTML = `<span class="hint-box"></span><span>可報名場次</span><span class="dot" style="margin-left: 10px;"></span><span>已預約場次</span>`;
   }
   document.querySelectorAll(".day[data-date]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -2864,6 +2906,9 @@ async function handleQueryCancel() {
   if (blockCheck.blocked) return setMessage($("cancelMessage"), blockCheck.reason, false);
   const phone = cleanPhone($("cancelPhone").value);
   if (!validatePhone(phone)) return setMessage($("cancelMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
+  try {
+    if (!currentSystemMember?.phone) localStorage.setItem("pickleball_user_phone", phone);
+  } catch (_) {}
 
   clearMessage($("cancelMessage"));
   $("queryCancelBtn").disabled = true;
@@ -3001,6 +3046,9 @@ async function handleSignup(e) {
   }
   if (!nickname) return setMessage($("formMessage"), "請填寫暱稱。", false);
   if (!validatePhone(phone)) return setMessage($("formMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
+  try {
+    if (!currentSystemMember?.phone) localStorage.setItem("pickleball_user_phone", phone);
+  } catch (_) {}
   $("submitBtn").disabled = true;
   $("submitBtn").textContent = "送出中...";
   try {
@@ -6627,10 +6675,7 @@ function toggleAuthView(isLoggedIn) {
   } else {
     if (authContainer) authContainer.style.display = "block";
     if (memberDashboard) memberDashboard.style.display = "none";
-    userDirectBookedDates = new Set();
-    userAbsentKeys = new Set();
-    userSubscribedMeetups = [];
-    if ($("daysGrid")) renderCalendar();
+    loadUserCalendarBookings().catch((e) => console.warn("loadUserCalendarBookings warning:", e));
   }
 }
 
@@ -6667,7 +6712,7 @@ $("editPickupForm")?.addEventListener("submit", handleUpdatePickup);
 $("signupForm")?.addEventListener("submit", handleSignup);
 $("cancelForm")?.addEventListener("submit", handleCancel);
 $("queryCancelBtn")?.addEventListener("click", handleQueryCancel);
-$("logoutBtn")?.addEventListener("click", async () => { sessionStorage.setItem("user_logged_out", "true"); await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
+$("logoutBtn")?.addEventListener("click", async () => { try { localStorage.removeItem("pickleball_user_phone"); } catch (_) {} sessionStorage.setItem("user_logged_out", "true"); await client.auth.signOut(); currentUser = null; currentSystemMember = null; toggleAuthView(false); });
 $("deleteAccountBtn")?.addEventListener("click", async () => {
   if (!confirm("確定要註銷並刪除您的會員資料嗎？此操作將解除綁定並清除所有登入資訊，且無法復原。")) return;
   try {

@@ -69,7 +69,7 @@ export default function Page() {
                   </div>
                   <div className="week-row" id="weekRow"></div>
                   <div className="days-grid" id="daysGrid"></div>
-                  <div className="hint" id="calendarHint"><span className="hint-box"></span><span>藍框代表當天有團可報名</span></div>
+                  <div className="hint" id="calendarHint"><span className="hint-box"></span><span>可報名場次</span><span className="dot" style={{ marginLeft: "10px" }}></span><span>已預約場次</span></div>
                 </div>
 
                 <div className="list-card">
