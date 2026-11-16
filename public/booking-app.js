@@ -627,6 +627,196 @@ function calculateDurationText(start, end) {
 }
 function cleanPhone(phone) { return String(phone || "").replace(/\D/g, ""); }
 function validatePhone(phone) { return /^09\d{8}$/.test(cleanPhone(phone)); }
+function timeToMinutes(tStr) {
+  if (!tStr) return 0;
+  const parts = String(tStr).split(":");
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return h * 60 + m;
+}
+function isTimeOverlapping(startA, endA, startB, endB) {
+  let realEndA = endA;
+  if (realEndA <= startA) realEndA += 24 * 60;
+  let realEndB = endB;
+  if (realEndB <= startB) realEndB += 24 * 60;
+  return startA < realEndB && realEndA > startB;
+}
+
+async function checkWebScheduleOverlap({ phone, targetMeetup, targetDate }) {
+  try {
+    if (!targetMeetup || !targetDate) return { hasOverlap: false, overlaps: [] };
+    const targetStart = timeToMinutes(targetMeetup.start_time);
+    let targetEnd = timeToMinutes(targetMeetup.end_time);
+    if (targetEnd <= targetStart) targetEnd += 24 * 60;
+    if (!targetStart && !targetEnd) return { hasOverlap: false, overlaps: [] };
+
+    const clPhone = cleanPhone(phone);
+    if (!clPhone) return { hasOverlap: false, overlaps: [] };
+
+    const { data: usersByPhone } = await client
+      .from("users")
+      .select("id")
+      .eq("phone", clPhone);
+
+    const userIds = (usersByPhone || []).map(u => u.id).filter(Boolean);
+    if (currentUser?.id) userIds.push(currentUser.id);
+    if (userIds.length === 0) return { hasOverlap: false, overlaps: [] };
+
+    const targetWeekday = dateFromISO(targetDate).getDay();
+
+    const [partRes, omRes, sessionsRes] = await Promise.all([
+      client
+        .from("session_participants")
+        .select(`
+          id,
+          user_id,
+          status,
+          session:sessions (
+            id,
+            meetup_id,
+            session_date,
+            status,
+            session_notes,
+            meetup:meetups (
+              id,
+              name,
+              start_time,
+              end_time,
+              is_active
+            )
+          )
+        `)
+        .in("user_id", userIds)
+        .neq("status", "cancelled"),
+      client
+        .from("organizer_members")
+        .select(`
+          id,
+          user_id,
+          status,
+          member_meetup_subscriptions (
+            meetup_id,
+            meetup:meetups (
+              id,
+              name,
+              start_time,
+              end_time,
+              is_active,
+              is_one_off,
+              one_off_date,
+              start_date,
+              end_date,
+              weekdays
+            )
+          )
+        `)
+        .in("user_id", userIds)
+        .eq("status", "active"),
+      client
+        .from("sessions")
+        .select("id, meetup_id, session_date, status, session_notes")
+        .eq("session_date", targetDate)
+    ]);
+
+    const absentMeetupIds = new Set();
+    const overlapsMap = new Map();
+
+    const cancelledSessionMeetupIds = new Set();
+    (sessionsRes?.data || []).forEach((s) => {
+      const isAutoCancel = s.status === "cancelled" && String(s.session_notes || "").includes("自動取消");
+      if (s.status === "cancelled" && !isAutoCancel) {
+        cancelledSessionMeetupIds.add(String(s.meetup_id));
+      }
+    });
+
+    (partRes?.data || []).forEach((p) => {
+      const s = p.session;
+      if (!s || s.session_date !== targetDate) return;
+      if (p.status === "absent") {
+        absentMeetupIds.add(String(s.meetup_id));
+        return;
+      }
+      if (!["confirmed", "waitlist", "attended", "tentative"].includes(p.status)) return;
+      if (s.status === "cancelled") return;
+      const m = s.meetup;
+      if (!m || m.is_active === false) return;
+      if (String(m.id) === String(targetMeetup.id)) return;
+
+      const mStart = timeToMinutes(m.start_time);
+      const mEnd = timeToMinutes(m.end_time);
+      if (isTimeOverlapping(targetStart, targetEnd, mStart, mEnd)) {
+        let statusLabel = "正取";
+        if (p.status === "waitlist") statusLabel = "候補";
+        else if (p.status === "tentative") statusLabel = "彈性候補";
+
+        overlapsMap.set(String(m.id), {
+          meetupId: String(m.id),
+          meetupName: m.name || "未命名開團",
+          startTime: String(m.start_time || "").slice(0, 5),
+          endTime: String(m.end_time || "").slice(0, 5),
+          statusLabel
+        });
+      }
+    });
+
+    (omRes?.data || []).forEach((om) => {
+      (om.member_meetup_subscriptions || []).forEach((sub) => {
+        const m = sub.meetup;
+        if (!m || m.is_active === false) return;
+        const mIdStr = String(m.id);
+        if (mIdStr === String(targetMeetup.id)) return;
+        if (absentMeetupIds.has(mIdStr)) return;
+        if (cancelledSessionMeetupIds.has(mIdStr)) return;
+        if (overlapsMap.has(mIdStr)) return;
+
+        let runsOnDate = false;
+        if (m.is_one_off) {
+          runsOnDate = m.one_off_date === targetDate;
+        } else {
+          const wks = (m.weekdays || []).map(Number);
+          runsOnDate = wks.includes(targetWeekday);
+          if (runsOnDate && m.start_date && targetDate < m.start_date) runsOnDate = false;
+          if (runsOnDate && m.end_date && targetDate > m.end_date) runsOnDate = false;
+        }
+        if (!runsOnDate) return;
+
+        const mStart = timeToMinutes(m.start_time);
+        const mEnd = timeToMinutes(m.end_time);
+        if (isTimeOverlapping(targetStart, targetEnd, mStart, mEnd)) {
+          overlapsMap.set(mIdStr, {
+            meetupId: mIdStr,
+            meetupName: m.name || "固定會員活動",
+            startTime: String(m.start_time || "").slice(0, 5),
+            endTime: String(m.end_time || "").slice(0, 5),
+            statusLabel: "固定會員（正取）"
+          });
+        }
+      });
+    });
+
+    const overlaps = Array.from(overlapsMap.values());
+    return { hasOverlap: overlaps.length > 0, overlaps };
+  } catch (err) {
+    console.warn("checkWebScheduleOverlap error:", err);
+    return { hasOverlap: false, overlaps: [] };
+  }
+}
+
+function buildWebOverlapWarningMessage({ targetMeetup, targetDate, overlaps }) {
+  const overlapLines = (overlaps || []).map(
+    (o) => `•【${o.meetupName}】${o.startTime}–${o.endTime}（${o.statusLabel}）`
+  ).join("\n");
+
+  const targetTime = `${String(targetMeetup.start_time || "").slice(0, 5)}–${String(targetMeetup.end_time || "").slice(0, 5)}`;
+
+  return (
+    `⚠️【時段重疊提醒】\n\n` +
+    `偵測到您在當天（${targetDate}）已報名其他場次：\n` +
+    `${overlapLines}\n\n` +
+    `與本場次【${targetMeetup.name}】（${targetTime}）時段有所重疊。\n\n` +
+    `您確定仍要繼續報名本場次嗎？`
+  );
+}
 function isTodayDate(dateStr) { return dateStr === toISODate(new Date()); }
 function sameDayCancelMessage() { return "當天不開放線上取消預約，請直接聯絡團長處理續數與名額調整。"; }
 function maskPhone(phone) {
@@ -3046,6 +3236,30 @@ async function handleSignup(e) {
   }
   if (!nickname) return setMessage($("formMessage"), "請填寫暱稱。", false);
   if (!validatePhone(phone)) return setMessage($("formMessage"), "請輸入正確手機號碼，例如 0912345678。", false);
+
+  // 方案 A：檢查時段重疊，彈窗提醒球友確認
+  try {
+    const overlapCheck = await checkWebScheduleOverlap({
+      phone,
+      targetMeetup: currentMeetup,
+      targetDate: selectedDate
+    });
+
+    if (overlapCheck?.hasOverlap) {
+      const warningMsg = buildWebOverlapWarningMessage({
+        targetMeetup: currentMeetup,
+        targetDate: selectedDate,
+        overlaps: overlapCheck.overlaps
+      });
+
+      const confirmed = window.confirm(warningMsg);
+      if (!confirmed) {
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("時段重疊檢查異常:", err);
+  }
   try {
     if (!currentSystemMember?.phone) localStorage.setItem("pickleball_user_phone", phone);
   } catch (_) {}
