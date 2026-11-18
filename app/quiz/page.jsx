@@ -67,60 +67,46 @@ const QUIZ_QUESTIONS = [
 ];
 
 function getLevelResult(avgScore) {
-  if (avgScore < 1.8) {
+  const avg = Number(avgScore) || 2.0;
+  if (avg < 2.0) {
     return {
-      levelKey: "1.5",
-      title: "1.0 ~ 1.5 級（新手初學）",
-      systemSkill: "需教學 (<2.0)",
+      range: "1.0 - 2.0",
+      title: "落在 1.0 - 2.0 區間",
       color: "#059669",
       bg: "#ecfdf5",
       border: "#a7f3d0",
-      desc: "您已了解基本比賽規則，正在熟悉揮拍手感與擊球過網！",
-      advice: "建議報名：【1.0-1.5 新手教學團】、【不限程度歡樂暢打】，多練習發球、接球的擊中率與雙跳站位。"
     };
-  } else if (avgScore < 2.3) {
+  } else if (avg < 2.5) {
     return {
-      levelKey: "2.0",
-      title: "2.0 級（入門體驗）",
-      systemSkill: "需教學 (<2.0)",
-      color: "#0d9488",
-      bg: "#f0fdfa",
-      border: "#99f6e4",
-      desc: "接、發球逐漸穩定，開始有丁克球、截擊等觀念，但失誤仍偏多！",
-      advice: "建議報名：【2.0 歡樂暢打團】、【新手練球場】，練習減少低級高球失誤，並嘗試在網前輕推丁克球。"
-    };
-  } else if (avgScore < 2.8) {
-    return {
-      levelKey: "2.5",
-      title: "2.5 級（基礎初階）",
-      systemSkill: "初學 (2.0-2.5)",
+      range: "2.0 - 2.5",
+      title: "落在 2.0 - 2.5 區間",
       color: "#0284c7",
       bg: "#f0f9ff",
       border: "#bae6fd",
-      desc: "基本擊球技術逐漸穩定，失誤明顯減少，開始懂得與隊友一起向前推進到廚房線！",
-      advice: "建議報名：【2.0-2.5 初學友善交流團】、【初階暢打】，多練習第三拍長丁克（Drop）與向前推進。"
     };
-  } else if (avgScore < 3.3) {
+  } else if (avg < 3.0) {
     return {
-      levelKey: "3.0",
-      title: "3.0 級（一般中階）",
-      systemSkill: "一般 (2.5-3.0)",
+      range: "2.5 - 3.0",
+      title: "落在 2.5 - 3.0 區間",
       color: "#16a34a",
       bg: "#f0fdf4",
       border: "#bbf7d0",
-      desc: "基本技巧穩定，能控制落點，來回拍數變多，能從過渡區打出第三拍短球，具備良好比賽觀念！",
-      advice: "建議報名：【2.5-3.0 一般交流團】、【3.0 暢打對抗】。下一步可精進底線長丁克與網前變向拉鋸！"
+    };
+  } else if (avg < 3.5) {
+    return {
+      range: "3.0 - 3.5",
+      title: "落在 3.0 - 3.5 區間",
+      color: "#2563eb",
+      bg: "#eff6ff",
+      border: "#bfdbfe",
     };
   } else {
     return {
-      levelKey: "3.5",
-      title: "3.5+ 級（進階好手）",
-      systemSkill: "進階 (3.0+)",
+      range: "3.5+",
+      title: "落在 3.5+ 區間",
       color: "#7c3aed",
       bg: "#f5f3ff",
       border: "#ddd6fe",
-      desc: "基本技巧成熟，底線第三拍短球穩定，能網前變向丁克並具備卸力重置（Reset）防守能力！",
-      advice: "建議報名：【3.0+ / 3.5 進階競技團】、【分級交流賽】，享受高強度戰術拉鋸與攻防轉換！"
     };
   }
 }
@@ -278,7 +264,7 @@ export default function QuizPage() {
           </div>
         ) : (
           /* Result */
-          <div style={{ backgroundColor: "#ffffff", borderRadius: "20px", padding: "32px 24px", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.06)", border: "1px solid #e2e8f0", textAlign: "center" }}>
+          <div style={{ backgroundColor: "#ffffff", borderRadius: "20px", padding: "36px 24px", boxShadow: "0 6px 20px rgba(15, 23, 42, 0.06)", border: "1px solid #e2e8f0", textAlign: "center" }}>
             <div style={{
               width: "72px",
               height: "72px",
@@ -291,47 +277,26 @@ export default function QuizPage() {
               fontSize: "36px",
               margin: "0 auto 16px"
             }}>
-              🏆
+              🏓
             </div>
 
             <div style={{ fontSize: "14px", fontWeight: "700", color: "#64748b", marginBottom: "8px" }}>
-              根據您的技術自測，您的程度約為：
+              測驗平均得分：<strong style={{ color: "#0f172a", fontSize: "16px" }}>{avg.toFixed(1)}</strong> 分
             </div>
 
             <div style={{
               display: "inline-block",
-              padding: "10px 24px",
-              borderRadius: "14px",
+              padding: "12px 28px",
+              borderRadius: "16px",
               backgroundColor: result.bg,
               border: `2px solid ${result.border}`,
               color: result.color,
-              fontSize: "22px",
+              fontSize: "24px",
               fontWeight: "900",
-              marginBottom: "12px"
+              marginBottom: "28px"
             }}>
               {result.title}
             </div>
-
-            <div style={{ fontSize: "14px", color: "#64748b", marginBottom: "20px" }}>
-              報名時建議選擇：<strong style={{ color: "#0f172a" }}>{result.systemSkill}</strong>
-            </div>
-
-            <div style={{
-              backgroundColor: "#fffbeb",
-              borderRadius: "12px",
-              padding: "16px",
-              textAlign: "left",
-              border: "1px solid #fde68a",
-              marginBottom: "24px"
-            }}>
-              <div style={{ fontSize: "14px", color: "#1e293b", marginBottom: "8px", lineHeight: "1.6" }}>
-                {result.desc}
-              </div>
-              <div style={{ fontSize: "13px", color: "#92400e", lineHeight: "1.5", fontWeight: "500" }}>
-                💡 {result.advice}
-              </div>
-            </div>
-
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               <Link
@@ -347,7 +312,7 @@ export default function QuizPage() {
                   fontSize: "15px",
                 }}
               >
-                前往報名活動
+                前往預約打球
               </Link>
 
               <button
