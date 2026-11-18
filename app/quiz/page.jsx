@@ -280,8 +280,8 @@ export default function QuizPage() {
               🏓
             </div>
 
-            <div style={{ fontSize: "14px", fontWeight: "700", color: "#64748b", marginBottom: "8px" }}>
-              測驗平均得分：<strong style={{ color: "#0f172a", fontSize: "16px" }}>{avg.toFixed(1)}</strong> 分
+            <div style={{ fontSize: "14px", fontWeight: "700", color: "#64748b", marginBottom: "12px" }}>
+              自評程度落點
             </div>
 
             <div style={{
@@ -293,9 +293,13 @@ export default function QuizPage() {
               color: result.color,
               fontSize: "24px",
               fontWeight: "900",
-              marginBottom: "28px"
+              marginBottom: "10px"
             }}>
               {result.title}
+            </div>
+
+            <div style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "26px" }}>
+              （僅供參考）
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
