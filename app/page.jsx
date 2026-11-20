@@ -100,12 +100,16 @@ export default function Page() {
                     💰 <span id="modalFeeText">--</span>
                   </span>
                 </div>
-                <div id="modalContactButtonsRow" style={{ display: "none", flexWrap: "wrap", alignItems: "center", gap: "6px", maxWidth: "100%" }}>
-                  <button type="button" id="modalLineContactBtn" style={{ display: "none", alignItems: "center", gap: "4px", background: "#06C755", color: "#ffffff", border: "none", padding: "4px 9px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(6,199,85,0.2)", whiteSpace: "nowrap", flexShrink: 0 }} title="一鍵加團主好友">
-                    💬 加 LINE
+                <div id="modalContactButtonsRow" style={{ display: "none", flexWrap: "wrap", alignItems: "center", gap: "6px", maxWidth: "100%", margin: "2px 0" }}>
+                  <span style={{ fontSize: "11.5px", fontWeight: "800", color: "#64748b", marginRight: "2px" }}>快速前往：</span>
+                  <button type="button" id="modalLineContactBtn" style={{ display: "none", alignItems: "center", gap: "3px", background: "#f0fdf4", color: "#15803d", border: "1px solid #16a34a", padding: "4px 10px", borderRadius: "12px", fontSize: "11.5px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(22,163,74,0.15)", whiteSpace: "nowrap", flexShrink: 0 }} title="一鍵加團主好友">
+                    💬 加 LINE ↗
                   </button>
-                  <button type="button" id="modalGroupLinkBtn" style={{ display: "none", alignItems: "center", gap: "4px", background: "#059669", color: "#ffffff", border: "none", padding: "4px 9px", borderRadius: "8px", fontSize: "12.5px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(5,150,105,0.2)", whiteSpace: "nowrap", flexShrink: 0 }} title="加入 LINE 活動群組">
-                    👥 LINE 群組
+                  <button type="button" id="modalGroupLinkBtn" style={{ display: "none", alignItems: "center", gap: "3px", background: "#ecfdf5", color: "#047857", border: "1px solid #059669", padding: "4px 10px", borderRadius: "12px", fontSize: "11.5px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(5,150,105,0.15)", whiteSpace: "nowrap", flexShrink: 0 }} title="加入 LINE 活動群組">
+                    👥 加入群組 ↗
+                  </button>
+                  <button type="button" id="modalDoorLinkBtn" style={{ display: "none", alignItems: "center", gap: "3px", background: "#eff6ff", color: "#1d4ed8", border: "1px solid #2563eb", padding: "4px 10px", borderRadius: "12px", fontSize: "11.5px", fontWeight: "800", cursor: "pointer", boxShadow: "0 1px 2px rgba(37,99,235,0.15)", whiteSpace: "nowrap", flexShrink: 0 }} title="開啟球場開門網址">
+                    🚪 點此開門 ↗
                   </button>
                 </div>
                 <span id="modalAddressBadge" style={{ display: "inline-flex", alignItems: "center", gap: "4px", background: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", padding: "4px 10px", borderRadius: "8px", fontSize: "13px", fontWeight: "700" }}>

@@ -1971,6 +1971,7 @@ function openSignup(meetup, initialPwd = null) {
 
   const effectiveLineId = meetup.line_id || meetup.organizer?.line_id || null;
   const effectiveGroupUrl = meetup.group_url || null;
+  const effectiveDoorUrl = meetup.door_url || null;
 
   const modalLineBtn = $("modalLineContactBtn");
   if (modalLineBtn) {
@@ -1997,9 +1998,53 @@ function openSignup(meetup, initialPwd = null) {
       modalGroupBtn.onclick = null;
     }
   }
+
+  const modalDoorBtn = $("modalDoorLinkBtn");
+  if (modalDoorBtn) {
+    if (effectiveDoorUrl) {
+      modalDoorBtn.style.display = "inline-flex";
+      modalDoorBtn.onclick = async () => {
+        const rawUrl = String(effectiveDoorUrl).trim();
+        const doorMatch = rawUrl.match(/\/door(?:\/(\d+))?/i);
+        const isHengfuUrl = /hengfu-i\.com/i.test(rawUrl);
+        if (doorMatch || isHengfuUrl) {
+          const deviceId = doorMatch?.[1] ? Number(doorMatch[1]) : 612;
+          if (!confirm("🚪 確定要立即開啟球場大門嗎？（請確認已抵達球館門口）")) return;
+          const origText = modalDoorBtn.innerHTML;
+          modalDoorBtn.disabled = true;
+          modalDoorBtn.innerHTML = "⏳ 開門中...";
+          try {
+            const res = await fetch("/api/open-door", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ device_id: deviceId }),
+            });
+            const data = await res.json();
+            if (data.ok) {
+              alert("✅ 球場大門已開啟！請直接進入球場。");
+            } else {
+              alert("❌ 開門失敗：" + (data.error || "請稍後再試"));
+            }
+          } catch (err) {
+            alert("❌ 網路連線失敗，請稍後再試");
+          } finally {
+            modalDoorBtn.disabled = false;
+            modalDoorBtn.innerHTML = origText;
+          }
+          return;
+        }
+        const targetUrl = rawUrl.startsWith("http") ? rawUrl : "https://" + rawUrl;
+        window.open(targetUrl, "_blank");
+      };
+    } else {
+      modalDoorBtn.style.display = "none";
+      modalDoorBtn.onclick = null;
+    }
+  }
+
   const modalContactRow = $("modalContactButtonsRow");
   if (modalContactRow) {
-    modalContactRow.style.display = (effectiveLineId || effectiveGroupUrl) ? "flex" : "none";
+    modalContactRow.style.display = (effectiveLineId || effectiveGroupUrl || effectiveDoorUrl) ? "flex" : "none";
   }
   const cap = meetup.capacity_override ?? meetup.capacity ?? 0;
   const realConfirmed = Number(meetup.confirmed_count || 0);
