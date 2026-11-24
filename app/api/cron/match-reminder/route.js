@@ -257,6 +257,12 @@ async function handleCronMatchReminder(request) {
           address,
           street_address,
           start_time,
+          weekdays,
+          start_date,
+          end_date,
+          is_one_off,
+          one_off_date,
+          is_active,
           organizer_id,
           creator_user_id,
           organizers(name),
@@ -288,7 +294,21 @@ async function handleCronMatchReminder(request) {
     // 2. 篩選開賽時間落在未來 0 ~ 135 分鐘（約 2 小時左右且尚未開賽）的場次
     for (const s of sessions) {
       if (!s.meetup || !s.meetup.start_time) continue;
+      if (s.meetup.is_active === false) continue;
       if (String(s.session_notes || "").includes("自動取消")) continue;
+
+      // 檢查是否符合活動的起迄日期與星期排程（防止孤立或過期舊場次誤發提醒）
+      if (s.meetup.is_one_off) {
+        const targetDate = s.meetup.one_off_date || s.meetup.start_date;
+        if (targetDate && s.session_date !== targetDate) continue;
+      } else {
+        if (s.meetup.start_date && s.session_date < s.meetup.start_date) continue;
+        if (s.meetup.end_date && s.session_date > s.meetup.end_date) continue;
+        const [sY, sM, sD] = s.session_date.split("-").map(Number);
+        const sWd = new Date(sY, sM - 1, sD).getDay();
+        const wds = Array.isArray(s.meetup.weekdays) ? s.meetup.weekdays : [];
+        if (wds.length > 0 && !wds.includes(sWd)) continue;
+      }
       
       const startTimeStr = s.meetup.start_time.slice(0, 5); // "20:00"
       // 組合台北時間 ISO 字串
